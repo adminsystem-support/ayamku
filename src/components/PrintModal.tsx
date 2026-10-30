@@ -142,56 +142,79 @@ export const PrintModal: React.FC<PrintModalProps> = ({
   };
 
   const generatePdfBlob = async (): Promise<{ blob: Blob; fileName: string; summaryText: string } | null> => {
-    try {
-      // 1. Vector PDF generation via jsPDF & autoTable (100% reliable, zero CSS crashes)
-      const { doc, fileName } = createDocumentPdf(printData, storeProfile, printFormat);
-      const blob = doc.output('blob');
-      const summaryText = generateWhatsAppMessage(printData, storeProfile, recipientPhone);
-      return { blob, fileName, summaryText };
-    } catch (err) {
-      console.warn('Vector PDF generation fallback, trying html2canvas:', err);
-      // Fallback to html2canvas if needed
-      const el = document.getElementById('printable-document');
-      if (!el) return null;
+    let fileName = `Dokumen_${Date.now()}.pdf`;
+    if (printData.type === 'sale') fileName = `Nota_Penjualan_${printData.data.invoiceNumber}.pdf`;
+    else if (printData.type === 'purchase') fileName = `Faktur_Pembelian_${printData.data.invoiceNumber}.pdf`;
+    else if (printData.type === 'salary') fileName = `Slip_Gaji_${printData.data.slipNumber}.pdf`;
+    else if (printData.type === 'payment_receipt') fileName = `Kuitansi_${printData.data.receiptNo}.pdf`;
 
-      const canvas = await html2canvas(el, {
-        scale: 1.5,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-      });
+    const summaryText = generateWhatsAppMessage(printData, storeProfile, recipientPhone);
 
-      const imgData = canvas.toDataURL('image/png');
-      const isThermal = printFormat === 'thermal';
+    const el = document.getElementById('printable-document');
+    if (el) {
+      try {
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        });
 
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: isThermal
-          ? (thermalSize === '58mm' ? [58, Math.max(90, (canvas.height * 58) / canvas.width)] : [80, Math.max(120, (canvas.height * 80) / canvas.width)])
-          : 'a4',
-      });
+        const imgData = canvas.toDataURL('image/png');
+        const isThermal = printFormat === 'thermal';
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: isThermal
+            ? (thermalSize === '58mm' ? [58, Math.max(90, (canvas.height * 58) / canvas.width)] : [80, Math.max(120, (canvas.height * 80) / canvas.width)])
+            : 'a4',
+        });
 
-      const fileName = `Dokumen_${Date.now()}.pdf`;
-      const summaryText = generateWhatsAppMessage(printData, storeProfile, recipientPhone);
-      const blob = pdf.output('blob');
-      return { blob, fileName, summaryText };
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        const pageHeight = pdf.internal.pageSize.getHeight();
+
+        if (isThermal || pdfHeight <= pageHeight) {
+          pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        } else {
+          let heightLeft = pdfHeight;
+          let position = 0;
+
+          pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+          heightLeft -= pageHeight;
+
+          while (heightLeft > 0) {
+            position = heightLeft - pageHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+            heightLeft -= pageHeight;
+          }
+        }
+
+        const blob = pdf.output('blob');
+        return { blob, fileName, summaryText };
+      } catch (err) {
+        console.warn('html2canvas rendering fallback:', err);
+      }
     }
+
+    // Fallback to jsPDF vector
+    const { doc } = createDocumentPdf(printData, storeProfile, printFormat);
+    const blob = doc.output('blob');
+    return { blob, fileName, summaryText };
   };
 
   const handleSharePdfWhatsApp = async () => {
     setIsGeneratingPdf(true);
     const cleanPhone = formatWhatsAppPhone(recipientPhone);
-    const summaryText = generateWhatsAppMessage(printData, storeProfile, recipientPhone);
 
     try {
       const res = await generatePdfBlob();
       if (!res) return;
 
+      // Auto-download PDF for easy attachment
+      downloadBlobAsFile(res.blob, res.fileName);
       setWaGuideAlert({ show: true, fileName: res.fileName, phone: recipientPhone });
 
       // Check if mobile Web Share API with files is supported (Android/iOS)
@@ -210,19 +233,18 @@ export const PrintModal: React.FC<PrintModalProps> = ({
         }
       }
 
-      // Open WhatsApp directly targeting the registered phone number!
-      const waText = encodeURIComponent(res.summaryText);
+      // Open WhatsApp directly without pre-filled text for nota
+      const waText = res.summaryText ? encodeURIComponent(res.summaryText) : '';
       const waUrl = cleanPhone 
-        ? `https://wa.me/${cleanPhone}?text=${waText}`
-        : `https://wa.me/?text=${waText}`;
+        ? (waText ? `https://wa.me/${cleanPhone}?text=${waText}` : `https://wa.me/${cleanPhone}`)
+        : (waText ? `https://wa.me/?text=${waText}` : `https://wa.me/`);
 
       window.open(waUrl, '_blank');
     } catch (e: any) {
       console.error('Error generating/sharing PDF:', e);
-      const waText = encodeURIComponent(summaryText);
       const waUrl = cleanPhone 
-        ? `https://wa.me/${cleanPhone}?text=${waText}`
-        : `https://wa.me/?text=${waText}`;
+        ? `https://wa.me/${cleanPhone}`
+        : `https://wa.me/`;
       window.open(waUrl, '_blank');
     } finally {
       setIsGeneratingPdf(false);
@@ -257,7 +279,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           await navigator.share({
             files: [file],
             title: res.fileName,
-            text: res.summaryText,
           });
           return;
         } catch (err: any) {
@@ -269,10 +290,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({
       downloadBlobAsFile(res.blob, res.fileName);
       setWaGuideAlert({ show: true, fileName: res.fileName, phone: recipientPhone });
 
-      const waText = encodeURIComponent(res.summaryText);
+      const waText = res.summaryText ? encodeURIComponent(res.summaryText) : '';
       const waUrl = cleanPhone 
-        ? `https://wa.me/${cleanPhone}?text=${waText}`
-        : `https://wa.me/?text=${waText}`;
+        ? (waText ? `https://wa.me/${cleanPhone}?text=${waText}` : `https://wa.me/${cleanPhone}`)
+        : (waText ? `https://wa.me/?text=${waText}` : `https://wa.me/`);
 
       window.open(waUrl, '_blank');
     } catch (e) {
@@ -386,7 +407,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     ) : (
                       <>WhatsApp telah dibuka. </>
                     )}
-                    Ringkasan rincian belanja dan tautan E-Nota PDF resmi sudah otomatis terisi di kolom pesan.
+                    File PDF resmi berdesain seragam dengan tampilan cetak sudah otomatis terunduh. Silakan lampirkan file PDF tersebut melalui ikon klip/dokumen di WhatsApp.
                   </p>
                 </div>
               </div>

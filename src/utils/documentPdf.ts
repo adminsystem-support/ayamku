@@ -57,72 +57,12 @@ export function generateWhatsAppMessage(
   store: StoreProfile,
   recipientPhone?: string
 ): string {
+  // Untuk nota (penjualan, pembelian, kuitansi), tidak perlu menggunakan kata-kata/teks
+  if (data.type === 'sale' || data.type === 'purchase' || data.type === 'payment_receipt') {
+    return '';
+  }
+
   const storeName = store.name.toUpperCase();
-  const phoneFormatted = recipientPhone ? ` (${recipientPhone})` : '';
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
-
-  if (data.type === 'sale') {
-    const sale = data.data;
-    const itemsList = sale.items.map((item, index) => 
-      `${index + 1}. ${item.itemName} (${formatNumber(item.quantity)} ${item.unit} x ${formatCurrency(item.sellPrice)}) = ${formatCurrency(item.subtotal)}`
-    ).join('\n');
-
-    const statusBadge = (sale.paymentStatus || 'Lunas') === 'Lunas' ? '[LUNAS]' : '[SEBAGIAN / PIUTANG]';
-    const publicLink = origin ? `${origin}/?nota=${encodeURIComponent(sale.invoiceNumber)}` : '';
-
-    return (
-      `*NOTA PENJUALAN - ${storeName}*\n` +
-      `No. Faktur : ${sale.invoiceNumber}\n` +
-      `Tanggal    : ${formatDateTime(sale.date)}\n` +
-      `Pelanggan  : ${sale.customerName}${phoneFormatted}\n` +
-      `Kasir      : ${sale.createdBy}\n` +
-      `----------------------------------------\n` +
-      `*RINCIAN BARANG:*\n` +
-      `${itemsList}\n` +
-      `----------------------------------------\n` +
-      `Subtotal   : ${formatCurrency(sale.subtotal)}\n` +
-      (sale.discount > 0 ? `Diskon     : -${formatCurrency(sale.discount)}\n` : '') +
-      `*TOTAL     : ${formatCurrency(sale.grandTotal)}*\n` +
-      `Bayar      : ${formatCurrency(sale.amountPaid)} (${sale.paymentMethod})\n` +
-      (sale.change > 0 ? `Kembalian  : ${formatCurrency(sale.change)}\n` : '') +
-      ((sale.remainingDebt ?? 0) > 0 ? `*Sisa Tagihan: ${formatCurrency(sale.remainingDebt || 0)}*\n` : '') +
-      `*Status    : ${statusBadge}*\n` +
-      `----------------------------------------\n` +
-      `*Dokumen PDF Resmi:* Nota_Penjualan_${sale.invoiceNumber}.pdf\n` +
-      (publicLink ? `*Link Buka & Unduh PDF:* ${publicLink}\n` : '') +
-      `_(File PDF resmi sudah otomatis terunduh di perangkat. Lampirkan via ikon klip jika diperlukan)_\n\n` +
-      `Terima kasih atas kunjungan dan kerjasamanya!\n` +
-      `_${store.name}_`
-    );
-  }
-
-  if (data.type === 'purchase') {
-    const p = data.data;
-    const itemsList = p.items.map((item, index) => 
-      `${index + 1}. ${item.itemName} (${formatNumber(item.quantity)} ${item.unit} x ${formatCurrency(item.buyPrice)}) = ${formatCurrency(item.subtotal)}`
-    ).join('\n');
-
-    const publicLink = origin ? `${origin}/?nota=${encodeURIComponent(p.invoiceNumber)}` : '';
-
-    return (
-      `*FAKTUR PEMBELIAN - ${storeName}*\n` +
-      `No. Faktur : ${p.invoiceNumber}\n` +
-      `Tanggal    : ${formatDateTime(p.date)}\n` +
-      `Pemasok    : ${p.supplierName}${phoneFormatted}\n` +
-      `----------------------------------------\n` +
-      `*RINCIAN ITEM:*\n` +
-      `${itemsList}\n` +
-      `----------------------------------------\n` +
-      `*TOTAL     : ${formatCurrency(p.grandTotal)}*\n` +
-      `Dibayar    : ${formatCurrency(p.amountPaid)} (${p.paymentMethod})\n` +
-      `Sisa Hutang: ${formatCurrency(p.remainingDebt)}\n` +
-      `Status     : [${p.paymentStatus.toUpperCase()}]\n` +
-      `----------------------------------------\n` +
-      `*Dokumen PDF Resmi:* Faktur_Pembelian_${p.invoiceNumber}.pdf\n` +
-      (publicLink ? `*Link Buka & Unduh PDF:* ${publicLink}\n` : '') +
-      `_${store.name}_`
-    );
-  }
 
   if (data.type === 'salary') {
     const s = data.data;
@@ -147,23 +87,7 @@ export function generateWhatsAppMessage(
     );
   }
 
-  // Payment receipt
-  const r = data.data;
-  return (
-    `*KUITANSI PEMBAYARAN - ${storeName}*\n` +
-    `No. Kuitansi : ${r.receiptNo}\n` +
-    `Tanggal      : ${formatDate(r.date)}\n` +
-    `Nama Pihak   : ${r.counterpartyName}${phoneFormatted}\n` +
-    `No. Referensi: ${r.invoiceNumber}\n` +
-    `----------------------------------------\n` +
-    `*JUMLAH BAYAR: ${formatCurrency(r.paymentAmount)}*\n` +
-    `Metode       : ${r.paymentMethod}\n` +
-    `Sisa Piutang : ${formatCurrency(r.remainingDebt)}\n` +
-    (r.notes ? `Catatan      : ${r.notes}\n` : '') +
-    `----------------------------------------\n` +
-    `*Dokumen PDF Resmi:* Kuitansi_${r.receiptNo}.pdf\n` +
-    `_${store.name}_`
-  );
+  return '';
 }
 
 /**
