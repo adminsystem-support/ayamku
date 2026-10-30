@@ -450,47 +450,51 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Items Table matching Purchase layout */}
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b-2 border-slate-300 text-slate-700 bg-slate-50">
-                        <th className="py-2.5 px-3 text-left font-semibold">No</th>
-                        <th className="py-2.5 px-3 text-right font-semibold">Jumlah</th>
-                        <th className="py-2.5 px-3 text-left font-semibold">Nama Item</th>
-                        <th className="py-2.5 px-3 text-right font-semibold">Harga Satuan</th>
-                        <th className="py-2.5 px-3 text-right font-semibold">Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {printData.data.items.map((item, idx) => (
-                        <tr key={idx}>
-                          <td className="py-2 px-3 text-slate-500">{idx + 1}</td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums">
-                            {formatNumber(item.quantity)} {item.unit}
-                          </td>
-                          <td className="py-2 px-3 font-medium text-slate-800">{item.itemName}</td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums">{formatCurrency(item.sellPrice)}</td>
-                          <td className="py-2 px-3 text-right font-mono font-medium tabular-nums">{formatCurrency(item.subtotal)}</td>
+                  {/* Items Table with explicit professional grid columns */}
+                  <div className="border border-slate-300 rounded-lg overflow-hidden">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
+                          <th className="py-2.5 px-3 text-left border-r border-slate-300 w-10">No</th>
+                          <th className="py-2.5 px-3 text-right border-r border-slate-300 w-28">Jumlah</th>
+                          <th className="py-2.5 px-3 text-left border-r border-slate-300">Nama Item</th>
+                          <th className="py-2.5 px-3 text-right border-r border-slate-300 w-32">Harga Satuan</th>
+                          <th className="py-2.5 px-3 text-right w-36">Subtotal</th>
                         </tr>
-                      ))}
-                      <tr className="border-t border-slate-300">
-                        <td className="py-2.5 px-3 text-left font-bold text-slate-800 align-top">Total Qty</td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 align-top leading-snug">
-                          <div className="flex flex-col items-end gap-0.5">
-                            {Object.entries(
-                              printData.data.items.reduce((acc, item) => {
-                                acc[item.unit] = (acc[item.unit] || 0) + item.quantity;
-                                return acc;
-                              }, {} as Record<string, number>)
-                            ).map(([unit, qty]) => (
-                              <div key={unit}>{formatNumber(qty)} {unit}</div>
-                            ))}
-                          </div>
-                        </td>
-                        <td colSpan={3} />
-                      </tr>
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {printData.data.items.map((item, idx) => (
+                          <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                            <td className="py-2 px-3 text-slate-500 border-r border-slate-200 text-center">{idx + 1}</td>
+                            <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 font-semibold text-slate-900">
+                              {formatNumber(item.quantity)} {item.unit}
+                            </td>
+                            <td className="py-2 px-3 font-medium text-slate-800 border-r border-slate-200">{item.itemName}</td>
+                            <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 text-slate-700">{formatCurrency(item.sellPrice)}</td>
+                            <td className="py-2 px-3 text-right font-mono font-bold tabular-nums text-slate-900">{formatCurrency(item.subtotal)}</td>
+                          </tr>
+                        ))}
+                        <tr className="border-t-2 border-slate-300 bg-slate-50 font-bold">
+                          <td className="py-2.5 px-3 text-left text-slate-800 align-top border-r border-slate-200">Total Qty</td>
+                          <td className="py-2.5 px-3 text-right font-mono text-slate-900 align-top leading-snug border-r border-slate-200">
+                            <div className="flex flex-col items-end gap-0.5">
+                              {Object.entries(
+                                printData.data.items.reduce((acc, item) => {
+                                  acc[item.unit] = (acc[item.unit] || 0) + item.quantity;
+                                  return acc;
+                                }, {} as Record<string, number>)
+                              ).map(([unit, qty]) => (
+                                <div key={unit}>{formatNumber(qty)} {unit}</div>
+                              ))}
+                            </div>
+                          </td>
+                          <td colSpan={3} className="py-2.5 px-3 text-right text-slate-500 font-normal italic">
+                            {printData.data.items.length} jenis barang
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
 
                   {/* Calculations */}
                   <div className="flex justify-end pt-2 border-t border-slate-300">
@@ -684,47 +688,51 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Items Table */}
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b-2 border-slate-300 text-slate-700 bg-slate-50">
-                        <th className="py-2.5 px-3 text-left font-semibold">No</th>
-                        <th className="py-2.5 px-3 text-right font-semibold">Jumlah</th>
-                        <th className="py-2.5 px-3 text-left font-semibold">Nama Item</th>
-                        <th className="py-2.5 px-3 text-right font-semibold">Harga Satuan</th>
-                        <th className="py-2.5 px-3 text-right font-semibold">Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {printData.data.items.map((item, idx) => (
-                        <tr key={idx}>
-                          <td className="py-2 px-3 text-slate-500">{idx + 1}</td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums">
-                            {formatNumber(item.quantity)} {item.unit}
-                          </td>
-                          <td className="py-2 px-3 font-medium text-slate-800">{item.itemName}</td>
-                          <td className="py-2 px-3 text-right font-mono tabular-nums">{formatCurrency(item.targetSellPrice || 0)}</td>
-                          <td className="py-2 px-3 text-right font-mono font-medium tabular-nums">{formatCurrency(item.subtotal)}</td>
+                  {/* Items Table with explicit professional grid columns */}
+                  <div className="border border-slate-300 rounded-lg overflow-hidden">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
+                          <th className="py-2.5 px-3 text-left border-r border-slate-300 w-10">No</th>
+                          <th className="py-2.5 px-3 text-right border-r border-slate-300 w-28">Jumlah</th>
+                          <th className="py-2.5 px-3 text-left border-r border-slate-300">Nama Item</th>
+                          <th className="py-2.5 px-3 text-right border-r border-slate-300 w-32">Harga Satuan</th>
+                          <th className="py-2.5 px-3 text-right w-36">Subtotal</th>
                         </tr>
-                      ))}
-                      <tr className="border-t border-slate-300">
-                        <td className="py-2.5 px-3 text-left font-bold text-slate-800 align-top">Total Qty</td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 align-top leading-snug">
-                          <div className="flex flex-col items-end gap-0.5">
-                            {Object.entries(
-                              printData.data.items.reduce((acc, item) => {
-                                acc[item.unit] = (acc[item.unit] || 0) + item.quantity;
-                                return acc;
-                              }, {} as Record<string, number>)
-                            ).map(([unit, qty]) => (
-                              <div key={unit}>{formatNumber(qty)} {unit}</div>
-                            ))}
-                          </div>
-                        </td>
-                        <td colSpan={3} />
-                      </tr>
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {printData.data.items.map((item, idx) => (
+                          <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                            <td className="py-2 px-3 text-slate-500 border-r border-slate-200 text-center">{idx + 1}</td>
+                            <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 font-semibold text-slate-900">
+                              {formatNumber(item.quantity)} {item.unit}
+                            </td>
+                            <td className="py-2 px-3 font-medium text-slate-800 border-r border-slate-200">{item.itemName}</td>
+                            <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 text-slate-700">{formatCurrency(item.targetSellPrice || 0)}</td>
+                            <td className="py-2 px-3 text-right font-mono font-bold tabular-nums text-slate-900">{formatCurrency(item.subtotal)}</td>
+                          </tr>
+                        ))}
+                        <tr className="border-t-2 border-slate-300 bg-slate-50 font-bold">
+                          <td className="py-2.5 px-3 text-left text-slate-800 align-top border-r border-slate-200">Total Qty</td>
+                          <td className="py-2.5 px-3 text-right font-mono text-slate-900 align-top leading-snug border-r border-slate-200">
+                            <div className="flex flex-col items-end gap-0.5">
+                              {Object.entries(
+                                printData.data.items.reduce((acc, item) => {
+                                  acc[item.unit] = (acc[item.unit] || 0) + item.quantity;
+                                  return acc;
+                                }, {} as Record<string, number>)
+                              ).map(([unit, qty]) => (
+                                <div key={unit}>{formatNumber(qty)} {unit}</div>
+                              ))}
+                            </div>
+                          </td>
+                          <td colSpan={3} className="py-2.5 px-3 text-right text-slate-500 font-normal italic">
+                            {printData.data.items.length} jenis barang
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
 
                   {/* Calculations */}
                   <div className="flex justify-end pt-2 border-t border-slate-300">
@@ -989,8 +997,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   </div>
 
                   {/* Daily Attendance & Pay Calculation Breakdown Table */}
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
-                    <div className="bg-slate-50 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between">
+                  <div className="bg-white rounded-xl border border-slate-300 overflow-hidden shadow-2xs">
+                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-amber-600" />
                         <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
@@ -1000,32 +1008,32 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </div>
                     
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
-                        <thead className="bg-slate-100/90 text-slate-700 font-bold border-b border-slate-200 text-[11px]">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
                           <tr>
-                            <th className="py-2 px-3">Tanggal</th>
-                            <th className="py-2 px-3">Status</th>
-                            <th className="py-2 px-3 text-right">Upah Pokok</th>
-                            <th className="py-2 px-3 text-center">Jam Lembur</th>
-                            <th className="py-2 px-3 text-right">Upah Lembur</th>
-                            <th className="py-2 px-3 text-right">Subtotal Hari Ini</th>
+                            <th className="py-2.5 px-3 border-r border-slate-300">Tanggal</th>
+                            <th className="py-2.5 px-3 border-r border-slate-300">Status</th>
+                            <th className="py-2.5 px-3 text-right border-r border-slate-300">Upah Pokok</th>
+                            <th className="py-2.5 px-3 text-center border-r border-slate-300">Jam Lembur</th>
+                            <th className="py-2.5 px-3 text-right border-r border-slate-300">Upah Lembur</th>
+                            <th className="py-2.5 px-3 text-right">Subtotal Hari Ini</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-200/70 font-medium text-xs">
-                          {dailyRowsToRender.map((rec) => {
+                        <tbody className="divide-y divide-slate-200 font-medium text-xs">
+                          {dailyRowsToRender.map((rec, idx) => {
                             const otHrs = rec.overtimeHours ? `${rec.overtimeHours} Jam` : (rec.overtimePay ? `${Math.round(rec.overtimePay / overtimeRate)} Jam` : '0 Jam');
                             const subtotalDay = rec.wageAmount + (rec.overtimePay || 0);
                             return (
-                              <tr key={rec.id || rec.date} className="hover:bg-slate-50/50">
-                                <td className="py-2 px-3 text-slate-900 font-semibold">{formatDate(rec.date)}</td>
-                                <td className="py-2 px-3">
+                              <tr key={rec.id || rec.date} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                                <td className="py-2 px-3 text-slate-900 font-semibold border-r border-slate-200">{formatDate(rec.date)}</td>
+                                <td className="py-2 px-3 border-r border-slate-200">
                                   <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
                                     {rec.status}
                                   </span>
                                 </td>
-                                <td className="py-2 px-3 text-right font-mono text-slate-800">{formatCurrency(rec.wageAmount)}</td>
-                                <td className="py-2 px-3 text-center font-semibold text-slate-700">{otHrs}</td>
-                                <td className="py-2 px-3 text-right font-mono text-blue-700">
+                                <td className="py-2 px-3 text-right font-mono text-slate-800 border-r border-slate-200">{formatCurrency(rec.wageAmount)}</td>
+                                <td className="py-2 px-3 text-center font-semibold text-slate-700 border-r border-slate-200">{otHrs}</td>
+                                <td className="py-2 px-3 text-right font-mono text-blue-700 border-r border-slate-200">
                                   {rec.overtimePay && rec.overtimePay > 0 ? `+${formatCurrency(rec.overtimePay)}` : 'Rp 0'}
                                 </td>
                                 <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">{formatCurrency(subtotalDay)}</td>
@@ -1033,14 +1041,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                             );
                           })}
                         </tbody>
-                        <tfoot className="bg-amber-50/60 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                        <tfoot className="bg-amber-50/80 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
                           <tr>
-                            <td colSpan={2} className="py-2.5 px-3 text-slate-900 font-bold">Total Akumulasi Periode:</td>
-                            <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(s.totalDailyWage)}</td>
-                            <td className="py-2.5 px-3 text-center font-mono text-slate-800">
+                            <td colSpan={2} className="py-2.5 px-3 text-slate-900 font-bold border-r border-slate-200">Total Akumulasi Periode:</td>
+                            <td className="py-2.5 px-3 text-right font-mono border-r border-slate-200">{formatCurrency(s.totalDailyWage)}</td>
+                            <td className="py-2.5 px-3 text-center font-mono text-slate-800 border-r border-slate-200">
                               {hrsOvertime} Jam ({s.daysOvertime} Hari)
                             </td>
-                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700">+{formatCurrency(s.totalOvertimePay)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700 border-r border-slate-200">+{formatCurrency(s.totalOvertimePay)}</td>
                             <td className="py-2.5 px-3 text-right font-mono text-emerald-800 text-xs font-bold">
                               {formatCurrency(s.totalDailyWage + s.totalOvertimePay)}
                             </td>
@@ -1051,60 +1059,60 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   </div>
 
                   {/* Income & Deductions Summary Box with Clean Table Lines */}
-                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs text-xs">
-                    <div className="bg-slate-50 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between">
+                  <div className="bg-white border border-slate-300 rounded-xl overflow-hidden shadow-2xs text-xs">
+                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
                       <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
                         RINCIAN PENGHASILAN & POTONGAN
                       </h4>
                     </div>
                     
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs">
-                        <tbody className="divide-y divide-slate-200/80 font-medium text-xs">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <tbody className="divide-y divide-slate-200 font-medium text-xs">
                           <tr className="hover:bg-slate-50/50">
-                            <td className="py-2.5 px-3.5 text-slate-800">Total Upah Harian Pokok:</td>
+                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">Total Upah Harian Pokok:</td>
                             <td className="py-2.5 px-3.5 text-right font-mono font-semibold text-slate-900">{formatCurrency(s.totalDailyWage)}</td>
                           </tr>
                           <tr className="hover:bg-slate-50/50">
-                            <td className="py-2.5 px-3.5 text-slate-800">
+                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">
                               Total Upah Lembur ({hrsOvertime} Jam / {s.daysOvertime} Hari):
                             </td>
                             <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-700">+{formatCurrency(s.totalOvertimePay)}</td>
                           </tr>
                           {s.allowance > 0 && (
                             <tr className="hover:bg-slate-50/50">
-                              <td className="py-2.5 px-3.5 text-slate-800">Uang Makan & Tunjangan:</td>
+                              <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">Uang Makan & Tunjangan:</td>
                               <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-900">+{formatCurrency(s.allowance)}</td>
                             </tr>
                           )}
                           {s.bonus > 0 && (
                             <tr className="hover:bg-slate-50/50">
-                              <td className="py-2.5 px-3.5 text-emerald-800 font-semibold">Bonus Khusus Tambahan:</td>
+                              <td className="py-2.5 px-3.5 text-emerald-800 font-semibold border-r border-slate-200">Bonus Khusus Tambahan:</td>
                               <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-700">+{formatCurrency(s.bonus)}</td>
                             </tr>
                           )}
                           {s.deduction > 0 && (
                             <tr className="hover:bg-slate-50/50">
-                              <td className="py-2.5 px-3.5 text-rose-700 font-semibold">Potongan Kasbon / Pinjaman:</td>
+                              <td className="py-2.5 px-3.5 text-rose-700 font-semibold border-r border-slate-200">Potongan Kasbon / Pinjaman:</td>
                               <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-600">-{formatCurrency(s.deduction)}</td>
                             </tr>
                           )}
                           {s.kasbonRemainingAfter !== undefined && s.kasbonRemainingAfter > 0 && (
                             <tr className="bg-amber-50/70 text-amber-900 font-semibold">
-                              <td className="py-2.5 px-3.5">Sisa Saldo Kasbon Karyawan:</td>
+                              <td className="py-2.5 px-3.5 border-r border-amber-200">Sisa Saldo Kasbon Karyawan:</td>
                               <td className="py-2.5 px-3.5 text-right font-mono font-bold">{formatCurrency(s.kasbonRemainingAfter)}</td>
                             </tr>
                           )}
                           {s.kasbonRemainingAfter !== undefined && s.kasbonRemainingAfter === 0 && (s.kasbonOutstandingBefore || 0) > 0 && (
                             <tr className="bg-emerald-50/70 text-emerald-900 font-semibold">
-                              <td className="py-2.5 px-3.5">Status Kasbon:</td>
+                              <td className="py-2.5 px-3.5 border-r border-emerald-200">Status Kasbon:</td>
                               <td className="py-2.5 px-3.5 text-right font-bold">Lunas (Sisa Rp 0)</td>
                             </tr>
                           )}
                         </tbody>
                         <tfoot className="bg-amber-50/80 font-bold border-t-2 border-slate-300 text-slate-900 text-xs sm:text-sm">
                           <tr>
-                            <td className="py-3 px-3.5 text-slate-900 font-bold">Total Gaji Bersih (Take Home Pay):</td>
+                            <td className="py-3 px-3.5 text-slate-900 font-bold border-r border-slate-300">Total Gaji Bersih (Take Home Pay):</td>
                             <td className="py-3 px-3.5 text-right font-mono text-emerald-800 text-sm sm:text-base font-bold">{formatCurrency(s.netSalary)}</td>
                           </tr>
                         </tfoot>
@@ -1159,39 +1167,40 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   </div>
 
                   {/* Receipt Details Table */}
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 text-xs">
-                    <div className="grid grid-cols-2 gap-4 pb-3 border-b border-slate-200">
-                      <div>
-                        <span className="text-slate-400 block font-medium">Pihak Terkait / Customer / Supplier:</span>
-                        <span className="text-sm font-bold text-slate-900">{printData.data.counterpartyName}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-slate-400 block font-medium">Referensi Dokumen Utama:</span>
-                        <span className="text-sm font-mono font-bold text-amber-700">{printData.data.invoiceNumber}</span>
-                        <span className="text-[11px] text-slate-500 block">(Nilai Faktur: {formatCurrency(printData.data.totalInvoiceAmount)})</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 pt-1">
-                      <div className="flex justify-between items-center text-sm py-1 border-b border-slate-200">
-                        <span className="font-semibold text-slate-700">Nominal Pembayaran / Diterima:</span>
-                        <span className="font-mono font-bold text-emerald-700 text-base">{formatCurrency(printData.data.paymentAmount)}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-xs text-slate-600">
-                        <span>Metode Pembayaran:</span>
-                        <span className="font-bold text-slate-800">{printData.data.paymentMethod}</span>
-                      </div>
-                      {printData.data.notes && (
-                        <div className="flex justify-between items-center text-xs text-slate-600">
-                          <span>Catatan / Keterangan:</span>
-                          <span className="font-medium text-slate-800 italic">{printData.data.notes}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between items-center text-sm font-bold pt-2 border-t-2 border-slate-300 text-rose-700">
-                        <span>Sisa Hutang / Piutang Setelah Pembayaran Ini:</span>
-                        <span className="font-mono text-base">{formatCurrency(printData.data.remainingDebt)}</span>
-                      </div>
-                    </div>
+                  <div className="border border-slate-300 rounded-lg overflow-hidden bg-white text-xs">
+                    <table className="w-full text-left border-collapse">
+                      <tbody className="divide-y divide-slate-200">
+                        <tr className="bg-slate-50">
+                          <td className="py-2.5 px-3.5 text-slate-600 font-medium border-r border-slate-200 w-1/2">Pihak Terkait / Customer / Supplier</td>
+                          <td className="py-2.5 px-3.5 text-sm font-bold text-slate-900">{printData.data.counterpartyName}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2.5 px-3.5 text-slate-600 font-medium border-r border-slate-200">Referensi Dokumen Utama</td>
+                          <td className="py-2.5 px-3.5 text-sm font-mono font-bold text-amber-700">
+                            {printData.data.invoiceNumber}
+                            <span className="text-[11px] text-slate-500 font-normal ml-2">(Nilai Faktur: {formatCurrency(printData.data.totalInvoiceAmount)})</span>
+                          </td>
+                        </tr>
+                        <tr className="bg-emerald-50/70 font-bold">
+                          <td className="py-2.5 px-3.5 text-slate-800 border-r border-emerald-200">Nominal Pembayaran / Diterima</td>
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-emerald-800 text-base">{formatCurrency(printData.data.paymentAmount)}</td>
+                        </tr>
+                        <tr>
+                          <td className="py-2.5 px-3.5 text-slate-600 font-medium border-r border-slate-200">Metode Pembayaran</td>
+                          <td className="py-2.5 px-3.5 font-bold text-slate-800">{printData.data.paymentMethod}</td>
+                        </tr>
+                        {printData.data.notes && (
+                          <tr>
+                            <td className="py-2.5 px-3.5 text-slate-600 font-medium border-r border-slate-200">Catatan / Keterangan</td>
+                            <td className="py-2.5 px-3.5 font-medium text-slate-800 italic">{printData.data.notes}</td>
+                          </tr>
+                        )}
+                        <tr className="bg-rose-50/70 font-bold text-rose-800">
+                          <td className="py-2.5 px-3.5 border-r border-rose-200">Sisa Hutang / Piutang Setelah Pembayaran Ini</td>
+                          <td className="py-2.5 px-3.5 font-mono text-base">{formatCurrency(printData.data.remainingDebt)}</td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
 
                   {/* Signatures */}

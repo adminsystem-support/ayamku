@@ -18,13 +18,13 @@
 /* Print specific styles for A4 and Thermal printers */
 @media print {
   @page {
-    size: A4 portrait;
+    size: portrait;
     margin: 8mm;
   }
 
   html, body {
     width: 100% !important;
-    height: auto !important;
+    height: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important;
@@ -41,39 +41,9 @@
     display: none !important;
   }
 
-  /* Reset all modal containers so they don't clip or restrict printable width */
-  div.fixed,
-  div.inset-0,
-  div.z-50,
-  div.max-w-2xl,
-  div.max-w-3xl,
-  div.max-w-4xl,
-  div.overflow-y-auto,
-  div.max-h-\[82vh\],
-  div.shadow-2xl {
-    position: static !important;
-    overflow: visible !important;
-    max-height: none !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-    border: none !important;
-    background: transparent !important;
-  }
-
-  body * {
-    visibility: hidden;
-  }
-
-  #printable-document,
-  #printable-document * {
-    visibility: visible !important;
-  }
-
+  /* Force printable document to top-left of printed page with 100% width and zero offset */
   #printable-document {
-    position: relative !important;
+    position: fixed !important;
     left: 0 !important;
     top: 0 !important;
     width: 100% !important;
@@ -84,6 +54,12 @@
     border: none !important;
     background: #ffffff !important;
     color: #000000 !important;
+    z-index: 999999 !important;
+    overflow: visible !important;
+  }
+
+  #printable-document * {
+    visibility: visible !important;
   }
 }
 
