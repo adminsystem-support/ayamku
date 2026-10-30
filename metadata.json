@@ -1,0 +1,8 @@
+{
+  "name": "Remix Ayamku",
+  "description": "Aplikasi POS kasir penjualan dan pembelian ayam, stok opname, absensi dan slip gaji mingguan, serta laporan keuangan bulanan otomatis yang responsif untuk web dan mobile.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
