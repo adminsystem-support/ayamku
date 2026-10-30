@@ -1050,56 +1050,65 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Income & Deductions Summary Box */}
+                  {/* Income & Deductions Summary Box with Clean Table Lines */}
                   <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs text-xs">
-                    <div className="bg-slate-100/80 px-3.5 py-2 font-bold text-slate-800 uppercase tracking-wider border-b border-slate-200">
-                      RINCIAN PENGHASILAN & POTONGAN
+                    <div className="bg-slate-50 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between">
+                      <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
+                        RINCIAN PENGHASILAN & POTONGAN
+                      </h4>
                     </div>
-                    <div className="p-3.5 space-y-2">
-                      <div className="flex justify-between text-slate-700">
-                        <span>Total Upah Harian Pokok:</span>
-                        <span className="font-mono font-medium">{formatCurrency(s.totalDailyWage)}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-700">
-                        <span>
-                          Total Upah Lembur ({hrsOvertime} Jam / {s.daysOvertime} Hari):
-                        </span>
-                        <span className="font-mono font-medium text-emerald-700">+{formatCurrency(s.totalOvertimePay)}</span>
-                      </div>
-                      {s.allowance > 0 && (
-                        <div className="flex justify-between text-slate-700">
-                          <span>Uang Makan & Tunjangan:</span>
-                          <span className="font-mono font-medium">+{formatCurrency(s.allowance)}</span>
-                        </div>
-                      )}
-                      {s.bonus > 0 && (
-                        <div className="flex justify-between text-emerald-700">
-                          <span>Bonus Khusus Tambahan:</span>
-                          <span className="font-mono font-medium">+{formatCurrency(s.bonus)}</span>
-                        </div>
-                      )}
-                      {s.deduction > 0 && (
-                        <div className="flex justify-between text-rose-600">
-                          <span>Potongan Kasbon / Pinjaman:</span>
-                          <span className="font-mono font-medium">-{formatCurrency(s.deduction)}</span>
-                        </div>
-                      )}
-                      {s.kasbonRemainingAfter !== undefined && s.kasbonRemainingAfter > 0 && (
-                        <div className="flex justify-between text-amber-800 bg-amber-50 px-2.5 py-1 rounded-md font-medium border border-amber-200">
-                          <span>Sisa Saldo Kasbon Karyawan:</span>
-                          <span className="font-mono font-bold">{formatCurrency(s.kasbonRemainingAfter)}</span>
-                        </div>
-                      )}
-                      {s.kasbonRemainingAfter !== undefined && s.kasbonRemainingAfter === 0 && (s.kasbonOutstandingBefore || 0) > 0 && (
-                        <div className="flex justify-between text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-md font-medium border border-emerald-200">
-                          <span>Status Kasbon:</span>
-                          <span className="font-bold">Lunas (Sisa Rp 0)</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-sm sm:text-base font-bold text-slate-900 border-t-2 border-slate-300 pt-2.5">
-                        <span>Total Gaji Bersih (Take Home Pay):</span>
-                        <span className="font-mono tabular-nums text-emerald-700">{formatCurrency(s.netSalary)}</span>
-                      </div>
+                    
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <tbody className="divide-y divide-slate-200/80 font-medium text-xs">
+                          <tr className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-3.5 text-slate-800">Total Upah Harian Pokok:</td>
+                            <td className="py-2.5 px-3.5 text-right font-mono font-semibold text-slate-900">{formatCurrency(s.totalDailyWage)}</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-3.5 text-slate-800">
+                              Total Upah Lembur ({hrsOvertime} Jam / {s.daysOvertime} Hari):
+                            </td>
+                            <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-700">+{formatCurrency(s.totalOvertimePay)}</td>
+                          </tr>
+                          {s.allowance > 0 && (
+                            <tr className="hover:bg-slate-50/50">
+                              <td className="py-2.5 px-3.5 text-slate-800">Uang Makan & Tunjangan:</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-900">+{formatCurrency(s.allowance)}</td>
+                            </tr>
+                          )}
+                          {s.bonus > 0 && (
+                            <tr className="hover:bg-slate-50/50">
+                              <td className="py-2.5 px-3.5 text-emerald-800 font-semibold">Bonus Khusus Tambahan:</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-700">+{formatCurrency(s.bonus)}</td>
+                            </tr>
+                          )}
+                          {s.deduction > 0 && (
+                            <tr className="hover:bg-slate-50/50">
+                              <td className="py-2.5 px-3.5 text-rose-700 font-semibold">Potongan Kasbon / Pinjaman:</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-600">-{formatCurrency(s.deduction)}</td>
+                            </tr>
+                          )}
+                          {s.kasbonRemainingAfter !== undefined && s.kasbonRemainingAfter > 0 && (
+                            <tr className="bg-amber-50/70 text-amber-900 font-semibold">
+                              <td className="py-2.5 px-3.5">Sisa Saldo Kasbon Karyawan:</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-bold">{formatCurrency(s.kasbonRemainingAfter)}</td>
+                            </tr>
+                          )}
+                          {s.kasbonRemainingAfter !== undefined && s.kasbonRemainingAfter === 0 && (s.kasbonOutstandingBefore || 0) > 0 && (
+                            <tr className="bg-emerald-50/70 text-emerald-900 font-semibold">
+                              <td className="py-2.5 px-3.5">Status Kasbon:</td>
+                              <td className="py-2.5 px-3.5 text-right font-bold">Lunas (Sisa Rp 0)</td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-amber-50/80 font-bold border-t-2 border-slate-300 text-slate-900 text-xs sm:text-sm">
+                          <tr>
+                            <td className="py-3 px-3.5 text-slate-900 font-bold">Total Gaji Bersih (Take Home Pay):</td>
+                            <td className="py-3 px-3.5 text-right font-mono text-emerald-800 text-sm sm:text-base font-bold">{formatCurrency(s.netSalary)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
                     </div>
                   </div>
 
