@@ -27,7 +27,10 @@ import {
   Eye,
   FileText,
   MessageCircle,
-  Send
+  Send,
+  ArrowUpDown,
+  ArrowDownRight,
+  Coins
 } from 'lucide-react';
 import { 
   SaleTransaction, 
@@ -41,7 +44,8 @@ import {
   UserRole,
   DebtPayment,
   Customer,
-  Supplier
+  Supplier,
+  EmployeeKasbonRecord
 } from '../types/index.ts';
 import { 
   formatCurrency, 
@@ -54,6 +58,28 @@ import {
   generateWhatsAppDebtReminderMessage
 } from '../utils/formatters.ts';
 
+export interface CashFlowItem {
+  id: string;
+  date: string;
+  timestamp: number;
+  flowType: 'masuk' | 'keluar';
+  category: 
+    | 'Penjualan' 
+    | 'Pembayaran Piutang Pelanggan' 
+    | 'Pelunasan Kasbon Karyawan' 
+    | 'Pembelian Ayam' 
+    | 'Pembayaran Utang Supplier' 
+    | 'Gaji Karyawan' 
+    | 'Biaya Operasional' 
+    | 'Pinjaman Kasbon Karyawan';
+  title: string;
+  description: string;
+  counterparty: string;
+  amount: number;
+  paymentMethod: string;
+  referenceNo?: string;
+}
+
 interface FinancialReportProps {
   sales: SaleTransaction[];
   purchases: PurchaseTransaction[];
@@ -62,6 +88,7 @@ interface FinancialReportProps {
   salarySlips: SalarySlip[];
   attendanceRecords: AttendanceRecord[];
   expenses: OperationalExpense[];
+  kasbonRecords?: EmployeeKasbonRecord[];
   onAddExpense: (expense: OperationalExpense) => void;
   onPayPurchaseDebt?: (purchaseId: string, payment: DebtPayment) => void;
   onPayCustomerDebt?: (saleId: string, payment: DebtPayment) => void;
@@ -78,6 +105,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   salarySlips,
   attendanceRecords,
   expenses,
+  kasbonRecords = [],
   onAddExpense,
   onPayPurchaseDebt,
   onPayCustomerDebt,
@@ -86,7 +114,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   userRole,
 }) => {
   // Report View Sub-tab
-  const [activeReportTab, setActiveReportTab] = useState<'laba_rugi' | 'hutang_piutang'>('laba_rugi');
+  const [activeReportTab, setActiveReportTab] = useState<'laba_rugi' | 'arus_kas' | 'hutang_piutang'>('laba_rugi');
 
   // Current month & year selector
   const today = new Date();
@@ -203,6 +231,225 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   const netMarginPercent = useMemo(() => {
     return totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
   }, [netProfit, totalRevenue]);
+
+  // ----------------------------------------------------
+  // ARUS KAS / MUTASI KELUAR MASUK UANG (SYNCHRONIZED CASH FLOW)
+  // ----------------------------------------------------
+  const [cashFlowFilterType, setCashFlowFilterType] = useState<'all' | 'masuk' | 'keluar'>('all');
+  const [cashFlowCategoryFilter, setCashFlowCategoryFilter] = useState<string>('all');
+  const [cashFlowSearch, setCashFlowSearch] = useState<string>('');
+
+  const allCashFlowTransactions = useMemo<CashFlowItem[]>(() => {
+    const list: CashFlowItem[] = [];
+
+    // 1. Penerimaan Uang dari Penjualan (Uang Masuk Langsung)
+    sales.forEach((s) => {
+      if (s.amountPaid > 0) {
+        list.push({
+          id: `cf-sale-${s.id}`,
+          date: s.date,
+          timestamp: new Date(s.date).getTime() || 0,
+          flowType: 'masuk',
+          category: 'Penjualan',
+          title: `Penjualan Nota ${s.invoiceNumber}`,
+          description: `Pembayaran ${s.paymentMethod || 'Tunai'} pelanggan ${s.customerName}`,
+          counterparty: s.customerName,
+          amount: s.amountPaid,
+          paymentMethod: s.paymentMethod || 'Tunai',
+          referenceNo: s.invoiceNumber,
+        });
+      }
+
+      // Pembayaran Piutang / Cicilan Bon Pelanggan (BKM - Uang Masuk)
+      if (s.customerDebtPayments && s.customerDebtPayments.length > 0) {
+        s.customerDebtPayments.forEach((dp) => {
+          list.push({
+            id: `cf-sdebt-${s.id}-${dp.id}`,
+            date: dp.date,
+            timestamp: new Date(dp.date).getTime() || 0,
+            flowType: 'masuk',
+            category: 'Pembayaran Piutang Pelanggan',
+            title: `Pelunasan Piutang (${dp.receiptNo || s.invoiceNumber})`,
+            description: dp.notes || `Pembayaran bon oleh ${s.customerName} (Faktur: ${s.invoiceNumber})`,
+            counterparty: s.customerName,
+            amount: dp.amount,
+            paymentMethod: dp.paymentMethod || 'Tunai',
+            referenceNo: dp.receiptNo || s.invoiceNumber,
+          });
+        });
+      }
+    });
+
+    // 2. Pengeluaran Uang untuk Pembelian Ayam / Supplier (Uang Keluar Langsung)
+    purchases.forEach((p) => {
+      const paid = p.amountPaid !== undefined ? p.amountPaid : (p.paymentStatus === 'Lunas' ? p.grandTotal : 0);
+      if (paid > 0) {
+        list.push({
+          id: `cf-purch-${p.id}`,
+          date: p.date,
+          timestamp: new Date(p.date).getTime() || 0,
+          flowType: 'keluar',
+          category: 'Pembelian Ayam',
+          title: `Pembelian Faktur ${p.invoiceNumber}`,
+          description: `Pembayaran ${p.paymentMethod || 'Tunai'} ke pemasok ${p.supplierName}`,
+          counterparty: p.supplierName,
+          amount: paid,
+          paymentMethod: p.paymentMethod || 'Tunai',
+          referenceNo: p.invoiceNumber,
+        });
+      }
+
+      // Pembayaran Hutang ke Supplier (BKK - Uang Keluar)
+      if (p.debtPayments && p.debtPayments.length > 0) {
+        p.debtPayments.forEach((dp) => {
+          list.push({
+            id: `cf-pdebt-${p.id}-${dp.id}`,
+            date: dp.date,
+            timestamp: new Date(dp.date).getTime() || 0,
+            flowType: 'keluar',
+            category: 'Pembayaran Utang Supplier',
+            title: `Pembayaran Utang (${dp.receiptNo || p.invoiceNumber})`,
+            description: dp.notes || `Cicilan/pelunasan hutang ke ${p.supplierName} (Faktur: ${p.invoiceNumber})`,
+            counterparty: p.supplierName,
+            amount: dp.amount,
+            paymentMethod: dp.paymentMethod || 'Transfer',
+            referenceNo: dp.receiptNo || p.invoiceNumber,
+          });
+        });
+      }
+    });
+
+    // 3. Pembayaran Gaji & Upah Karyawan (Uang Keluar)
+    salarySlips.forEach((slip) => {
+      if (slip.netSalary > 0) {
+        const dateStr = slip.generatedDate || slip.periodEnd;
+        list.push({
+          id: `cf-slip-${slip.id}`,
+          date: dateStr,
+          timestamp: new Date(dateStr).getTime() || 0,
+          flowType: 'keluar',
+          category: 'Gaji Karyawan',
+          title: `Gaji Karyawan (${slip.slipNumber})`,
+          description: `Gaji bersih ${slip.employeeName} (${slip.employeeRole}) periode ${formatDate(slip.periodStart)} s/d ${formatDate(slip.periodEnd)}`,
+          counterparty: slip.employeeName,
+          amount: slip.netSalary,
+          paymentMethod: 'Tunai',
+          referenceNo: slip.slipNumber,
+        });
+      }
+    });
+
+    // 4. Biaya Operasional Toko (Listrik, BBM, Sewa, Plastik, dll - Uang Keluar)
+    expenses.forEach((exp) => {
+      if (exp.amount > 0) {
+        list.push({
+          id: `cf-exp-${exp.id}`,
+          date: exp.date,
+          timestamp: new Date(exp.date).getTime() || 0,
+          flowType: 'keluar',
+          category: 'Biaya Operasional',
+          title: `Operasional: ${exp.category}`,
+          description: exp.description || `Pengeluaran ${exp.category}`,
+          counterparty: exp.recordedBy || 'Admin Usaha',
+          amount: exp.amount,
+          paymentMethod: 'Tunai',
+          referenceNo: exp.id,
+        });
+      }
+    });
+
+    // 5. Kasbon Karyawan:
+    // - Pinjaman Kasbon Baru = UANG KELUAR
+    // - Pelunasan Kasbon Manual (Setor Tunai) = UANG MASUK
+    kasbonRecords.forEach((k) => {
+      if (k.type === 'pinjam' && k.amount > 0) {
+        list.push({
+          id: `cf-kasbon-${k.id}`,
+          date: k.date,
+          timestamp: new Date(k.createdAt || k.date).getTime() || 0,
+          flowType: 'keluar',
+          category: 'Pinjaman Kasbon Karyawan',
+          title: `Pinjaman Kasbon - ${k.employeeName}`,
+          description: k.notes ? `Pinjaman kasbon: ${k.notes}` : `Pemberian pinjaman kasbon untuk ${k.employeeName}`,
+          counterparty: k.employeeName,
+          amount: k.amount,
+          paymentMethod: 'Tunai',
+          referenceNo: k.id,
+        });
+      } else if (k.type === 'bayar_manual' && k.amount > 0) {
+        list.push({
+          id: `cf-kasbon-${k.id}`,
+          date: k.date,
+          timestamp: new Date(k.createdAt || k.date).getTime() || 0,
+          flowType: 'masuk',
+          category: 'Pelunasan Kasbon Karyawan',
+          title: `Setor Pelunasan Kasbon - ${k.employeeName}`,
+          description: k.notes ? `Pelunasan kasbon: ${k.notes}` : `Penerimaan setor tunai kasbon dari ${k.employeeName}`,
+          counterparty: k.employeeName,
+          amount: k.amount,
+          paymentMethod: 'Tunai',
+          referenceNo: k.id,
+        });
+      }
+    });
+
+    return list.sort((a, b) => b.timestamp - a.timestamp);
+  }, [sales, purchases, salarySlips, expenses, kasbonRecords]);
+
+  // Transaksi Arus Kas Bulan Ini
+  const monthlyCashFlowTransactions = useMemo(() => {
+    return allCashFlowTransactions.filter((item) => item.date.startsWith(selectedMonth));
+  }, [allCashFlowTransactions, selectedMonth]);
+
+  // Total Uang Masuk Bulan Ini
+  const totalCashIn = useMemo(() => {
+    return monthlyCashFlowTransactions
+      .filter((item) => item.flowType === 'masuk')
+      .reduce((sum, item) => sum + item.amount, 0);
+  }, [monthlyCashFlowTransactions]);
+
+  // Total Uang Keluar Bulan Ini
+  const totalCashOut = useMemo(() => {
+    return monthlyCashFlowTransactions
+      .filter((item) => item.flowType === 'keluar')
+      .reduce((sum, item) => sum + item.amount, 0);
+  }, [monthlyCashFlowTransactions]);
+
+  // Saldo Arus Kas Bersih (Surplus / Defisit Kas Riil)
+  const netCashFlow = useMemo(() => {
+    return totalCashIn - totalCashOut;
+  }, [totalCashIn, totalCashOut]);
+
+  // Rincian Kategori Arus Kas Bulan Ini
+  const cashInSales = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Penjualan').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
+  const cashInDebt = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Pembayaran Piutang Pelanggan').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
+  const cashInKasbon = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Pelunasan Kasbon Karyawan').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
+
+  const cashOutPurchase = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Pembelian Ayam').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
+  const cashOutDebt = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Pembayaran Utang Supplier').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
+  const cashOutSalary = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Gaji Karyawan').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
+  const cashOutExpense = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Biaya Operasional').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
+  const cashOutKasbon = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Pinjaman Kasbon Karyawan').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
+
+  // Filtered Cash Flow list for display table
+  const filteredCashFlowTransactions = useMemo(() => {
+    return monthlyCashFlowTransactions.filter((item) => {
+      // Flow type filter
+      if (cashFlowFilterType !== 'all' && item.flowType !== cashFlowFilterType) return false;
+      // Category filter
+      if (cashFlowCategoryFilter !== 'all' && item.category !== cashFlowCategoryFilter) return false;
+      // Search filter
+      if (cashFlowSearch.trim()) {
+        const q = cashFlowSearch.toLowerCase();
+        const matchTitle = item.title.toLowerCase().includes(q);
+        const matchDesc = item.description.toLowerCase().includes(q);
+        const matchParty = item.counterparty.toLowerCase().includes(q);
+        const matchRef = (item.referenceNo || '').toLowerCase().includes(q);
+        if (!matchTitle && !matchDesc && !matchParty && !matchRef) return false;
+      }
+      return true;
+    });
+  }, [monthlyCashFlowTransactions, cashFlowFilterType, cashFlowCategoryFilter, cashFlowSearch]);
 
   // ----------------------------------------------------
   // HUTANG & PIUTANG CALCULATIONS & LISTS
@@ -512,6 +759,26 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
 
         <button
           type="button"
+          onClick={() => setActiveReportTab('arus_kas')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
+            activeReportTab === 'arus_kas'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900'
+          }`}
+        >
+          <ArrowUpDown className="w-4 h-4" />
+          <span>Arus Kas (Keluar Masuk Uang)</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+            activeReportTab === 'arus_kas'
+              ? 'bg-white text-amber-700'
+              : 'bg-emerald-100 text-emerald-800'
+          }`}>
+            {monthlyCashFlowTransactions.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveReportTab('hutang_piutang')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
             activeReportTab === 'hutang_piutang'
@@ -718,11 +985,485 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
               </div>
             </div>
           </div>
+
+          {/* REAL CASH FLOW SYNCHRONIZATION RECONCILIATION CARD */}
+          <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white rounded-2xl p-5 shadow-sm border border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-5">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Tersinkronisasi Lengkap
+                </span>
+                <span className="text-xs text-slate-400">Periode: {selectedMonth}</span>
+              </div>
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Coins className="w-4 h-4 text-amber-400" />
+                <span>Sinkronisasi Arus Kas Riil (Keluar Masuk Uang Toko)</span>
+              </h4>
+              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                Semua uang masuk (penjualan langsung, pelunasan bon piutang BKM, kasbon karyawan) dan uang keluar (belanja ayam, cicilan/lunas utang supplier BKK, gaji bersih, kasbon, operasional) telah terintegrasi di Buku Kas.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 border-t md:border-t-0 md:border-l border-slate-700/80 pt-3 md:pt-0 md:pl-5">
+              <div className="text-left">
+                <span className="text-[10px] uppercase font-bold text-emerald-400 block tracking-wider">Total Uang Masuk</span>
+                <span className="text-sm font-bold font-mono text-emerald-300">+{formatCurrency(totalCashIn)}</span>
+              </div>
+              <div className="text-left">
+                <span className="text-[10px] uppercase font-bold text-rose-400 block tracking-wider">Total Uang Keluar</span>
+                <span className="text-sm font-bold font-mono text-rose-300">-{formatCurrency(totalCashOut)}</span>
+              </div>
+              <div className="text-left">
+                <span className="text-[10px] uppercase font-bold text-amber-300 block tracking-wider">Arus Kas Bersih</span>
+                <span className={`text-sm font-bold font-mono ${netCashFlow >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveReportTab('arus_kas')}
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+              >
+                <span>Buka Buku Arus Kas</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </>
       )}
 
       {/* ========================================================================= */}
-      {/* 2. VIEW TAB: LAPORAN HUTANG & PIUTANG USAHA (PEMBELIAN & PENJUALAN)      */}
+      {/* 2. VIEW TAB: ARUS KAS (SINKRONISASI KELUAR MASUK UANG TOKO LENGKAP)       */}
+      {/* ========================================================================= */}
+      {activeReportTab === 'arus_kas' && (
+        <div className="space-y-5">
+          {/* 4 TOP KPI CARDS FOR CASH FLOW */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Total Cash In */}
+            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-emerald-100 shadow-xs relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">Total Uang Masuk</span>
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
+                  <ArrowDownLeft className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <h3 className="text-xl sm:text-2xl font-bold font-mono text-emerald-600">
+                  +{formatCurrency(totalCashIn)}
+                </h3>
+                <div className="mt-2 space-y-1 text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+                  <div className="flex justify-between">
+                    <span>Penjualan Tunai/Transfer:</span>
+                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashInSales)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Pelunasan Piutang (BKM):</span>
+                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashInDebt)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Bayar Kasbon Karyawan:</span>
+                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashInKasbon)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Cash Out */}
+            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-rose-100 shadow-xs relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">Total Uang Keluar</span>
+                <div className="p-2 rounded-xl bg-rose-50 text-rose-600 border border-rose-100">
+                  <ArrowUpRight className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <h3 className="text-xl sm:text-2xl font-bold font-mono text-rose-600">
+                  -{formatCurrency(totalCashOut)}
+                </h3>
+                <div className="mt-2 space-y-1 text-[11px] text-slate-500 pt-2 border-t border-slate-100">
+                  <div className="flex justify-between">
+                    <span>Belanja Ayam (Tunai/Trf):</span>
+                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashOutPurchase)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Bayar Utang Supplier (BKK):</span>
+                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashOutDebt)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Gaji Karyawan:</span>
+                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashOutSalary)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Biaya Operasional:</span>
+                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashOutExpense)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Kasbon Karyawan:</span>
+                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashOutKasbon)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Net Cash Flow */}
+            <div className={`bg-white/85 backdrop-blur-md rounded-2xl p-4 sm:p-5 border ${netCashFlow >= 0 ? 'border-emerald-200' : 'border-rose-200'} shadow-xs relative overflow-hidden`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">Arus Kas Bersih (Surplus)</span>
+                <div className={`p-2 rounded-xl ${netCashFlow >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                  <Coins className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <h3 className={`text-xl sm:text-2xl font-bold font-mono ${netCashFlow >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
+                </h3>
+                <span className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                  netCashFlow >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                }`}>
+                  {netCashFlow >= 0 ? 'Surplus Kas Riil' : 'Defisit Kas Riil'}
+                </span>
+                <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+                  Selisih riil antara seluruh uang yang masuk dan uang yang keluar pada periode ini.
+                </p>
+              </div>
+            </div>
+
+            {/* Cash Transactions Count */}
+            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">Mutasi Kas Tercatat</span>
+                <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
+                  <Receipt className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="mt-3">
+                <h3 className="text-xl sm:text-2xl font-bold font-mono text-slate-900">
+                  {monthlyCashFlowTransactions.length} <span className="text-sm font-normal text-slate-500">Transaksi</span>
+                </h3>
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                    {monthlyCashFlowTransactions.filter(i => i.flowType === 'masuk').length} Masuk
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold">
+                    {monthlyCashFlowTransactions.filter(i => i.flowType === 'keluar').length} Keluar
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
+                  Mencakup kasbon, utang, piutang, gaji, belanja, & operasional.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 2-COLUMN BREAKDOWN OF INFLOW & OUTFLOW */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* INFLOW BREAKDOWN */}
+            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
+                  <span>Rincian Pos Uang Masuk</span>
+                </h4>
+                <span className="text-xs font-mono font-bold text-emerald-600">
+                  +{formatCurrency(totalCashIn)}
+                </span>
+              </div>
+              <div className="space-y-2.5 text-xs">
+                <div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-slate-700 font-medium">1. Penjualan Tunai / Transfer Langsung</span>
+                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashInSales)}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-emerald-500 h-1.5 rounded-full transition-all" 
+                      style={{ width: `${totalCashIn > 0 ? (cashInSales / totalCashIn) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-slate-700 font-medium">2. Pelunasan Bon / Piutang Pelanggan (BKM)</span>
+                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashInDebt)}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-teal-500 h-1.5 rounded-full transition-all" 
+                      style={{ width: `${totalCashIn > 0 ? (cashInDebt / totalCashIn) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-slate-700 font-medium">3. Pembayaran / Setoran Kasbon Karyawan</span>
+                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashInKasbon)}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-amber-500 h-1.5 rounded-full transition-all" 
+                      style={{ width: `${totalCashIn > 0 ? (cashInKasbon / totalCashIn) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* OUTFLOW BREAKDOWN */}
+            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <ArrowUpRight className="w-4 h-4 text-rose-600" />
+                  <span>Rincian Pos Uang Keluar</span>
+                </h4>
+                <span className="text-xs font-mono font-bold text-rose-600">
+                  -{formatCurrency(totalCashOut)}
+                </span>
+              </div>
+              <div className="space-y-2.5 text-xs">
+                <div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-slate-700 font-medium">1. Belanja Modal Ayam (Tunai / Transfer)</span>
+                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashOutPurchase)}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-rose-500 h-1.5 rounded-full transition-all" 
+                      style={{ width: `${totalCashOut > 0 ? (cashOutPurchase / totalCashOut) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-slate-700 font-medium">2. Pembayaran Cicilan / Pelunasan Hutang Supplier (BKK)</span>
+                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashOutDebt)}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-orange-500 h-1.5 rounded-full transition-all" 
+                      style={{ width: `${totalCashOut > 0 ? (cashOutDebt / totalCashOut) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-slate-700 font-medium">3. Pembayaran Gaji Bersih Karyawan</span>
+                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashOutSalary)}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-indigo-500 h-1.5 rounded-full transition-all" 
+                      style={{ width: `${totalCashOut > 0 ? (cashOutSalary / totalCashOut) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-slate-700 font-medium">4. Biaya Operasional Toko (Listrik, Plastik, dll)</span>
+                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashOutExpense)}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-amber-600 h-1.5 rounded-full transition-all" 
+                      style={{ width: `${totalCashOut > 0 ? (cashOutExpense / totalCashOut) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center py-1">
+                    <span className="text-slate-700 font-medium">5. Pencairan Pinjaman Kasbon Karyawan</span>
+                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashOutKasbon)}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div 
+                      className="bg-purple-500 h-1.5 rounded-full transition-all" 
+                      style={{ width: `${totalCashOut > 0 ? (cashOutKasbon / totalCashOut) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* FILTER & SEARCH TOOLBAR */}
+          <div className="bg-white/85 backdrop-blur-md rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-600 mr-1">Filter Arus:</span>
+              <button
+                type="button"
+                onClick={() => setCashFlowFilterType('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+                  cashFlowFilterType === 'all'
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Semua ({monthlyCashFlowTransactions.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCashFlowFilterType('masuk')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+                  cashFlowFilterType === 'masuk'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                }`}
+              >
+                Uang Masuk ({monthlyCashFlowTransactions.filter(i => i.flowType === 'masuk').length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCashFlowFilterType('keluar')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+                  cashFlowFilterType === 'keluar'
+                    ? 'bg-rose-600 text-white'
+                    : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                }`}
+              >
+                Uang Keluar ({monthlyCashFlowTransactions.filter(i => i.flowType === 'keluar').length})
+              </button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <select
+                value={cashFlowCategoryFilter}
+                onChange={(e) => setCashFlowCategoryFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-hidden font-medium cursor-pointer"
+              >
+                <option value="all">Semua Kategori Pos</option>
+                <option value="Penjualan">Penjualan Tunai / Trf</option>
+                <option value="Pembayaran Piutang Pelanggan">Pelunasan Piutang (BKM)</option>
+                <option value="Pelunasan Kasbon Karyawan">Setoran Kasbon Karyawan</option>
+                <option value="Pembelian Ayam">Belanja Modal Ayam</option>
+                <option value="Pembayaran Utang Supplier">Bayar Hutang Supplier (BKK)</option>
+                <option value="Gaji Karyawan">Gaji Karyawan</option>
+                <option value="Biaya Operasional">Biaya Operasional Toko</option>
+                <option value="Pinjaman Kasbon Karyawan">Pinjaman Kasbon Karyawan</option>
+              </select>
+
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cari transaksi / nama..."
+                  value={cashFlowSearch}
+                  onChange={(e) => setCashFlowSearch(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 focus:outline-hidden w-full sm:w-48"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* CASH FLOW TRANSACTION LEDGER TABLE */}
+          <div className="bg-white/85 backdrop-blur-md rounded-2xl shadow-xs border border-white/80 overflow-hidden">
+            <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <ArrowUpDown className="w-4 h-4 text-amber-600" />
+                  <span>Buku Kas & Riwayat Mutasi Uang</span>
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Menampilkan {filteredCashFlowTransactions.length} dari {monthlyCashFlowTransactions.length} transaksi keluar masuk uang bulan ini
+                </p>
+              </div>
+
+              <div className="text-right">
+                <span className="text-[10px] text-slate-500 block uppercase font-semibold">Subtotal Mutasi Terfilter</span>
+                <span className="text-xs font-mono font-bold text-slate-900">
+                  {formatCurrency(filteredCashFlowTransactions.reduce((acc, curr) => acc + (curr.flowType === 'masuk' ? curr.amount : -curr.amount), 0))}
+                </span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
+                    <th className="py-2.5 px-3">Tanggal & Waktu</th>
+                    <th className="py-2.5 px-3">No. Bukti / Ref</th>
+                    <th className="py-2.5 px-3">Kategori</th>
+                    <th className="py-2.5 px-3">Keterangan & Pihak Terkait</th>
+                    <th className="py-2.5 px-3 text-center">Metode</th>
+                    <th className="py-2.5 px-3 text-center">Arah Arus</th>
+                    <th className="py-2.5 px-3 text-right">Nominal</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredCashFlowTransactions.map((tx) => (
+                    <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
+                        {formatDateTime(tx.date)}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">
+                        {tx.referenceNo || '-'}
+                      </td>
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          tx.flowType === 'masuk' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}>
+                          {tx.category}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="font-semibold text-slate-900">{tx.counterparty}</div>
+                        <div className="text-[11px] text-slate-500 line-clamp-1">{tx.description}</div>
+                      </td>
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-medium">
+                          {tx.paymentMethod}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          tx.flowType === 'masuk'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          {tx.flowType === 'masuk' ? (
+                            <>
+                              <ArrowDownLeft className="w-3 h-3 text-emerald-600" />
+                              <span>UANG MASUK</span>
+                            </>
+                          ) : (
+                            <>
+                              <ArrowUpRight className="w-3 h-3 text-rose-600" />
+                              <span>UANG KELUAR</span>
+                            </>
+                          )}
+                        </span>
+                      </td>
+                      <td className={`py-2.5 px-3 text-right font-mono font-bold whitespace-nowrap tabular-nums ${
+                        tx.flowType === 'masuk' ? 'text-emerald-700' : 'text-rose-700'
+                      }`}>
+                        {tx.flowType === 'masuk' ? '+' : '-'}{formatCurrency(tx.amount)}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {filteredCashFlowTransactions.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-400">
+                        Tidak ada transaksi arus kas yang sesuai dengan filter atau pencarian.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 3. VIEW TAB: LAPORAN HUTANG & PIUTANG USAHA (PEMBELIAN & PENJUALAN)      */}
       {/* ========================================================================= */}
       {activeReportTab === 'hutang_piutang' && (
         <div className="space-y-5">
