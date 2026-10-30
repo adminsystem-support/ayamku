@@ -37,6 +37,7 @@ import {
   SalarySlip, 
   AttendanceRecord,
   OperationalExpense, 
+  OperationalTransaction,
   StoreProfile,
   UserRole,
   DebtPayment,
@@ -50,7 +51,7 @@ import {
   formatDate, 
   formatDateTime, 
   getMonthYearKey, 
-  generateInvoiceCode,
+  generateInvoiceCode, 
   formatPhoneNumberForWhatsApp,
   generateWhatsAppDebtReminderMessage
 } from '../utils/formatters.ts';
@@ -63,6 +64,7 @@ interface FinancialReportProps {
   salarySlips: SalarySlip[];
   attendanceRecords: AttendanceRecord[];
   expenses: OperationalExpense[];
+  operationalTransactions?: OperationalTransaction[];
   kasbonRecords?: EmployeeKasbonRecord[];
   onAddExpense: (expense: OperationalExpense) => void;
   onPayPurchaseDebt?: (purchaseId: string, payment: DebtPayment) => void;
@@ -81,6 +83,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   salarySlips,
   attendanceRecords,
   expenses,
+  operationalTransactions = [],
   kasbonRecords = [],
   onAddExpense,
   onPayPurchaseDebt,
@@ -238,13 +241,23 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
     return monthlyAttendanceWages.reduce((sum, a) => sum + a.wageAmount + (a.overtimePay || 0), 0);
   }, [monthlySlips, monthlyAttendanceWages]);
 
+  const totalKasbon = useMemo(() => {
+    return kasbonRecords
+      .filter(k => k.type === 'pinjam' && isDateInPeriod(k.date))
+      .reduce((sum, k) => sum + k.amount, 0);
+  }, [kasbonRecords, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
+
   const totalOtherExpenses = useMemo(() => {
-    return monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
-  }, [monthlyExpenses]);
+    const opTxTotal = (operationalTransactions || [])
+      .filter(tx => tx.type === 'pengeluaran' && isDateInPeriod(tx.date))
+      .reduce((sum, tx) => sum + tx.amount, 0);
+    const expTotal = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
+    return opTxTotal + expTotal;
+  }, [operationalTransactions, monthlyExpenses, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
 
   const totalOperatingCosts = useMemo(() => {
-    return totalSalaries + totalOtherExpenses;
-  }, [totalSalaries, totalOtherExpenses]);
+    return totalSalaries + totalKasbon + totalOtherExpenses;
+  }, [totalSalaries, totalKasbon, totalOtherExpenses]);
 
   const netProfit = useMemo(() => {
     return grossProfit - totalOperatingCosts;
@@ -774,8 +787,13 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
                 </div>
                 
                 <div className="flex justify-between text-slate-700 pl-3 py-1">
-                  <span className="font-medium">Total Gaji & Upah Karyawan</span>
+                  <span className="font-medium">Total Gaji</span>
                   <span className="font-mono tabular-nums font-semibold text-slate-900">{formatCurrency(totalSalaries)}</span>
+                </div>
+
+                <div className="flex justify-between text-slate-700 pl-3 py-1">
+                  <span className="font-medium">Total Kasbon</span>
+                  <span className="font-mono tabular-nums font-semibold text-slate-900">{formatCurrency(totalKasbon)}</span>
                 </div>
 
                 <div className="flex justify-between text-slate-700 pl-3 py-1">

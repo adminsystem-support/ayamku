@@ -943,6 +943,7 @@ export default function App() {
               salarySlips={salarySlips}
               attendanceRecords={attendanceRecords}
               expenses={expenses}
+              operationalTransactions={operationalTransactions}
               kasbonRecords={kasbonRecords}
               onAddExpense={handleAddExpense}
               onPayPurchaseDebt={handlePayDebt}
