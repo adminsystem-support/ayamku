@@ -110,96 +110,134 @@ export function createDocumentPdf(
     });
 
     if (isA4) {
-      // Header Top Left: Store Logo & Name
+      // 1. Header (y: 12 to 31)
       let startX = 14;
-      
-      // Draw store logo container box
-      doc.setFillColor(248, 250, 252);
-      doc.roundedRect(14, 12, 14, 14, 2, 2, 'F');
+      doc.setFillColor(255, 255, 255);
       doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(14, 12, 14, 14, 2, 2, 'D');
+      doc.roundedRect(14, 12, 14, 14, 2, 2, 'DF');
 
-      if (store.logoUrl && store.logoUrl.startsWith('data:image')) {
-        try {
-          doc.addImage(store.logoUrl, 'PNG', 15, 13, 12, 12);
-        } catch (e) {
-          // fallback icon
-          doc.setFillColor(16, 185, 129);
-          doc.circle(21, 19, 5, 'F');
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(7);
-          doc.setTextColor(255, 255, 255);
-          doc.text('ACG', 21, 21.2, { align: 'center' });
-        }
-      } else {
-        // Draw crisp logo badge
-        doc.setFillColor(16, 185, 129);
-        doc.circle(21, 19, 5, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7);
-        doc.setTextColor(255, 255, 255);
-        doc.text('ACG', 21, 21.2, { align: 'center' });
-      }
+      // Crisp logo badge icon
+      doc.setFillColor(16, 185, 129);
+      doc.circle(21, 19, 5, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(255, 255, 255);
+      doc.text('ACG', 21, 21.2, { align: 'center' });
 
       startX = 32;
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(16);
+      doc.setFontSize(15);
       doc.setTextColor(15, 23, 42);
-      doc.text(store.name, startX, 18);
+      doc.text(store.name, startX, 17);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(100, 116, 139);
-      doc.text(store.address || 'Alamat Toko', startX, 23);
-      doc.text(`Telp/WA: ${store.phone || '-'}`, startX, 27.5);
+      doc.text(store.address || 'Alamat Toko', startX, 22);
+      doc.text(`Telp/WA: ${store.phone || '-'}`, startX, 26.5);
 
-      // Header Top Right: Document Title & Number
+      // Top Right Badge & Invoice No
+      doc.setFillColor(236, 253, 245); // emerald-50
+      doc.setDrawColor(167, 243, 208); // emerald-200
+      doc.roundedRect(142, 12, 54, 5.5, 1, 1, 'DF');
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text('NOTA PENJUALAN', 196, 17, { align: 'right' });
+      doc.setFontSize(7.5);
+      doc.setTextColor(6, 95, 70); // emerald-800
+      doc.text('NOTA PENJUALAN ELEKTRONIK', 169, 15.8, { align: 'center' });
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setTextColor(15, 23, 42);
-      doc.text(sale.invoiceNumber, 196, 23, { align: 'right' });
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`Tanggal: ${formatDateTime(sale.date)}`, 196, 28, { align: 'right' });
-
-      // Subtle horizontal line separator
-      doc.setDrawColor(226, 232, 240);
-      doc.line(14, 32, 196, 32);
-
-      // Customer & Transaction Box
-      doc.setFillColor(248, 250, 252);
-      doc.roundedRect(14, 36, 182, 18, 2, 2, 'F');
-      doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(14, 36, 182, 18, 2, 2, 'D');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text('Ditujukan Kepada:', 18, 41);
-      doc.text('Metode Pembayaran:', 192, 41, { align: 'right' });
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.setTextColor(15, 23, 42);
-      const phoneText = sale.customerPhone ? ` (${sale.customerPhone})` : '';
-      doc.text(`${sale.customerName}${phoneText}`, 18, 47);
-      doc.text(sale.paymentMethod, 192, 47, { align: 'right' });
+      doc.text(sale.invoiceNumber, 196, 22.5, { align: 'right' });
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
-      doc.text(sale.customerType || 'Eceran', 18, 51);
-      doc.text(`Kasir: ${sale.createdBy}`, 192, 51, { align: 'right' });
+      doc.text(`Tanggal: ${formatDateTime(sale.date)}`, 196, 27, { align: 'right' });
 
-      // Table Items
+      // Horizontal separator line
+      doc.setDrawColor(226, 232, 240);
+      doc.line(14, 31, 196, 31);
+
+      // 2. Customer Details Card Box (y: 34 to 68)
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(14, 34, 182, 34, 3, 3, 'DF');
+
+      // Avatar Circle (x: 23, y: 42, r: 4.5)
+      doc.setFillColor(254, 243, 199); // amber-100
+      doc.setDrawColor(253, 230, 138); // amber-200
+      doc.circle(23, 42, 4.5, 'DF');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(120, 53, 15); // amber-900
+      doc.text(sale.customerName.charAt(0).toUpperCase(), 23, 45, { align: 'center' });
+
+      // Customer Name & Type
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(sale.customerName, 30, 41.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Tipe Pelanggan: ${sale.customerType || 'Pelanggan Usaha'}`, 30, 46);
+
+      // Status Badge
+      const isLunas = sale.amountPaid >= sale.grandTotal;
+      if (isLunas) {
+        doc.setFillColor(220, 252, 231); // emerald-100
+        doc.setDrawColor(187, 247, 208); // emerald-200
+        doc.roundedRect(152, 37.5, 40, 6, 3, 3, 'DF');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(22, 101, 52); // emerald-800
+        doc.text('Status: Lunas', 172, 41.7, { align: 'center' });
+      } else {
+        doc.setFillColor(255, 228, 230); // rose-100
+        doc.setDrawColor(254, 205, 211); // rose-200
+        doc.roundedRect(138, 37.5, 54, 6, 3, 3, 'DF');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(159, 18, 57); // rose-800
+        doc.text(`Status: Hutang (Sisa ${formatCurrency(sale.grandTotal - sale.amountPaid)})`, 165, 41.7, { align: 'center' });
+      }
+
+      // Line separator inside card
+      doc.setDrawColor(241, 245, 249);
+      doc.line(18, 49, 192, 49);
+
+      // 4 Info Grid Cards
+      const cardW = 42.5;
+      const cardH = 12;
+      const cardY = 52;
+      const infoList = [
+        { label: 'DITUJUKAN KEPADA:', val: sale.customerName },
+        { label: 'NO. WHATSAPP PELANGGAN:', val: sale.customerPhone || '-' },
+        { label: 'METODE PEMBAYARAN:', val: sale.paymentMethod },
+        { label: 'KASIR / PETUGAS:', val: sale.createdBy }
+      ];
+
+      infoList.forEach((info, i) => {
+        const cX = 18 + i * (cardW + 2.7);
+        doc.setFillColor(248, 250, 252); // slate-50
+        doc.setDrawColor(226, 232, 240); // slate-200
+        doc.roundedRect(cX, cardY, cardW, cardH, 1.5, 1.5, 'DF');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.5);
+        doc.setTextColor(100, 116, 139);
+        doc.text(info.label, cX + 2.5, cardY + 4);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(15, 23, 42);
+        doc.text(info.val, cX + 2.5, cardY + 9);
+      });
+
+      // 3. Rincian Barang Table Section
       const tableRows = sale.items.map((item, idx) => [
         idx + 1,
         `${formatNumber(item.quantity)} ${item.unit}`,
@@ -217,36 +255,47 @@ export function createDocumentPdf(
         .map(([unit, qty]) => `${formatNumber(qty)} ${unit}`)
         .join(', ');
 
+      // Header bar
+      doc.setFillColor(241, 245, 249);
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(14, 71, 182, 7, 1.5, 1.5, 'DF');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`RINCIAN BARANG & DETAIL DIBELI (${sale.items.length} ITEM)`, 18, 75.8);
+
       autoTable(doc, {
-        startY: 58,
+        startY: 78,
         head: [['No', 'Jumlah', 'Nama Item', 'Harga Satuan', 'Subtotal']],
         body: tableRows,
         foot: [
-          ['Total Qty', totalQtyText, '', '', '']
+          ['Total Qty', totalQtyText, '', '', `Total jenis item: ${sale.items.length} macam`]
         ],
-        theme: 'plain',
+        theme: 'grid',
         headStyles: {
-          fillColor: [248, 250, 252],
-          textColor: [71, 85, 105],
-          fontStyle: 'bold',
-          fontSize: 8.5,
-          lineWidth: 0.1,
-          lineColor: [226, 232, 240]
-        },
-        bodyStyles: {
-          fontSize: 8.5,
-          textColor: [15, 23, 42]
-        },
-        footStyles: {
-          fillColor: [255, 255, 255],
+          fillColor: [241, 245, 249],
           textColor: [15, 23, 42],
           fontStyle: 'bold',
-          fontSize: 8.5,
+          fontSize: 8,
+          lineWidth: 0.15,
+          lineColor: [203, 213, 225]
+        },
+        bodyStyles: {
+          fontSize: 8,
+          textColor: [15, 23, 42],
           lineWidth: 0.1,
           lineColor: [226, 232, 240]
         },
+        footStyles: {
+          fillColor: [254, 243, 199],
+          textColor: [15, 23, 42],
+          fontStyle: 'bold',
+          fontSize: 8,
+          lineWidth: 0.15,
+          lineColor: [203, 213, 225]
+        },
         columnStyles: {
-          0: { cellWidth: 12, halign: 'left' },
+          0: { cellWidth: 12, halign: 'center' },
           1: { cellWidth: 28, halign: 'right' },
           2: { cellWidth: 'auto', halign: 'left' },
           3: { cellWidth: 35, halign: 'right' },
@@ -255,61 +304,68 @@ export function createDocumentPdf(
         margin: { left: 14, right: 14 }
       });
 
-      // Summary Totals
-      const finalY = (doc as any).lastAutoTable?.finalY || 120;
-      const startSummaryY = finalY + 8;
+      // 4. Rincian Pembayaran Table Section
+      const finalTableY = (doc as any).lastAutoTable?.finalY || 130;
+      const calcY = finalTableY + 6;
 
-      const summaryX = 120;
+      doc.setFillColor(241, 245, 249);
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(14, calcY, 182, 7, 1.5, 1.5, 'DF');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(15, 23, 42);
+      doc.text('RINCIAN PEMBAYARAN & TOTAL PENJUALAN', 18, calcY + 4.8);
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text('Subtotal:', summaryX, startSummaryY);
-      doc.text(formatCurrency(sale.subtotal), 196, startSummaryY, { align: 'right' });
-
-      let currentY = startSummaryY + 5;
+      const summaryBody: any[] = [
+        ['Subtotal Harga Barang:', formatCurrency(sale.subtotal)]
+      ];
 
       if (sale.discount > 0) {
-        doc.text('Diskon:', summaryX, currentY);
-        doc.text(`-${formatCurrency(sale.discount)}`, 196, currentY, { align: 'right' });
-        currentY += 5;
+        summaryBody.push(['Diskon Potongan Harga:', `-${formatCurrency(sale.discount)}`]);
       }
 
-      // Horizontal separator line before Total Penjualan
-      doc.setDrawColor(226, 232, 240);
-      doc.line(summaryX, currentY - 1, 196, currentY - 1);
-      currentY += 3;
+      summaryBody.push(['Nominal Dibayar Customer:', formatCurrency(sale.amountPaid)]);
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      doc.setTextColor(15, 23, 42);
-      doc.text('Total Penjualan:', summaryX, currentY);
-      doc.text(formatCurrency(sale.grandTotal), 196, currentY, { align: 'right' });
-
-      currentY += 6;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text('Nominal Bayar:', summaryX, currentY);
-      doc.text(formatCurrency(sale.amountPaid), 196, currentY, { align: 'right' });
-
-      currentY += 5;
-      if ((sale.remainingDebt ?? 0) > 0) {
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(225, 29, 72);
-        doc.text('Sisa Piutang:', summaryX, currentY);
-        doc.text(formatCurrency(sale.remainingDebt || 0), 196, currentY, { align: 'right' });
+      if (sale.amountPaid < sale.grandTotal) {
+        summaryBody.push(['Total Sisa Hutang (Piutang Usaha):', formatCurrency(sale.grandTotal - sale.amountPaid)]);
       } else {
-        doc.text('Kembalian:', summaryX, currentY);
-        doc.text(formatCurrency(sale.change), 196, currentY, { align: 'right' });
+        summaryBody.push(['Uang Kembalian:', formatCurrency(sale.change)]);
       }
 
-      // Notes / Footer Notice
+      autoTable(doc, {
+        startY: calcY + 7,
+        body: summaryBody,
+        foot: [
+          ['Total Penjualan (Grand Total):', formatCurrency(sale.grandTotal)]
+        ],
+        theme: 'grid',
+        bodyStyles: {
+          fontSize: 8,
+          textColor: [15, 23, 42],
+          lineWidth: 0.1,
+          lineColor: [226, 232, 240]
+        },
+        footStyles: {
+          fillColor: [254, 243, 199],
+          textColor: [6, 95, 70],
+          fontStyle: 'bold',
+          fontSize: 9.5,
+          lineWidth: 0.2,
+          lineColor: [203, 213, 225]
+        },
+        columnStyles: {
+          0: { cellWidth: 'auto', halign: 'left' },
+          1: { cellWidth: 50, halign: 'right' }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      const finalCalcY = (doc as any).lastAutoTable?.finalY || 180;
       if (sale.notes) {
         doc.setFont('helvetica', 'italic');
         doc.setFontSize(8);
         doc.setTextColor(100, 116, 139);
-        doc.text(sale.notes, 14, currentY + 10);
+        doc.text(`Catatan: ${sale.notes}`, 14, finalCalcY + 6);
       }
     } else {
       // Thermal 80mm format
@@ -371,22 +427,112 @@ export function createDocumentPdf(
     const fileName = `Faktur_Pembelian_${p.invoiceNumber}.pdf`;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-    doc.setFillColor(30, 41, 59);
-    doc.rect(14, 12, 182, 2, 'F');
+    // Header
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(14, 12, 14, 14, 2, 2, 'DF');
+
+    doc.setFillColor(16, 185, 129);
+    doc.circle(21, 19, 5, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text(store.name, 14, 22);
+    doc.setFontSize(7);
+    doc.setTextColor(255, 255, 255);
+    doc.text('ACG', 21, 21.2, { align: 'center' });
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.setTextColor(37, 99, 235); // Blue-600
-    doc.text('FAKTUR PEMBELIAN', 196, 22, { align: 'right' });
+    doc.setFontSize(15);
+    doc.setTextColor(15, 23, 42);
+    doc.text(store.name, 32, 17);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(store.address || 'Alamat Toko', 32, 22);
+    doc.text(`Telp/WA: ${store.phone || '-'}`, 32, 26.5);
+
+    doc.setFillColor(236, 253, 245);
+    doc.setDrawColor(167, 243, 208);
+    doc.roundedRect(138, 12, 58, 5.5, 1, 1, 'DF');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(6, 95, 70);
+    doc.text('FAKTUR PEMBELIAN SUPPLIER', 167, 15.8, { align: 'center' });
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(15, 23, 42);
-    doc.text(p.invoiceNumber, 196, 28, { align: 'right' });
+    doc.text(p.invoiceNumber, 196, 22.5, { align: 'right' });
 
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Tanggal: ${formatDateTime(p.date)}`, 196, 27, { align: 'right' });
+
+    doc.setDrawColor(226, 232, 240);
+    doc.line(14, 31, 196, 31);
+
+    // Supplier details card
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(14, 34, 182, 34, 3, 3, 'DF');
+
+    doc.setFillColor(254, 243, 199);
+    doc.setDrawColor(253, 230, 138);
+    doc.circle(23, 42, 4.5, 'DF');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(120, 53, 15);
+    doc.text(p.supplierName.charAt(0).toUpperCase(), 23, 45, { align: 'center' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(p.supplierName, 30, 41.5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Pemasok / Supplier Usaha', 30, 46);
+
+    doc.setFillColor(220, 252, 231);
+    doc.setDrawColor(187, 247, 208);
+    doc.roundedRect(148, 37.5, 44, 6, 3, 3, 'DF');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(22, 101, 52);
+    doc.text(`Status: ${p.paymentStatus}`, 170, 41.7, { align: 'center' });
+
+    doc.setDrawColor(241, 245, 249);
+    doc.line(18, 49, 192, 49);
+
+    const cardW = 42.5;
+    const cardH = 12;
+    const cardY = 52;
+    const infoList = [
+      { label: 'SUPPLIER:', val: p.supplierName },
+      { label: 'NO. WHATSAPP SUPPLIER:', val: '-' },
+      { label: 'METODE PEMBAYARAN:', val: p.paymentMethod },
+      { label: 'PETUGAS / ADMIN:', val: p.createdBy }
+    ];
+
+    infoList.forEach((info, i) => {
+      const cX = 18 + i * (cardW + 2.7);
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(cX, cardY, cardW, cardH, 1.5, 1.5, 'DF');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(info.label, cX + 2.5, cardY + 4);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(15, 23, 42);
+      doc.text(info.val, cX + 2.5, cardY + 9);
+    });
+
+    // Items table
     const tableRows = p.items.map((item, idx) => [
       idx + 1,
       `${formatNumber(item.quantity)} ${item.unit}`,
@@ -395,12 +541,75 @@ export function createDocumentPdf(
       formatCurrency(item.subtotal)
     ]);
 
+    doc.setFillColor(241, 245, 249);
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(14, 71, 182, 7, 1.5, 1.5, 'DF');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`RINCIAN ITEM BARANG DIBELI (${p.items.length} ITEM)`, 18, 75.8);
+
     autoTable(doc, {
-      startY: 45,
-      head: [['No', 'Qty', 'Nama Barang', 'Harga Beli', 'Total']],
+      startY: 78,
+      head: [['No', 'Jumlah', 'Nama Item', 'Harga Satuan', 'Subtotal']],
       body: tableRows,
       theme: 'grid',
-      headStyles: { fillColor: [241, 245, 249], textColor: [30, 41, 59] },
+      headStyles: {
+        fillColor: [241, 245, 249],
+        textColor: [15, 23, 42],
+        fontStyle: 'bold',
+        fontSize: 8,
+        lineWidth: 0.15,
+        lineColor: [203, 213, 225]
+      },
+      bodyStyles: {
+        fontSize: 8,
+        textColor: [15, 23, 42],
+        lineWidth: 0.1,
+        lineColor: [226, 232, 240]
+      },
+      margin: { left: 14, right: 14 }
+    });
+
+    const finalTableY = (doc as any).lastAutoTable?.finalY || 130;
+    const calcY = finalTableY + 6;
+
+    doc.setFillColor(241, 245, 249);
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(14, calcY, 182, 7, 1.5, 1.5, 'DF');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(15, 23, 42);
+    doc.text('RINCIAN PEMBAYARAN SUPPLIER', 18, calcY + 4.8);
+
+    autoTable(doc, {
+      startY: calcY + 7,
+      body: [
+        ['Nominal Dibayar:', formatCurrency(p.amountPaid)],
+        ['Sisa Hutang Ke Supplier:', formatCurrency(p.remainingDebt)]
+      ],
+      foot: [
+        ['Total Pembelian Supplier (Grand Total):', formatCurrency(p.grandTotal)]
+      ],
+      theme: 'grid',
+      bodyStyles: {
+        fontSize: 8,
+        textColor: [15, 23, 42],
+        lineWidth: 0.1,
+        lineColor: [226, 232, 240]
+      },
+      footStyles: {
+        fillColor: [254, 243, 199],
+        textColor: [6, 95, 70],
+        fontStyle: 'bold',
+        fontSize: 9.5,
+        lineWidth: 0.2,
+        lineColor: [203, 213, 225]
+      },
+      columnStyles: {
+        0: { cellWidth: 'auto', halign: 'left' },
+        1: { cellWidth: 50, halign: 'right' }
+      },
       margin: { left: 14, right: 14 }
     });
 
