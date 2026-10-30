@@ -604,7 +604,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
                 {formatCurrency(netProfit)}
               </div>
               <div className="text-[11px] font-semibold mt-1 text-slate-600">
-                Uang untung bersih setelah potong gaji & listrik
+                Uang untung bersih setelah potong gaji & operasional
               </div>
             </div>
           </div>
@@ -623,67 +623,60 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
               </div>
 
               <div className="p-4 space-y-4 text-xs">
-                {/* 1. PENDAPATAN */}
+                {/* 1. TOTAL PENJUALAN */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between font-bold text-slate-900 text-sm pb-1 border-b border-slate-200">
-                    <span>1. TOTAL UANG PENJUALAN</span>
+                    <span>1. Total Penjualan</span>
                     <span className="font-mono tabular-nums">{formatCurrency(totalRevenue)}</span>
                   </div>
                   <div className="flex justify-between text-slate-600 pl-3">
                     <span>Penjualan Daging Ayam ({monthlySales.length} transaksi)</span>
-                    <span className="font-mono tabular-nums">{formatCurrency(totalRevenue)}</span>
+                    <span className="font-mono tabular-nums text-slate-800">{formatCurrency(totalRevenue)}</span>
                   </div>
                 </div>
 
-                {/* 2. HARGA POKOK PENJUALAN */}
+                {/* 2. MODAL BELANJA AYAM (HPP) */}
                 <div className="space-y-1.5">
                   <div className="flex justify-between font-bold text-slate-900 text-sm pb-1 border-b border-slate-200">
-                    <span>2. MODAL BELANJA AYAM DARI SUPPLIER (HPP)</span>
+                    <span>2. Modal Belanja Ayam (HPP)</span>
                     <span className="font-mono text-rose-700 tabular-nums">({formatCurrency(totalHPP)})</span>
                   </div>
                   <div className="flex justify-between text-slate-600 pl-3">
-                    <span>Harga Beli Ayam + Es Balok Pendingin</span>
-                    <span className="font-mono tabular-nums text-slate-700">{formatCurrency(totalHPP)}</span>
+                    <span>Harga Beli Ayam</span>
+                    <span className="font-mono tabular-nums text-slate-800">{formatCurrency(totalHPP)}</span>
                   </div>
                 </div>
 
-                {/* LABA KOTOR ROW */}
+                {/* KEUNTUNGAN KOTOR ROW */}
                 <div className="p-3 bg-slate-50 rounded-lg flex justify-between font-bold text-sm text-slate-900 border border-slate-200">
                   <span>KEUNTUNGAN KOTOR (PENJUALAN DIKURANGI MODAL):</span>
                   <span className="font-mono tabular-nums text-blue-700">{formatCurrency(grossProfit)}</span>
                 </div>
 
-                {/* 3. BEBAN OPERASIONAL */}
+                {/* 3. BIAYA PENGELUARAN GAJI & OPERASIONAL */}
                 <div className="space-y-1.5 pt-2">
                   <div className="flex justify-between font-bold text-slate-900 text-sm pb-1 border-b border-slate-200">
-                    <span>3. BIAYA PENGELUARAN TOKO & GAJI</span>
+                    <span>3. Biaya Pengeluaran Gaji & Operasional</span>
                     <span className="font-mono text-rose-700 tabular-nums">({formatCurrency(totalOperatingCosts)})</span>
                   </div>
                   
-                  <div className="flex justify-between text-slate-700 pl-3 py-0.5">
-                    <span className="font-medium">Total Gaji & Upah Karyawan Mingguan</span>
-                    <span className="font-mono tabular-nums">{formatCurrency(totalSalaries)}</span>
+                  <div className="flex justify-between text-slate-700 pl-3 py-1">
+                    <span className="font-medium">Total Gaji & Upah Karyawan</span>
+                    <span className="font-mono tabular-nums font-semibold text-slate-900">{formatCurrency(totalSalaries)}</span>
                   </div>
 
-                  {monthlyExpenses.map((exp) => (
-                    <div key={exp.id} className="flex justify-between text-slate-600 pl-3 py-0.5">
-                      <span>{exp.category}: {exp.description}</span>
-                      <span className="font-mono tabular-nums">{formatCurrency(exp.amount)}</span>
-                    </div>
-                  ))}
-
-                  <div className="flex justify-between text-slate-500 pl-3 pt-1 border-t border-slate-100 font-medium">
-                    <span>Total Pengeluaran Toko:</span>
-                    <span className="font-mono tabular-nums">{formatCurrency(totalOperatingCosts)}</span>
+                  <div className="flex justify-between text-slate-700 pl-3 py-1">
+                    <span className="font-medium">Biaya Operasional</span>
+                    <span className="font-mono tabular-nums font-semibold text-slate-900">{formatCurrency(totalOtherExpenses)}</span>
                   </div>
                 </div>
 
-                {/* LABA BERSIH FINAL */}
-                <div className={`p-4 rounded-xl flex justify-between items-center text-base font-bold border ${
+                {/* KEUNTUNGAN BERSIH FINAL */}
+                <div className={`p-4 rounded-xl flex justify-between items-center text-base font-bold border shadow-xs ${
                   netProfit >= 0 ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-rose-500 text-white border-rose-600'
                 }`}>
-                  <span>KEUNTUNGAN BERSIH AKHIR (UANG UNTUNG TOKO):</span>
-                  <span className="font-mono text-lg tabular-nums">{formatCurrency(netProfit)}</span>
+                  <span className="uppercase tracking-wide font-extrabold">Keuntungan Bersih</span>
+                  <span className="font-mono text-xl tabular-nums font-extrabold">{formatCurrency(netProfit)}</span>
                 </div>
               </div>
             </div>
