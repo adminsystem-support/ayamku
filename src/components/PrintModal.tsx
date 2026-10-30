@@ -415,130 +415,201 @@ export const PrintModal: React.FC<PrintModalProps> = ({
             {/* 1. SALE TRANSACTION TEMPLATE (BUKTI TRANSAKSI ELEKTRONIK SAH TANPA TTD BASAH) */}
             {printData.type === 'sale' && (
               printFormat === 'a4' ? (
-                // A4 Sale Invoice
-                <div className="space-y-6">
+                // A4 Sale Invoice styled like Salary Slip
+                <div className="space-y-5">
                   {/* Header with Store Logo */}
-                  <div className="flex justify-between items-start border-b border-slate-300 pb-5">
+                  <div className="flex justify-between items-start border-b border-slate-300 pb-4">
                     <div className="flex items-start gap-3.5">
-                      <div className="w-16 h-16 rounded-xl border border-slate-200 bg-white flex items-center justify-center p-1.5 shrink-0 shadow-xs">
+                      <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white flex items-center justify-center p-1.5 shrink-0 shadow-xs">
                         <img src={storeProfile.logoUrl || '/logo_unggas.svg'} alt="Logo" className="max-w-full max-h-full object-contain" />
                       </div>
                       <div>
-                        <h1 className="text-xl font-bold text-slate-900 tracking-tight">{storeProfile.name}</h1>
-                        <p className="text-xs text-slate-600 mt-1 max-w-sm">{storeProfile.address}</p>
+                        <h1 className="text-lg font-bold text-slate-900 tracking-tight">{storeProfile.name}</h1>
+                        <p className="text-xs text-slate-600 mt-0.5 max-w-sm">{storeProfile.address}</p>
                         <p className="text-xs text-slate-600 mt-0.5">Telp/WA: {storeProfile.phone}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">NOTA PENJUALAN</span>
-                      <h2 className="text-base font-bold font-mono text-slate-900 mt-0.5">{printData.data.invoiceNumber}</h2>
-                      <p className="text-xs text-slate-500 mt-1">Tanggal: {formatDateTime(printData.data.date)}</p>
-                    </div>
-                  </div>
-
-                  {/* Customer & Info Info Bar */}
-                  <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-lg border border-slate-200 text-xs">
-                    <div>
-                      <span className="text-slate-400 font-medium block">Ditujukan Kepada:</span>
-                      <p className="font-semibold text-slate-900 text-sm mt-0.5">{printData.data.customerName}</p>
-                      <span className="text-slate-500 mt-0.5 block">{printData.data.customerType}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-slate-400 font-medium block">Metode Pembayaran:</span>
-                      <p className="font-semibold text-slate-900 text-sm mt-0.5">{printData.data.paymentMethod}</p>
-                      <span className="text-slate-500 mt-0.5 block">Kasir: {printData.data.createdBy}</span>
-                    </div>
-                  </div>
-
-                  {/* Items Table with explicit professional grid columns */}
-                  <div className="border border-slate-300 rounded-lg overflow-hidden">
-                    <table className="w-full text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
-                          <th className="py-2.5 px-3 text-left border-r border-slate-300 w-10">No</th>
-                          <th className="py-2.5 px-3 text-right border-r border-slate-300 w-28">Jumlah</th>
-                          <th className="py-2.5 px-3 text-left border-r border-slate-300">Nama Item</th>
-                          <th className="py-2.5 px-3 text-right border-r border-slate-300 w-32">Harga Satuan</th>
-                          <th className="py-2.5 px-3 text-right w-36">Subtotal</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200">
-                        {printData.data.items.map((item, idx) => (
-                          <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                            <td className="py-2 px-3 text-slate-500 border-r border-slate-200 text-center">{idx + 1}</td>
-                            <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 font-semibold text-slate-900">
-                              {formatNumber(item.quantity)} {item.unit}
-                            </td>
-                            <td className="py-2 px-3 font-medium text-slate-800 border-r border-slate-200">{item.itemName}</td>
-                            <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 text-slate-700">{formatCurrency(item.sellPrice)}</td>
-                            <td className="py-2 px-3 text-right font-mono font-bold tabular-nums text-slate-900">{formatCurrency(item.subtotal)}</td>
-                          </tr>
-                        ))}
-                        <tr className="border-t-2 border-slate-300 bg-slate-50 font-bold">
-                          <td className="py-2.5 px-3 text-left text-slate-800 align-top border-r border-slate-200">Total Qty</td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-900 align-top leading-snug border-r border-slate-200">
-                            <div className="flex flex-col items-end gap-0.5">
-                              {Object.entries(
-                                printData.data.items.reduce((acc, item) => {
-                                  acc[item.unit] = (acc[item.unit] || 0) + item.quantity;
-                                  return acc;
-                                }, {} as Record<string, number>)
-                              ).map(([unit, qty]) => (
-                                <div key={unit}>{formatNumber(qty)} {unit}</div>
-                              ))}
-                            </div>
-                          </td>
-                          <td colSpan={3} className="py-2.5 px-3 text-right text-slate-500 font-normal italic">
-                            {printData.data.items.length} jenis barang
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Calculations */}
-                  <div className="flex justify-end pt-2 border-t border-slate-300">
-                    <div className="w-72 space-y-1.5 text-xs">
-                      <div className="flex justify-between text-slate-600">
-                        <span>Subtotal:</span>
-                        <span className="font-mono tabular-nums">{formatCurrency(printData.data.subtotal)}</span>
-                      </div>
-                      {printData.data.discount > 0 && (
-                        <div className="flex justify-between text-rose-600">
-                          <span>Diskon:</span>
-                          <span className="font-mono tabular-nums">-{formatCurrency(printData.data.discount)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-base font-bold text-slate-900 border-t border-slate-300 pt-2">
-                        <span>Total Penjualan:</span>
-                        <span className="font-mono tabular-nums">{formatCurrency(printData.data.grandTotal)}</span>
-                      </div>
-                      <div className="flex justify-between text-slate-600 pt-1">
-                        <span>Nominal Bayar:</span>
-                        <span className="font-mono tabular-nums">{formatCurrency(printData.data.amountPaid)}</span>
-                      </div>
-                      {printData.data.amountPaid < printData.data.grandTotal ? (
-                        <div className="flex justify-between text-rose-600 font-semibold">
-                          <span>Total Hutang (Sisa):</span>
-                          <span className="font-mono tabular-nums">{formatCurrency(printData.data.grandTotal - printData.data.amountPaid)}</span>
-                        </div>
-                      ) : (
-                        <div className="flex justify-between text-slate-600">
-                          <span>Kembalian:</span>
-                          <span className="font-mono tabular-nums">{formatCurrency(printData.data.change)}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Clean Notes Footer */}
-                  {printData.data.notes && (
-                    <div className="pt-4 border-t border-slate-200 text-center">
-                      <p className="text-[11px] text-slate-500 italic">
-                        {printData.data.notes}
+                      <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+                        NOTA PENJUALAN ELEKTRONIK
+                      </span>
+                      <h2 className="text-sm font-bold font-mono text-slate-900 mt-1">{printData.data.invoiceNumber}</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Tanggal: {formatDateTime(printData.data.date)}
                       </p>
                     </div>
+                  </div>
+
+                  {/* Customer Details & Info Grid Card */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3.5 shadow-2xs">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-900 font-bold flex items-center justify-center text-base border border-amber-200/80 shrink-0">
+                          {printData.data.customerName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-sm leading-tight">{printData.data.customerName}</h3>
+                          <p className="text-[11px] font-medium text-slate-500">Tipe Pelanggan: {printData.data.customerType || 'Pelanggan Usaha'}</p>
+                        </div>
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                        printData.data.amountPaid >= printData.data.grandTotal 
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                          : 'bg-rose-100 text-rose-800 border border-rose-200'
+                      }`}>
+                        Status: {printData.data.amountPaid >= printData.data.grandTotal ? 'Lunas' : `Hutang (Sisa ${formatCurrency(printData.data.grandTotal - printData.data.amountPaid)})`}
+                      </span>
+                    </div>
+
+                    {/* 4 Info Cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 text-xs">
+                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">DITUJUKAN KEPADA:</span>
+                        <span className="font-bold text-slate-900 mt-0.5 block">{printData.data.customerName}</span>
+                      </div>
+                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">NO. WHATSAPP PELANGGAN:</span>
+                        <span className="font-semibold text-emerald-700 flex items-center gap-1 mt-0.5">
+                          <Phone className="w-3 h-3 text-emerald-600 inline shrink-0" />
+                          {printData.data.customerPhone || (() => {
+                            const found = customers.find(c => c.id === printData.data.customerId || c.name.toLowerCase() === printData.data.customerName?.toLowerCase());
+                            return found?.phone || '-';
+                          })()}
+                        </span>
+                      </div>
+                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">METODE PEMBAYARAN:</span>
+                        <span className="font-bold text-slate-900 mt-0.5 block">{printData.data.paymentMethod}</span>
+                      </div>
+                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">KASIR / PETUGAS:</span>
+                        <span className="font-bold text-slate-900 mt-0.5 block">{printData.data.createdBy}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Items Table Section */}
+                  <div className="bg-white rounded-xl border border-slate-300 overflow-hidden shadow-2xs">
+                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-amber-600" />
+                        <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
+                          RINCIAN BARANG & DETAIL DIBELI ({printData.data.items.length} ITEM)
+                        </h4>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
+                          <tr>
+                            <th className="py-2.5 px-3 border-r border-slate-300 w-10 text-center">No</th>
+                            <th className="py-2.5 px-3 text-right border-r border-slate-300 w-28">Jumlah</th>
+                            <th className="py-2.5 px-3 border-r border-slate-300">Nama Item</th>
+                            <th className="py-2.5 px-3 text-right border-r border-slate-300 w-32">Harga Satuan</th>
+                            <th className="py-2.5 px-3 text-right w-36">Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 font-medium text-xs">
+                          {printData.data.items.map((item, idx) => (
+                            <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                              <td className="py-2 px-3 text-slate-500 border-r border-slate-200 text-center">{idx + 1}</td>
+                              <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 font-semibold text-slate-900">
+                                {formatNumber(item.quantity)} {item.unit}
+                              </td>
+                              <td className="py-2 px-3 font-medium text-slate-800 border-r border-slate-200">{item.itemName}</td>
+                              <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 text-slate-700">{formatCurrency(item.sellPrice)}</td>
+                              <td className="py-2 px-3 text-right font-mono font-bold tabular-nums text-slate-900">{formatCurrency(item.subtotal)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-amber-50/80 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                          <tr>
+                            <td className="py-2.5 px-3 text-left text-slate-800 align-top border-r border-slate-200">Total Qty</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-900 align-top leading-snug border-r border-slate-200">
+                              <div className="flex flex-col items-end gap-0.5">
+                                {Object.entries(
+                                  printData.data.items.reduce((acc, item) => {
+                                    acc[item.unit] = (acc[item.unit] || 0) + item.quantity;
+                                    return acc;
+                                  }, {} as Record<string, number>)
+                                ).map(([unit, qty]) => (
+                                  <div key={unit}>{formatNumber(qty)} {unit}</div>
+                                ))}
+                              </div>
+                            </td>
+                            <td colSpan={3} className="py-2.5 px-3 text-right text-slate-600 font-normal italic">
+                              Total jenis item: {printData.data.items.length} macam
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Income & Calculation Breakdown Box */}
+                  <div className="bg-white border border-slate-300 rounded-xl overflow-hidden shadow-2xs text-xs">
+                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
+                      <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
+                        RINCIAN PEMBAYARAN & TOTAL PENJUALAN
+                      </h4>
+                    </div>
+                    
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <tbody className="divide-y divide-slate-200 font-medium text-xs">
+                          <tr className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">Subtotal Harga Barang:</td>
+                            <td className="py-2.5 px-3.5 text-right font-mono font-semibold text-slate-900">{formatCurrency(printData.data.subtotal)}</td>
+                          </tr>
+                          {printData.data.discount > 0 && (
+                            <tr className="hover:bg-slate-50/50">
+                              <td className="py-2.5 px-3.5 text-rose-700 font-semibold border-r border-slate-200">Diskon Potongan Harga:</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-600">-{formatCurrency(printData.data.discount)}</td>
+                            </tr>
+                          )}
+                          <tr className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">Nominal Dibayar Customer:</td>
+                            <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-900">{formatCurrency(printData.data.amountPaid)}</td>
+                          </tr>
+                          {printData.data.amountPaid < printData.data.grandTotal ? (
+                            <tr className="bg-rose-50/70 text-rose-900 font-semibold">
+                              <td className="py-2.5 px-3.5 border-r border-rose-200">Total Sisa Hutang (Piutang Usaha):</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-700">{formatCurrency(printData.data.grandTotal - printData.data.amountPaid)}</td>
+                            </tr>
+                          ) : (
+                            <tr className="bg-slate-50/70 text-slate-900">
+                              <td className="py-2.5 px-3.5 border-r border-slate-200">Uang Kembalian:</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-semibold">{formatCurrency(printData.data.change)}</td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-amber-50/80 font-bold border-t-2 border-slate-300 text-slate-900 text-xs sm:text-sm">
+                          <tr>
+                            <td className="py-3 px-3.5 text-slate-900 font-bold border-r border-slate-300">Total Penjualan (Grand Total):</td>
+                            <td className="py-3 px-3.5 text-right font-mono text-emerald-800 text-sm sm:text-base font-bold">{formatCurrency(printData.data.grandTotal)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+
+                  {printData.data.notes && (
+                    <p className="text-xs text-slate-500 italic">Catatan: {printData.data.notes}</p>
                   )}
+
+                  {/* Official Electronic Verification Notice */}
+                  <div className="pt-2 border-t border-slate-200 text-center">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 max-w-lg mx-auto space-y-1">
+                      <div className="flex items-center justify-center gap-1.5 text-emerald-800 font-bold text-xs">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <span>DOKUMEN NOTA PENJUALAN ELEKTRONIK SAH</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-tight">
+                        Dokumen Nota Penjualan ini diterbitkan secara otomatis oleh sistem operasional <strong>{storeProfile.name}</strong>. Berkas ini sah dan berlaku sebagai bukti transaksi penjualan resmi tanpa memerlukan tanda tangan basah.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 // Thermal Sale Receipt (58mm / 80mm)
@@ -653,127 +724,198 @@ export const PrintModal: React.FC<PrintModalProps> = ({
             {/* 2. PURCHASE TRANSACTION TEMPLATE (BUKTI PEMBELIAN) */}
             {printData.type === 'purchase' && (
               printFormat === 'a4' ? (
-                // A4 Purchase Invoice
-                <div className="space-y-6">
+                // A4 Purchase Invoice styled like Salary Slip
+                <div className="space-y-5">
                   {/* Header with Store Logo */}
-                  <div className="flex justify-between items-start border-b border-slate-300 pb-5">
+                  <div className="flex justify-between items-start border-b border-slate-300 pb-4">
                     <div className="flex items-start gap-3.5">
-                      <div className="w-16 h-16 rounded-xl border border-slate-200 bg-white flex items-center justify-center p-1.5 shrink-0 shadow-xs">
+                      <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white flex items-center justify-center p-1.5 shrink-0 shadow-xs">
                         <img src={storeProfile.logoUrl || '/logo_unggas.svg'} alt="Logo" className="max-w-full max-h-full object-contain" />
                       </div>
                       <div>
-                        <h1 className="text-xl font-bold text-slate-900 tracking-tight">{storeProfile.name}</h1>
-                        <p className="text-xs text-slate-600 mt-1 max-w-sm">{storeProfile.address}</p>
+                        <h1 className="text-lg font-bold text-slate-900 tracking-tight">{storeProfile.name}</h1>
+                        <p className="text-xs text-slate-600 mt-0.5 max-w-sm">{storeProfile.address}</p>
                         <p className="text-xs text-slate-600 mt-0.5">Telp/WA: {storeProfile.phone}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">FAKTUR PEMBELIAN</span>
-                      <h2 className="text-base font-bold font-mono text-slate-900 mt-0.5">{printData.data.invoiceNumber}</h2>
-                      <p className="text-xs text-slate-500 mt-1">Tanggal: {formatDateTime(printData.data.date)}</p>
-                    </div>
-                  </div>
-
-                  {/* Supplier Info Bar */}
-                  <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-lg border border-slate-200 text-xs">
-                    <div>
-                      <span className="text-slate-400 font-medium block">Supplier:</span>
-                      <p className="font-semibold text-slate-900 text-sm mt-0.5">{printData.data.supplierName}</p>
-                      <span className="text-slate-500 mt-0.5 block">Status: <strong className="text-slate-800">{printData.data.paymentStatus}</strong></span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-slate-400 font-medium block">Metode Pembayaran:</span>
-                      <p className="font-semibold text-slate-900 text-sm mt-0.5">{printData.data.paymentMethod}</p>
-                      <span className="text-slate-500 mt-0.5 block">Petugas: {printData.data.createdBy}</span>
-                    </div>
-                  </div>
-
-                  {/* Items Table with explicit professional grid columns */}
-                  <div className="border border-slate-300 rounded-lg overflow-hidden">
-                    <table className="w-full text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
-                          <th className="py-2.5 px-3 text-left border-r border-slate-300 w-10">No</th>
-                          <th className="py-2.5 px-3 text-right border-r border-slate-300 w-28">Jumlah</th>
-                          <th className="py-2.5 px-3 text-left border-r border-slate-300">Nama Item</th>
-                          <th className="py-2.5 px-3 text-right border-r border-slate-300 w-32">Harga Satuan</th>
-                          <th className="py-2.5 px-3 text-right w-36">Subtotal</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200">
-                        {printData.data.items.map((item, idx) => (
-                          <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                            <td className="py-2 px-3 text-slate-500 border-r border-slate-200 text-center">{idx + 1}</td>
-                            <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 font-semibold text-slate-900">
-                              {formatNumber(item.quantity)} {item.unit}
-                            </td>
-                            <td className="py-2 px-3 font-medium text-slate-800 border-r border-slate-200">{item.itemName}</td>
-                            <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 text-slate-700">{formatCurrency(item.targetSellPrice || 0)}</td>
-                            <td className="py-2 px-3 text-right font-mono font-bold tabular-nums text-slate-900">{formatCurrency(item.subtotal)}</td>
-                          </tr>
-                        ))}
-                        <tr className="border-t-2 border-slate-300 bg-slate-50 font-bold">
-                          <td className="py-2.5 px-3 text-left text-slate-800 align-top border-r border-slate-200">Total Qty</td>
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-900 align-top leading-snug border-r border-slate-200">
-                            <div className="flex flex-col items-end gap-0.5">
-                              {Object.entries(
-                                printData.data.items.reduce((acc, item) => {
-                                  acc[item.unit] = (acc[item.unit] || 0) + item.quantity;
-                                  return acc;
-                                }, {} as Record<string, number>)
-                              ).map(([unit, qty]) => (
-                                <div key={unit}>{formatNumber(qty)} {unit}</div>
-                              ))}
-                            </div>
-                          </td>
-                          <td colSpan={3} className="py-2.5 px-3 text-right text-slate-500 font-normal italic">
-                            {printData.data.items.length} jenis barang
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Calculations */}
-                  <div className="flex justify-end pt-2 border-t border-slate-300">
-                    <div className="w-72 space-y-1.5 text-xs">
-                      <div className="flex justify-between items-center text-sm font-bold text-slate-900">
-                        <span>Total Pembelian:</span>
-                        <span className="font-mono tabular-nums">
-                          {formatCurrency(printData.data.items.reduce((sum, item) => sum + ((item.targetSellPrice || 0) * item.quantity), 0))}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-slate-700">
-                        <span>Total Modal:</span>
-                        <span className="font-mono tabular-nums">{formatCurrency(printData.data.grandTotal)}</span>
-                      </div>
-                      {(printData.data.paymentStatus === 'Sebagian' || (printData.data.remainingDebt || 0) > 0) && (
-                        <div className="flex justify-between text-rose-600 font-semibold">
-                          <span>Total Hutang:</span>
-                          <span className="font-mono tabular-nums">
-                            {formatCurrency(printData.data.remainingDebt !== undefined ? printData.data.remainingDebt : Math.max(0, printData.data.grandTotal - (printData.data.amountPaid || 0)))}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex justify-between text-emerald-700 font-bold border-t border-slate-200 pt-1">
-                        <span>Keuntungan:</span>
-                        <span className="font-mono tabular-nums">
-                          {formatCurrency(printData.data.items.reduce((sum, item) => sum + (item.profit || 0), 0))}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Clean Notes Footer */}
-                  {printData.data.notes && (
-                    <div className="pt-4 border-t border-slate-200 text-center">
-                      <p className="text-[11px] text-slate-500 italic">
-                        {printData.data.notes}
+                      <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+                        FAKTUR PEMBELIAN SUPPLIER
+                      </span>
+                      <h2 className="text-sm font-bold font-mono text-slate-900 mt-1">{printData.data.invoiceNumber}</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Tanggal: {formatDateTime(printData.data.date)}
                       </p>
                     </div>
+                  </div>
+
+                  {/* Supplier Details & Info Grid Card */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3.5 shadow-2xs">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-900 font-bold flex items-center justify-center text-base border border-amber-200/80 shrink-0">
+                          {printData.data.supplierName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-sm leading-tight">{printData.data.supplierName}</h3>
+                          <p className="text-[11px] font-medium text-slate-500">Pemasok / Supplier Usaha</p>
+                        </div>
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                        printData.data.paymentStatus === 'Lunas' 
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                          : 'bg-amber-100 text-amber-800 border border-amber-200'
+                      }`}>
+                        Status: {printData.data.paymentStatus}
+                      </span>
+                    </div>
+
+                    {/* 4 Info Cards */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 text-xs">
+                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">SUPPLIER:</span>
+                        <span className="font-bold text-slate-900 mt-0.5 block">{printData.data.supplierName}</span>
+                      </div>
+                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">NO. WHATSAPP SUPPLIER:</span>
+                        <span className="font-semibold text-emerald-700 flex items-center gap-1 mt-0.5">
+                          <Phone className="w-3 h-3 text-emerald-600 inline shrink-0" />
+                          {(() => {
+                            const found = suppliers.find(s => s.id === printData.data.supplierId || s.name.toLowerCase() === printData.data.supplierName?.toLowerCase());
+                            return found?.phone || '-';
+                          })()}
+                        </span>
+                      </div>
+                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">METODE PEMBAYARAN:</span>
+                        <span className="font-bold text-slate-900 mt-0.5 block">{printData.data.paymentMethod}</span>
+                      </div>
+                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">PETUGAS / ADMIN:</span>
+                        <span className="font-bold text-slate-900 mt-0.5 block">{printData.data.createdBy}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Items Table Section */}
+                  <div className="bg-white rounded-xl border border-slate-300 overflow-hidden shadow-2xs">
+                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Truck className="w-4 h-4 text-amber-600" />
+                        <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
+                          RINCIAN ITEM BARANG DIBELI ({printData.data.items.length} ITEM)
+                        </h4>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
+                          <tr>
+                            <th className="py-2.5 px-3 border-r border-slate-300 w-10 text-center">No</th>
+                            <th className="py-2.5 px-3 text-right border-r border-slate-300 w-28">Jumlah</th>
+                            <th className="py-2.5 px-3 border-r border-slate-300">Nama Item</th>
+                            <th className="py-2.5 px-3 text-right border-r border-slate-300 w-32">Harga Satuan</th>
+                            <th className="py-2.5 px-3 text-right w-36">Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 font-medium text-xs">
+                          {printData.data.items.map((item, idx) => (
+                            <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                              <td className="py-2 px-3 text-slate-500 border-r border-slate-200 text-center">{idx + 1}</td>
+                              <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 font-semibold text-slate-900">
+                                {formatNumber(item.quantity)} {item.unit}
+                              </td>
+                              <td className="py-2 px-3 font-medium text-slate-800 border-r border-slate-200">{item.itemName}</td>
+                              <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 text-slate-700">{formatCurrency(item.targetSellPrice || 0)}</td>
+                              <td className="py-2 px-3 text-right font-mono font-bold tabular-nums text-slate-900">{formatCurrency(item.subtotal)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-amber-50/80 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                          <tr>
+                            <td className="py-2.5 px-3 text-left text-slate-800 align-top border-r border-slate-200">Total Qty</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-900 align-top leading-snug border-r border-slate-200">
+                              <div className="flex flex-col items-end gap-0.5">
+                                {Object.entries(
+                                  printData.data.items.reduce((acc, item) => {
+                                    acc[item.unit] = (acc[item.unit] || 0) + item.quantity;
+                                    return acc;
+                                  }, {} as Record<string, number>)
+                                ).map(([unit, qty]) => (
+                                  <div key={unit}>{formatNumber(qty)} {unit}</div>
+                                ))}
+                              </div>
+                            </td>
+                            <td colSpan={3} className="py-2.5 px-3 text-right text-slate-600 font-normal italic">
+                              Total jenis item: {printData.data.items.length} macam
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Calculations Breakdown Box */}
+                  <div className="bg-white border border-slate-300 rounded-xl overflow-hidden shadow-2xs text-xs">
+                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
+                      <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
+                        RINCIAN MODAL & TOTAL PEMBELIAN
+                      </h4>
+                    </div>
+                    
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <tbody className="divide-y divide-slate-200 font-medium text-xs">
+                          <tr className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">Total Nilai Modal Pembelian:</td>
+                            <td className="py-2.5 px-3.5 text-right font-mono font-semibold text-slate-900">{formatCurrency(printData.data.grandTotal)}</td>
+                          </tr>
+                          <tr className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">Nominal Telah Dibayar:</td>
+                            <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-900">{formatCurrency(printData.data.amountPaid || 0)}</td>
+                          </tr>
+                          {(printData.data.paymentStatus === 'Sebagian' || (printData.data.remainingDebt || 0) > 0) && (
+                            <tr className="bg-rose-50/70 text-rose-900 font-semibold">
+                              <td className="py-2.5 px-3.5 border-r border-rose-200">Sisa Hutang Ke Supplier:</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-700">
+                                {formatCurrency(printData.data.remainingDebt !== undefined ? printData.data.remainingDebt : Math.max(0, printData.data.grandTotal - (printData.data.amountPaid || 0)))}
+                              </td>
+                            </tr>
+                          )}
+                          <tr className="bg-emerald-50/50 text-emerald-900">
+                            <td className="py-2.5 px-3.5 border-r border-slate-200 font-semibold">Estimasi Total Proyeksi Keuntungan:</td>
+                            <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-700">
+                              +{formatCurrency(printData.data.items.reduce((sum, item) => sum + (item.profit || 0), 0))}
+                            </td>
+                          </tr>
+                        </tbody>
+                        <tfoot className="bg-amber-50/80 font-bold border-t-2 border-slate-300 text-slate-900 text-xs sm:text-sm">
+                          <tr>
+                            <td className="py-3 px-3.5 text-slate-900 font-bold border-r border-slate-300">Total Pembelian Supplier (Grand Total):</td>
+                            <td className="py-3 px-3.5 text-right font-mono text-emerald-800 text-sm sm:text-base font-bold">{formatCurrency(printData.data.grandTotal)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+
+                  {printData.data.notes && (
+                    <p className="text-xs text-slate-500 italic">Catatan: {printData.data.notes}</p>
                   )}
 
-                  {/* END OF DOCUMENT */}
+                  {/* Official Electronic Verification Notice */}
+                  <div className="pt-2 border-t border-slate-200 text-center">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 max-w-lg mx-auto space-y-1">
+                      <div className="flex items-center justify-center gap-1.5 text-emerald-800 font-bold text-xs">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <span>DOKUMEN FAKTUR PEMBELIAN ELEKTRONIK SAH</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 leading-tight">
+                        Dokumen Faktur Pembelian ini diterbitkan secara otomatis oleh sistem operasional <strong>{storeProfile.name}</strong>. Berkas ini sah dan berlaku sebagai bukti transaksi pembelian resmi tanpa memerlukan tanda tangan basah.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 // Thermal Purchase Receipt
