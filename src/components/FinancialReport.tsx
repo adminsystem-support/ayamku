@@ -27,10 +27,7 @@ import {
   Eye,
   FileText,
   MessageCircle,
-  Send,
-  ArrowUpDown,
-  ArrowDownRight,
-  Coins
+  Send
 } from 'lucide-react';
 import { 
   SaleTransaction, 
@@ -57,28 +54,6 @@ import {
   formatPhoneNumberForWhatsApp,
   generateWhatsAppDebtReminderMessage
 } from '../utils/formatters.ts';
-
-export interface CashFlowItem {
-  id: string;
-  date: string;
-  timestamp: number;
-  flowType: 'masuk' | 'keluar';
-  category: 
-    | 'Penjualan' 
-    | 'Pembayaran Piutang Pelanggan' 
-    | 'Pelunasan Kasbon Karyawan' 
-    | 'Pembelian Ayam' 
-    | 'Pembayaran Utang Supplier' 
-    | 'Gaji Karyawan' 
-    | 'Biaya Operasional' 
-    | 'Pinjaman Kasbon Karyawan';
-  title: string;
-  description: string;
-  counterparty: string;
-  amount: number;
-  paymentMethod: string;
-  referenceNo?: string;
-}
 
 interface FinancialReportProps {
   sales: SaleTransaction[];
@@ -115,10 +90,58 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   storeProfile,
   userRole,
 }) => {
-  // Current month & year selector
+  // Report View Sub-tab
+  const [activeReportTab, setActiveReportTab] = useState<'laba_rugi' | 'hutang_piutang'>('laba_rugi');
+
+  // Period Filter: 'harian' | 'mingguan' | 'bulanan'
+  const [filterPeriodType, setFilterPeriodType] = useState<'harian' | 'mingguan' | 'bulanan'>('bulanan');
+
   const today = new Date();
+  const todayStr = today.toISOString().substring(0, 10);
   const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+  const pastWeekDate = new Date(today);
+  pastWeekDate.setDate(today.getDate() - 6);
+  const pastWeekStr = pastWeekDate.toISOString().substring(0, 10);
+
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const [weekStartDate, setWeekStartDate] = useState<string>(pastWeekStr);
+  const [weekEndDate, setWeekEndDate] = useState<string>(todayStr);
   const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
+
+  // Helper filter check
+  const isDateInPeriod = (dateStr?: string) => {
+    if (!dateStr) return false;
+    const d = dateStr.substring(0, 10);
+    if (filterPeriodType === 'harian') {
+      return d === selectedDate;
+    }
+    if (filterPeriodType === 'mingguan') {
+      return d >= weekStartDate && d <= weekEndDate;
+    }
+    return d.startsWith(selectedMonth);
+  };
+
+  const isSlipInPeriod = (slip: SalarySlip) => {
+    const d = (slip.generatedDate || slip.periodEnd).substring(0, 10);
+    if (filterPeriodType === 'harian') {
+      return d === selectedDate;
+    }
+    if (filterPeriodType === 'mingguan') {
+      return slip.periodEnd >= weekStartDate && slip.periodStart <= weekEndDate;
+    }
+    return d.startsWith(selectedMonth);
+  };
+
+  const periodLabel = useMemo(() => {
+    if (filterPeriodType === 'harian') {
+      return `Harian (${formatDate(selectedDate)})`;
+    }
+    if (filterPeriodType === 'mingguan') {
+      return `Mingguan (${formatDate(weekStartDate)} s/d ${formatDate(weekEndDate)})`;
+    }
+    return `Bulanan (${selectedMonth})`;
+  }, [filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
   
   // Expense form modal
   const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -170,26 +193,26 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
     payments: DebtPayment[];
   } | null>(null);
 
-  // Filter data by selected month
+  // Filter data by selected period (harian, mingguan, bulanan)
   const monthlySales = useMemo(() => {
-    return sales.filter(s => s.date.startsWith(selectedMonth));
-  }, [sales, selectedMonth]);
+    return sales.filter(s => isDateInPeriod(s.date));
+  }, [sales, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
 
   const monthlyPurchases = useMemo(() => {
-    return purchases.filter(p => p.date.startsWith(selectedMonth));
-  }, [purchases, selectedMonth]);
+    return purchases.filter(p => isDateInPeriod(p.date));
+  }, [purchases, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
 
   const monthlySlips = useMemo(() => {
-    return salarySlips.filter(s => s.periodEnd.startsWith(selectedMonth));
-  }, [salarySlips, selectedMonth]);
+    return salarySlips.filter(s => isSlipInPeriod(s));
+  }, [salarySlips, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
 
   const monthlyAttendanceWages = useMemo(() => {
-    return attendanceRecords.filter(a => a.date.startsWith(selectedMonth));
-  }, [attendanceRecords, selectedMonth]);
+    return attendanceRecords.filter(a => isDateInPeriod(a.date));
+  }, [attendanceRecords, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
 
   const monthlyExpenses = useMemo(() => {
-    return expenses.filter(e => e.date.startsWith(selectedMonth));
-  }, [expenses, selectedMonth]);
+    return expenses.filter(e => isDateInPeriod(e.date));
+  }, [expenses, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
 
   // Calculations for Laba Rugi
   const totalRevenue = useMemo(() => {
@@ -231,263 +254,6 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
     return totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
   }, [netProfit, totalRevenue]);
 
-  // Breakdown detail pengeluaran operasional per kategori
-  const expenseBreakdown = useMemo(() => {
-    const map: Record<string, number> = {
-      'Listrik & Air': 0,
-      'Bahan Bakar & Kendaraan': 0,
-      'Plastik & Kemasan': 0,
-      'Sewa Tempat & Cold Storage': 0,
-      'Perawatan Peralatan': 0,
-      'Lain-lain': 0,
-    };
-    monthlyExpenses.forEach(e => {
-      if (map[e.category] !== undefined) {
-        map[e.category] += e.amount;
-      } else {
-        map['Lain-lain'] += e.amount;
-      }
-    });
-    return map;
-  }, [monthlyExpenses]);
-
-  // Total Kasbon Diberikan & Dibayar Bulan Ini
-  const monthlyKasbonGiven = useMemo(() => {
-    return kasbonRecords
-      .filter(k => k.type === 'pinjam' && k.date.startsWith(selectedMonth))
-      .reduce((sum, k) => sum + k.amount, 0);
-  }, [kasbonRecords, selectedMonth]);
-
-  const monthlyKasbonRepaid = useMemo(() => {
-    return kasbonRecords
-      .filter(k => (k.type === 'bayar_manual' || k.type === 'bayar_slip') && k.date.startsWith(selectedMonth))
-      .reduce((sum, k) => sum + k.amount, 0);
-  }, [kasbonRecords, selectedMonth]);
-
-  const totalActiveKasbonBalance = useMemo(() => {
-    return Math.max(0, kasbonRecords.reduce((sum, k) => {
-      if (k.type === 'pinjam') return sum + k.amount;
-      return sum - k.amount;
-    }, 0));
-  }, [kasbonRecords]);
-
-  const totalBaseSalaries = useMemo(() => {
-    if (monthlySlips.length > 0) {
-      return monthlySlips.reduce((sum, s) => sum + s.totalDailyWage, 0);
-    }
-    return monthlyAttendanceWages.reduce((sum, a) => sum + a.wageAmount, 0);
-  }, [monthlySlips, monthlyAttendanceWages]);
-
-  const totalOvertimeSalaries = useMemo(() => {
-    if (monthlySlips.length > 0) {
-      return monthlySlips.reduce((sum, s) => sum + s.totalOvertimePay, 0);
-    }
-    return monthlyAttendanceWages.reduce((sum, a) => sum + (a.overtimePay || 0), 0);
-  }, [monthlySlips, monthlyAttendanceWages]);
-
-  const totalKasbonDeductions = useMemo(() => {
-    return monthlySlips.reduce((sum, s) => sum + s.deduction, 0);
-  }, [monthlySlips]);
-
-  // ----------------------------------------------------
-  // ARUS KAS / MUTASI KELUAR MASUK UANG (SYNCHRONIZED CASH FLOW)
-  // ----------------------------------------------------
-  const [cashFlowFilterType, setCashFlowFilterType] = useState<'all' | 'masuk' | 'keluar' | 'bon'>('all');
-  const [cashFlowCategoryFilter, setCashFlowCategoryFilter] = useState<string>('all');
-  const [cashFlowSearch, setCashFlowSearch] = useState<string>('');
-
-  const allCashFlowTransactions = useMemo<CashFlowItem[]>(() => {
-    const list: CashFlowItem[] = [];
-
-    // 1. Penerimaan Uang dari Penjualan (Uang Masuk Langsung)
-    sales.forEach((s) => {
-      if (s.amountPaid > 0) {
-        list.push({
-          id: `cf-sale-${s.id}`,
-          date: s.date,
-          timestamp: new Date(s.date).getTime() || 0,
-          flowType: 'masuk',
-          category: 'Penjualan',
-          title: `Penjualan Nota ${s.invoiceNumber}`,
-          description: `Pembayaran ${s.paymentMethod || 'Tunai'} pelanggan ${s.customerName}`,
-          counterparty: s.customerName,
-          amount: s.amountPaid,
-          paymentMethod: s.paymentMethod || 'Tunai',
-          referenceNo: s.invoiceNumber,
-        });
-      }
-
-      // Pembayaran Piutang / Cicilan Bon Pelanggan (BKM - Uang Masuk)
-      if (s.customerDebtPayments && s.customerDebtPayments.length > 0) {
-        s.customerDebtPayments.forEach((dp) => {
-          list.push({
-            id: `cf-sdebt-${s.id}-${dp.id}`,
-            date: dp.date,
-            timestamp: new Date(dp.date).getTime() || 0,
-            flowType: 'masuk',
-            category: 'Pembayaran Piutang Pelanggan',
-            title: `Pelunasan Piutang (${dp.receiptNo || s.invoiceNumber})`,
-            description: dp.notes || `Pembayaran bon oleh ${s.customerName} (Faktur: ${s.invoiceNumber})`,
-            counterparty: s.customerName,
-            amount: dp.amount,
-            paymentMethod: dp.paymentMethod || 'Tunai',
-            referenceNo: dp.receiptNo || s.invoiceNumber,
-          });
-        });
-      }
-    });
-
-    // 2. Pengeluaran Uang untuk Pembelian Ayam / Supplier (Uang Keluar Langsung)
-    purchases.forEach((p) => {
-      const paid = p.amountPaid !== undefined ? p.amountPaid : (p.paymentStatus === 'Lunas' ? p.grandTotal : 0);
-      if (paid > 0) {
-        list.push({
-          id: `cf-purch-${p.id}`,
-          date: p.date,
-          timestamp: new Date(p.date).getTime() || 0,
-          flowType: 'keluar',
-          category: 'Pembelian Ayam',
-          title: `Pembelian Faktur ${p.invoiceNumber}`,
-          description: `Pembayaran ${p.paymentMethod || 'Tunai'} ke pemasok ${p.supplierName}`,
-          counterparty: p.supplierName,
-          amount: paid,
-          paymentMethod: p.paymentMethod || 'Tunai',
-          referenceNo: p.invoiceNumber,
-        });
-      }
-
-      // Pembayaran Hutang ke Supplier (BKK - Uang Keluar)
-      if (p.debtPayments && p.debtPayments.length > 0) {
-        p.debtPayments.forEach((dp) => {
-          list.push({
-            id: `cf-pdebt-${p.id}-${dp.id}`,
-            date: dp.date,
-            timestamp: new Date(dp.date).getTime() || 0,
-            flowType: 'keluar',
-            category: 'Pembayaran Utang Supplier',
-            title: `Pembayaran Utang (${dp.receiptNo || p.invoiceNumber})`,
-            description: dp.notes || `Cicilan/pelunasan hutang ke ${p.supplierName} (Faktur: ${p.invoiceNumber})`,
-            counterparty: p.supplierName,
-            amount: dp.amount,
-            paymentMethod: dp.paymentMethod || 'Transfer',
-            referenceNo: dp.receiptNo || p.invoiceNumber,
-          });
-        });
-      }
-    });
-
-    // 3. Pembayaran Gaji & Upah Karyawan (Uang Keluar)
-    salarySlips.forEach((slip) => {
-      if (slip.netSalary > 0) {
-        const dateStr = slip.generatedDate || slip.periodEnd;
-        list.push({
-          id: `cf-slip-${slip.id}`,
-          date: dateStr,
-          timestamp: new Date(dateStr).getTime() || 0,
-          flowType: 'keluar',
-          category: 'Gaji Karyawan',
-          title: `Gaji Karyawan (${slip.slipNumber})`,
-          description: `Gaji bersih ${slip.employeeName} (${slip.employeeRole}) periode ${formatDate(slip.periodStart)} s/d ${formatDate(slip.periodEnd)}`,
-          counterparty: slip.employeeName,
-          amount: slip.netSalary,
-          paymentMethod: 'Tunai',
-          referenceNo: slip.slipNumber,
-        });
-      }
-    });
-
-    // 4. Biaya Operasional Toko (Listrik, BBM, Sewa, Plastik, dll - Uang Keluar)
-    expenses.forEach((exp) => {
-      if (exp.amount > 0) {
-        list.push({
-          id: `cf-exp-${exp.id}`,
-          date: exp.date,
-          timestamp: new Date(exp.date).getTime() || 0,
-          flowType: 'keluar',
-          category: 'Biaya Operasional',
-          title: `Operasional: ${exp.category}`,
-          description: exp.description || `Pengeluaran ${exp.category}`,
-          counterparty: exp.recordedBy || 'Admin Usaha',
-          amount: exp.amount,
-          paymentMethod: 'Tunai',
-          referenceNo: exp.id,
-        });
-      }
-    });
-
-    // 5. Kasbon Karyawan:
-    // - Pinjaman Kasbon Baru = UANG KELUAR
-    // - Pelunasan Kasbon Manual (Setor Tunai) = UANG MASUK
-    kasbonRecords.forEach((k) => {
-      if (k.type === 'pinjam' && k.amount > 0) {
-        list.push({
-          id: `cf-kasbon-${k.id}`,
-          date: k.date,
-          timestamp: new Date(k.createdAt || k.date).getTime() || 0,
-          flowType: 'keluar',
-          category: 'Pinjaman Kasbon Karyawan',
-          title: `Pinjaman Kasbon - ${k.employeeName}`,
-          description: k.notes ? `Pinjaman kasbon: ${k.notes}` : `Pemberian pinjaman kasbon untuk ${k.employeeName}`,
-          counterparty: k.employeeName,
-          amount: k.amount,
-          paymentMethod: 'Tunai',
-          referenceNo: k.id,
-        });
-      } else if (k.type === 'bayar_manual' && k.amount > 0) {
-        list.push({
-          id: `cf-kasbon-${k.id}`,
-          date: k.date,
-          timestamp: new Date(k.createdAt || k.date).getTime() || 0,
-          flowType: 'masuk',
-          category: 'Pelunasan Kasbon Karyawan',
-          title: `Setor Pelunasan Kasbon - ${k.employeeName}`,
-          description: k.notes ? `Pelunasan kasbon: ${k.notes}` : `Penerimaan setor tunai kasbon dari ${k.employeeName}`,
-          counterparty: k.employeeName,
-          amount: k.amount,
-          paymentMethod: 'Tunai',
-          referenceNo: k.id,
-        });
-      }
-    });
-
-    return list.sort((a, b) => b.timestamp - a.timestamp);
-  }, [sales, purchases, salarySlips, expenses, kasbonRecords]);
-
-  // Transaksi Arus Kas Bulan Ini
-  const monthlyCashFlowTransactions = useMemo(() => {
-    return allCashFlowTransactions.filter((item) => item.date.startsWith(selectedMonth));
-  }, [allCashFlowTransactions, selectedMonth]);
-
-  // Total Uang Masuk Bulan Ini
-  const totalCashIn = useMemo(() => {
-    return monthlyCashFlowTransactions
-      .filter((item) => item.flowType === 'masuk')
-      .reduce((sum, item) => sum + item.amount, 0);
-  }, [monthlyCashFlowTransactions]);
-
-  // Total Uang Keluar Bulan Ini
-  const totalCashOut = useMemo(() => {
-    return monthlyCashFlowTransactions
-      .filter((item) => item.flowType === 'keluar')
-      .reduce((sum, item) => sum + item.amount, 0);
-  }, [monthlyCashFlowTransactions]);
-
-  // Saldo Arus Kas Bersih (Surplus / Defisit Kas Riil)
-  const netCashFlow = useMemo(() => {
-    return totalCashIn - totalCashOut;
-  }, [totalCashIn, totalCashOut]);
-
-  // Rincian Kategori Arus Kas Bulan Ini
-  const cashInSales = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Penjualan').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
-  const cashInDebt = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Pembayaran Piutang Pelanggan').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
-  const cashInKasbon = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Pelunasan Kasbon Karyawan').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
-
-  const cashOutPurchase = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Pembelian Ayam').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
-  const cashOutDebt = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Pembayaran Utang Supplier').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
-  const cashOutSalary = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Gaji Karyawan').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
-  const cashOutExpense = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Biaya Operasional').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
-  const cashOutKasbon = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Pinjaman Kasbon Karyawan').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
-
   // ----------------------------------------------------
   // HUTANG & PIUTANG CALCULATIONS & LISTS
   // ----------------------------------------------------
@@ -496,7 +262,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   const processedPurchases = useMemo(() => {
     let list = purchases;
     if (filterByMonthOnly) {
-      list = list.filter(p => p.date.startsWith(selectedMonth));
+      list = list.filter(p => isDateInPeriod(p.date));
     }
 
     return list.map(p => {
@@ -510,13 +276,13 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
         isLunas,
       };
     });
-  }, [purchases, filterByMonthOnly, selectedMonth]);
+  }, [purchases, filterByMonthOnly, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
 
   // 2. Sales with Receivable (Piutang) info
   const processedSales = useMemo(() => {
     let list = sales;
     if (filterByMonthOnly) {
-      list = list.filter(s => s.date.startsWith(selectedMonth));
+      list = list.filter(s => isDateInPeriod(s.date));
     }
 
     return list.map(s => {
@@ -530,35 +296,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
         isLunas,
       };
     });
-  }, [sales, filterByMonthOnly, selectedMonth]);
-
-  // Filtered Cash Flow list for display table
-  const filteredCashFlowTransactions = useMemo(() => {
-    return monthlyCashFlowTransactions.filter((item) => {
-      // Flow type / bon filter
-      if (cashFlowFilterType === 'masuk' && item.flowType !== 'masuk') return false;
-      if (cashFlowFilterType === 'keluar' && item.flowType !== 'keluar') return false;
-      if (cashFlowFilterType === 'bon') {
-        const isPiutangOrHutang = item.category === 'Pembayaran Piutang Pelanggan' || item.category === 'Pembayaran Utang Supplier';
-        const matchedPurchase = processedPurchases.find(p => p.invoiceNumber === item.referenceNo);
-        const matchedSale = processedSales.find(s => s.invoiceNumber === item.referenceNo);
-        const hasUnpaid = (matchedPurchase && !matchedPurchase.isLunas) || (matchedSale && !matchedSale.isLunas);
-        if (!isPiutangOrHutang && !hasUnpaid) return false;
-      }
-      // Category filter
-      if (cashFlowCategoryFilter !== 'all' && item.category !== cashFlowCategoryFilter) return false;
-      // Search filter
-      if (cashFlowSearch.trim()) {
-        const q = cashFlowSearch.toLowerCase();
-        const matchTitle = item.title.toLowerCase().includes(q);
-        const matchDesc = item.description.toLowerCase().includes(q);
-        const matchParty = item.counterparty.toLowerCase().includes(q);
-        const matchRef = (item.referenceNo || '').toLowerCase().includes(q);
-        if (!matchTitle && !matchDesc && !matchParty && !matchRef) return false;
-      }
-      return true;
-    });
-  }, [monthlyCashFlowTransactions, cashFlowFilterType, cashFlowCategoryFilter, cashFlowSearch, processedPurchases, processedSales]);
+  }, [sales, filterByMonthOnly, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
 
   // Filtered Purchases list for table
   const filteredPurchases = useMemo(() => {
@@ -774,24 +512,91 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="flex items-center gap-2 bg-slate-50/80 border border-slate-200/80 px-3 py-1.5 rounded-lg text-xs">
-            <Calendar className="w-3.5 h-3.5 text-slate-500" />
-            <input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent font-semibold text-slate-900 focus:outline-hidden cursor-pointer"
-            />
+          {/* Segmented Filter Period: Harian, Mingguan, Bulanan */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setFilterPeriodType('harian')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                filterPeriodType === 'harian'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Harian
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterPeriodType('mingguan')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                filterPeriodType === 'mingguan'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Mingguan
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterPeriodType('bulanan')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                filterPeriodType === 'bulanan'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Bulanan
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowExpenseModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Catat Pengeluaran Toko</span>
-          </button>
+          {/* Date Picker Input */}
+          <div className="flex items-center gap-2 bg-slate-50/80 border border-slate-200/80 px-3 py-1.5 rounded-lg text-xs">
+            <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            {filterPeriodType === 'harian' && (
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-transparent font-semibold text-slate-900 focus:outline-hidden cursor-pointer"
+              />
+            )}
+            {filterPeriodType === 'mingguan' && (
+              <div className="flex items-center gap-1.5 font-semibold text-slate-900">
+                <input
+                  type="date"
+                  value={weekStartDate}
+                  onChange={(e) => setWeekStartDate(e.target.value)}
+                  className="bg-transparent focus:outline-hidden cursor-pointer"
+                />
+                <span className="text-slate-400 font-normal">s/d</span>
+                <input
+                  type="date"
+                  value={weekEndDate}
+                  onChange={(e) => setWeekEndDate(e.target.value)}
+                  className="bg-transparent focus:outline-hidden cursor-pointer"
+                />
+              </div>
+            )}
+            {filterPeriodType === 'bulanan' && (
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-transparent font-semibold text-slate-900 focus:outline-hidden cursor-pointer"
+              />
+            )}
+          </div>
+
+          {activeReportTab === 'laba_rugi' && (
+            <button
+              type="button"
+              onClick={() => setShowExpenseModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Catat Pengeluaran Toko</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -805,525 +610,725 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* 4 PILAR UTAMA KEUANGAN TOKO (SEDERHANA & JELAS UNTUK ORANG AWAM)          */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {/* 1. UANG MASUK */}
-        <div className="bg-white/95 backdrop-blur-xs p-4 rounded-xl border border-slate-200/90 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">1. Uang Masuk</span>
-            <div className="p-1.5 bg-emerald-50 text-emerald-700 rounded-lg">
-              <ArrowDownLeft className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-xl font-bold font-mono text-emerald-700 mt-2 tabular-nums">
-            {formatCurrency(totalCashIn)}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-            <span>Kas diterima dari penjualan & bon</span>
-            <span className="text-slate-700 font-semibold">{monthlySales.length} nota</span>
-          </div>
-        </div>
-
-        {/* 2. UNTUNG (KEUNTUNGAN BERSIH) */}
-        <div className={`p-4 rounded-xl border shadow-xs backdrop-blur-xs ${
-          netProfit >= 0 ? 'bg-emerald-50/90 border-emerald-300 ring-1 ring-emerald-200' : 'bg-rose-50/90 border-rose-300 ring-1 ring-rose-200'
-        }`}>
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">2. Untung (Laba Bersih)</span>
-            <div className={`p-1.5 rounded-lg ${netProfit >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-              <TrendingUp className="w-4 h-4" />
-            </div>
-          </div>
-          <div className={`text-xl font-bold font-mono mt-2 tabular-nums ${
-            netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
-          }`}>
-            {formatCurrency(netProfit)}
-          </div>
-          <div className="text-[11px] font-semibold mt-1 flex items-center justify-between">
-            <span className={netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
-              {netProfit >= 0 ? 'SURPLUS KEUNTUNGAN' : 'DEFISIT RUGI'}
-            </span>
-            <span className="text-slate-600 font-mono">
-              Margin {netMarginPercent.toFixed(1)}%
-            </span>
-          </div>
-        </div>
-
-        {/* 3. UANG KELUAR */}
-        <div className="bg-white/95 backdrop-blur-xs p-4 rounded-xl border border-slate-200/90 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">3. Uang Keluar</span>
-            <div className="p-1.5 bg-rose-50 text-rose-700 rounded-lg">
-              <ArrowUpRight className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-xl font-bold font-mono text-rose-700 mt-2 tabular-nums">
-            {formatCurrency(totalCashOut)}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-            <span>Beli ayam, upah & operasional</span>
-            <span className="text-rose-600 font-semibold">Kas keluar</span>
-          </div>
-        </div>
-
-        {/* 4. KASBON KARYAWAN */}
-        <div className="bg-white/95 backdrop-blur-xs p-4 rounded-xl border border-slate-200/90 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">4. Kasbon Karyawan</span>
-            <div className="p-1.5 bg-purple-50 text-purple-700 rounded-lg">
-              <Wallet className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-xl font-bold font-mono text-purple-700 mt-2 tabular-nums">
-            {formatCurrency(totalActiveKasbonBalance)}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-            <span>Sisa pinjaman aktif karyawan</span>
-            <span className="text-purple-600 font-semibold font-mono">Pinjam: +{formatCurrency(monthlyKasbonGiven)}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* BANNER SHORTCUT KE HALAMAN OPERASIONAL */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-amber-500/10 border border-amber-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-amber-500 text-white rounded-xl shadow-xs shrink-0">
-            <FileText className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">
-              Rincian Pengeluaran Operasional & Kas Harian
-            </h3>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Nota token listrik, plastik kemasan, armada BBM, perawatan alat toko, serta kasbon karyawan per orang dapat dilihat dan dicatat lengkap di halaman Operasional.
-            </p>
-          </div>
-        </div>
+      {/* Sub-tab Navigation */}
+      <div className="flex items-center gap-2 border-b border-slate-200/80 pb-2">
         <button
           type="button"
-          onClick={() => onNavigateTab?.('operasional')}
-          className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer shrink-0 flex items-center gap-2"
+          onClick={() => setActiveReportTab('laba_rugi')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeReportTab === 'laba_rugi'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900'
+          }`}
         >
-          <span>Lihat Detail di Halaman Operasional</span>
-          <ArrowUpRight className="w-4 h-4 text-amber-400" />
+          <PieChart className="w-4 h-4" />
+          <span>Untung Rugi & Biaya Toko</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveReportTab('hutang_piutang')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
+            activeReportTab === 'hutang_piutang'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>Catatan Bon & Tagihan</span>
+          {(countUnpaidPurchases + countUnpaidSales) > 0 && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              activeReportTab === 'hutang_piutang'
+                ? 'bg-white text-amber-700'
+                : 'bg-rose-500 text-white'
+            }`}>
+              {countUnpaidPurchases + countUnpaidSales}
+            </span>
+          )}
         </button>
       </div>
 
       {/* ========================================================================= */}
-      {/* LEMBAR LAPORAN KEUANGAN TERPADU (SATU LEMBAR LAPORAN RESMI TOKO)          */}
+      {/* 1. VIEW TAB: UNTUNG RUGI & BIAYA PENGELUARAN TOKO                         */}
       {/* ========================================================================= */}
-      <div id="unified-financial-statement" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden print:border-none print:shadow-none">
-        {/* KOP RESMI LAPORAN TOKO */}
-        <div className="p-5 sm:p-6 border-b border-slate-200 bg-linear-to-r from-slate-50 via-white to-slate-50">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 bg-white p-1 shrink-0 flex items-center justify-center">
-                {storeProfile.logoUrl ? (
-                  <img src={storeProfile.logoUrl} alt="Logo Toko" className="w-full h-full object-contain" />
-                ) : (
-                  <Building2 className="w-6 h-6 text-amber-600" />
+      {activeReportTab === 'laba_rugi' && (
+        <>
+          {/* 4 TOP KPI CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Revenue */}
+            <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-white/80 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Penjualan (Omset)</span>
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                  <DollarSign className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
+                {formatCurrency(totalRevenue)}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">
+                Dari <span className="font-semibold text-slate-800">{monthlySales.length}</span> nota penjualan periode ini
+              </div>
+            </div>
+
+            {/* HPP */}
+            <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-white/80 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Modal Belanja Ayam (HPP)</span>
+                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
+                  <TrendingDown className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
+                {formatCurrency(totalHPP)}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">
+                Modal pokok ayam hidup & logistik
+              </div>
+            </div>
+
+            {/* Gross Profit */}
+            <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-white/80 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Keuntungan Kotor</span>
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-xl font-bold font-mono text-blue-700 mt-2 tabular-nums">
+                {formatCurrency(grossProfit)}
+              </div>
+              <div className="text-[11px] text-blue-700 font-medium mt-1">
+                (Penjualan dikurangi Modal Ayam)
+              </div>
+            </div>
+
+            {/* Net Profit */}
+            <div className={`p-4 rounded-xl border shadow-2xs backdrop-blur-xs ${
+              netProfit >= 0 ? 'bg-emerald-50/80 border-emerald-300' : 'bg-rose-50/80 border-rose-300'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Keuntungan Bersih Toko</span>
+                <div className={`p-2 rounded-lg ${netProfit >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+              </div>
+              <div className={`text-2xl font-bold font-mono mt-2 tabular-nums ${
+                netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
+              }`}>
+                {formatCurrency(netProfit)}
+              </div>
+              <div className="text-[11px] font-semibold mt-1 text-slate-600">
+                Uang untung bersih setelah potong gaji & operasional
+              </div>
+            </div>
+          </div>
+
+          {/* DETAILED STATEMENT & EXPENSES BREAKDOWN */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* LEFT COLUMN: FORMAL LABA RUGI STATEMENT (7 COLS) */}
+            <div className="lg:col-span-7 bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden">
+              <div className="p-4 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                    Rincian Untung Rugi
+                  </h3>
+                  <p className="text-[11px] text-slate-500">Periode: {periodLabel}</p>
+                </div>
+              </div>
+
+              <div className="p-4 space-y-4 text-xs">
+                {/* 1. TOTAL PENJUALAN */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between font-bold text-slate-900 text-sm pb-1 border-b border-slate-200">
+                    <span>1. Total Penjualan</span>
+                    <span className="font-mono tabular-nums">{formatCurrency(totalRevenue)}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 pl-3">
+                    <span>Penjualan Daging Ayam ({monthlySales.length} transaksi)</span>
+                    <span className="font-mono tabular-nums text-slate-800">{formatCurrency(totalRevenue)}</span>
+                  </div>
+                </div>
+
+                {/* 2. MODAL BELANJA AYAM (HPP) */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between font-bold text-slate-900 text-sm pb-1 border-b border-slate-200">
+                    <span>2. Modal Belanja Ayam (HPP)</span>
+                    <span className="font-mono text-rose-700 tabular-nums">({formatCurrency(totalHPP)})</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 pl-3">
+                    <span>Harga Beli Ayam</span>
+                    <span className="font-mono tabular-nums text-slate-800">{formatCurrency(totalHPP)}</span>
+                  </div>
+                </div>
+
+                {/* KEUNTUNGAN KOTOR ROW */}
+                <div className="p-3 bg-slate-50 rounded-lg flex justify-between font-bold text-sm text-slate-900 border border-slate-200">
+                  <span>KEUNTUNGAN KOTOR (PENJUALAN DIKURANGI MODAL):</span>
+                  <span className="font-mono tabular-nums text-blue-700">{formatCurrency(grossProfit)}</span>
+                </div>
+
+                {/* 3. BIAYA PENGELUARAN GAJI & OPERASIONAL */}
+                <div className="space-y-1.5 pt-2">
+                  <div className="flex justify-between font-bold text-slate-900 text-sm pb-1 border-b border-slate-200">
+                    <span>3. Biaya Pengeluaran Gaji & Operasional</span>
+                    <span className="font-mono text-rose-700 tabular-nums">({formatCurrency(totalOperatingCosts)})</span>
+                  </div>
+                  
+                  <div className="flex justify-between text-slate-700 pl-3 py-1">
+                    <span className="font-medium">Total Gaji & Upah Karyawan</span>
+                    <span className="font-mono tabular-nums font-semibold text-slate-900">{formatCurrency(totalSalaries)}</span>
+                  </div>
+
+                  <div className="flex justify-between text-slate-700 pl-3 py-1">
+                    <span className="font-medium">Biaya Operasional</span>
+                    <span className="font-mono tabular-nums font-semibold text-slate-900">{formatCurrency(totalOtherExpenses)}</span>
+                  </div>
+                </div>
+
+                {/* KEUNTUNGAN BERSIH FINAL */}
+                <div className={`p-4 rounded-xl flex justify-between items-center text-base font-bold border shadow-xs ${
+                  netProfit >= 0 ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-rose-500 text-white border-rose-600'
+                }`}>
+                  <span className="uppercase tracking-wide font-extrabold">Keuntungan Bersih</span>
+                  <span className="font-mono text-xl tabular-nums font-extrabold">{formatCurrency(netProfit)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: OPERATIONAL EXPENSES LOG (5 COLS) */}
+            <div className="lg:col-span-5 bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs flex flex-col">
+              <div className="p-4 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between">
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  Daftar Pengeluaran Operasional
+                </h3>
+                <span className="text-[11px] text-slate-500 font-mono font-bold">
+                  {formatCurrency(totalOtherExpenses)}
+                </span>
+              </div>
+
+              <div className="p-3 divide-y divide-slate-100 flex-1 overflow-y-auto max-h-[380px] text-xs">
+                {monthlyExpenses.map((exp) => (
+                  <div key={exp.id} className="py-2.5 first:pt-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium inline-block mb-1">
+                          {exp.category}
+                        </span>
+                        <h5 className="font-medium text-slate-900">{exp.description}</h5>
+                        <span className="text-[10px] text-slate-400 mt-0.5 block">{formatDate(exp.date)}</span>
+                      </div>
+                      <span className="font-bold font-mono text-slate-900 tabular-nums">
+                        {formatCurrency(exp.amount)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+
+                {monthlyExpenses.length === 0 && (
+                  <div className="py-12 text-center text-slate-400">
+                    Belum ada biaya operasional lain yang dicatat pada periode ini.
+                  </div>
                 )}
               </div>
-              <div>
-                <h1 className="text-base font-extrabold text-slate-900 tracking-tight">
-                  {storeProfile.name || 'Ans Chicken Group'}
-                </h1>
-                <p className="text-xs text-slate-500">
-                  {storeProfile.address || 'Pasar Kemis - Tangerang'} {storeProfile.phone ? `• Telp/WA: ${storeProfile.phone}` : ''}
-                </p>
-                <div className="text-[11px] font-semibold text-emerald-700 mt-0.5">
-                  Laporan Keuangan & Laba Bersih Toko
-                </div>
-              </div>
-            </div>
-
-            <div className="text-left sm:text-right space-y-1">
-              <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-200">
-                RINGKASAN RESMI TOKO
-              </span>
-              <div className="text-xs font-bold text-slate-800">
-                Periode: <span className="font-mono">{selectedMonth}</span>
-              </div>
-              <div className="text-[11px] text-slate-400">
-                Dicetak: {formatDate(new Date().toISOString())}
-              </div>
             </div>
           </div>
-        </div>
+        </>
+      )}
 
-        {/* ISI RINGKASAN SEDERHANA */}
-        <div className="p-5 sm:p-6 space-y-5 text-xs text-slate-800">
-          {/* HITUNGAN UNTUNG BERSIH SEDERHANA */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50/50">
-            <div className="bg-slate-100/90 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-              <span className="font-bold text-slate-900 uppercase tracking-wider text-xs">
-                Perhitungan Untung Bersih Toko
-              </span>
-              <span className="text-[11px] text-slate-500">Rumus: Penjualan dikurangi seluruh modal & biaya</span>
-            </div>
-
-            <div className="p-4 space-y-2.5 bg-white divide-y divide-slate-100">
-              <div className="flex justify-between items-center py-1">
-                <span className="text-slate-700 font-medium">1. Total Penjualan Toko (Omset):</span>
-                <span className="font-mono font-bold text-slate-900 tabular-nums">+{formatCurrency(totalRevenue)}</span>
-              </div>
-              <div className="flex justify-between items-center py-1 text-rose-700">
-                <span className="font-medium">2. Modal Belanja Ayam Potong:</span>
-                <span className="font-mono font-bold tabular-nums">-{formatCurrency(totalHPP)}</span>
-              </div>
-              <div className="flex justify-between items-center py-1 text-rose-700">
-                <span className="font-medium">3. Total Gaji & Upah Karyawan:</span>
-                <span className="font-mono font-bold tabular-nums">-{formatCurrency(totalSalaries)}</span>
-              </div>
-              <div className="flex justify-between items-center py-1 text-rose-700">
-                <span className="font-medium">4. Biaya Operasional Toko (Listrik, Plastik, dll):</span>
-                <span className="font-mono font-bold tabular-nums">-{formatCurrency(totalOtherExpenses)}</span>
-              </div>
-
-              {/* BARIS HASIL UNTUNG */}
-              <div className={`flex justify-between items-center pt-3 border-t-2 font-bold text-sm ${
-                netProfit >= 0 ? 'border-emerald-300 text-emerald-800' : 'border-rose-300 text-rose-800'
-              }`}>
-                <div>
-                  <span>Total Keuntungan Bersih (Untung):</span>
-                  <span className="block text-[11px] font-normal text-slate-500">
-                    {netProfit >= 0 ? 'Toko menghasilkan keuntungan bersih' : 'Toko mengalami defisit rugi'}
-                  </span>
-                </div>
-                <div className="text-right">
-                  <div className="font-mono text-base font-extrabold tabular-nums">
-                    {formatCurrency(netProfit)}
-                  </div>
-                  <span className="text-[11px] font-medium text-slate-600 font-mono">
-                    Margin: {netMarginPercent.toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* STATUS KASBON & BON (PIUTANG & HUTANG) BERJALAN */}
-          <div>
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2.5">
-              Catatan Kasbon & Bon Toko yang Belum Lunas
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Sisa Kasbon Karyawan */}
-              <div className="p-3.5 bg-purple-50/70 border border-purple-200/80 rounded-xl space-y-1">
-                <div className="flex items-center justify-between text-purple-900">
-                  <span className="font-bold text-xs">Sisa Kasbon Karyawan</span>
-                  <Wallet className="w-3.5 h-3.5 text-purple-600" />
-                </div>
-                <div className="font-mono font-bold text-base text-purple-800 tabular-nums">
-                  {formatCurrency(totalActiveKasbonBalance)}
-                </div>
-                <p className="text-[10px] text-purple-700">
-                  Pinjaman aktif karyawan toko yang belum dipotong gaji
-                </p>
-              </div>
-
-              {/* Bon Piutang Pelanggan */}
-              <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-1">
-                <div className="flex items-center justify-between text-amber-900">
-                  <span className="font-bold text-xs">Bon Piutang Pelanggan</span>
-                  <CreditCard className="w-3.5 h-3.5 text-amber-600" />
-                </div>
-                <div className="font-mono font-bold text-base text-amber-800 tabular-nums">
-                  {formatCurrency(totalUnpaidSaleReceivable)}
-                </div>
-                <p className="text-[10px] text-amber-700">
-                  {countUnpaidSales} nota penjualan pelanggan belum lunas
-                </p>
-              </div>
-
-              {/* Hutang ke Supplier Ayam */}
-              <div className="p-3.5 bg-rose-50/70 border border-rose-200/80 rounded-xl space-y-1">
-                <div className="flex items-center justify-between text-rose-900">
-                  <span className="font-bold text-xs">Hutang ke Supplier Ayam</span>
-                  <Building2 className="w-3.5 h-3.5 text-rose-600" />
-                </div>
-                <div className="font-mono font-bold text-base text-rose-800 tabular-nums">
-                  {formatCurrency(totalUnpaidPurchaseDebt)}
-                </div>
-                <p className="text-[10px] text-rose-700">
-                  {countUnpaidPurchases} faktur belanja ayam ke supplier belum lunas
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* DOKUMEN FOOTER KETERANGAN RESMI */}
-          <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-slate-400">
-            <div className="flex items-center gap-1.5 text-slate-500">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Seluruh transaksi uang masuk, untung, uang keluar, dan kasbon tersinkron dalam laporan.</span>
-            </div>
-            <div className="font-medium text-slate-500">
-              {storeProfile.name || 'Ans Chicken Group'} • Sistem Kasir Toko
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-            {/* ========================================================================= */}
-      {/* TABEL MUTASI TRANSAKSI TERPADU (SATU BUKU TRANSAKSI LENGKAP & SINKRON)     */}
       {/* ========================================================================= */}
-      <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-3 p-5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-              <ArrowUpDown className="w-4 h-4 text-emerald-600" />
-              <span>Rincian Seluruh Transaksi & Mutasi Keuangan</span>
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Daftar kronologis uang masuk, uang keluar, belanja modal ayam, gaji, operasional, kasbon, dan cicilan bon
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowExpenseModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer self-start lg:self-auto"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>+ Catat Biaya Operasional</span>
-          </button>
-        </div>
-
-        {/* CONTROLS & FILTER BAR */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
-          {/* Quick Filter Buttons */}
-          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setCashFlowFilterType('all')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                cashFlowFilterType === 'all'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Semua Mutasi ({monthlyCashFlowTransactions.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setCashFlowFilterType('masuk')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                cashFlowFilterType === 'masuk'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-emerald-700'
-              }`}
-            >
-              <span>Uang Masuk</span>
-              <span className="font-mono text-[10px] opacity-90">
-                (+{formatCurrency(totalCashIn)})
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setCashFlowFilterType('keluar')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                cashFlowFilterType === 'keluar'
-                  ? 'bg-rose-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-rose-700'
-              }`}
-            >
-              <span>Uang Keluar</span>
-              <span className="font-mono text-[10px] opacity-90">
-                (-{formatCurrency(totalCashOut)})
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setCashFlowFilterType('bon')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                cashFlowFilterType === 'bon'
-                  ? 'bg-purple-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-purple-700'
-              }`}
-            >
-              <span>Bon & Tagihan</span>
-              {(countUnpaidPurchases + countUnpaidSales) > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-mono text-[10px]">
-                  {countUnpaidPurchases + countUnpaidSales}
-                </span>
-              )}
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Category Dropdown */}
-            <select
-              value={cashFlowCategoryFilter}
-              onChange={(e) => setCashFlowCategoryFilter(e.target.value)}
-              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer"
-            >
-              <option value="all">Semua Kategori Transaksi</option>
-              <option value="Penjualan">Penjualan Ayam</option>
-              <option value="Pembelian Ayam">Modal Belanja Ayam</option>
-              <option value="Gaji Karyawan">Gaji Karyawan</option>
-              <option value="Pinjaman Kasbon Karyawan">Pinjaman Kasbon</option>
-              <option value="Pelunasan Kasbon Karyawan">Pelunasan Kasbon</option>
-              <option value="Biaya Operasional">Biaya Operasional Toko</option>
-              <option value="Pembayaran Piutang Pelanggan">Pembayaran Piutang (BKM)</option>
-              <option value="Pembayaran Utang Supplier">Pembayaran Utang (BKK)</option>
-            </select>
-
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Cari transaksi..."
-                value={cashFlowSearch}
-                onChange={(e) => setCashFlowSearch(e.target.value)}
-                className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-amber-500 w-36 sm:w-48"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* TABEL TRANSAKSI TERPADU */}
-        <div className="overflow-x-auto rounded-xl border border-slate-200">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-100/80 text-slate-700 font-bold border-b border-slate-200">
-                <th className="py-2.5 px-3">Tanggal & Waktu</th>
-                <th className="py-2.5 px-3">No. Ref</th>
-                <th className="py-2.5 px-3">Kategori</th>
-                <th className="py-2.5 px-3">Pihak / Keterangan</th>
-                <th className="py-2.5 px-3">Metode</th>
-                <th className="py-2.5 px-3 text-right text-emerald-700">Uang Masuk</th>
-                <th className="py-2.5 px-3 text-right text-rose-700">Uang Keluar</th>
-                <th className="py-2.5 px-3 text-center">Status / Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredCashFlowTransactions.map((tx) => {
-                const matchedSale = processedSales.find(s => s.invoiceNumber === tx.referenceNo);
-                const matchedPurchase = processedPurchases.find(p => p.invoiceNumber === tx.referenceNo);
-
-                return (
-                  <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="py-2.5 px-3 whitespace-nowrap text-slate-600 font-mono text-[11px]">
-                      {formatDateTime(tx.date)}
-                    </td>
-                    <td className="py-2.5 px-3 whitespace-nowrap font-mono font-bold text-slate-900">
-                      {tx.referenceNo || '-'}
-                    </td>
-                    <td className="py-2.5 px-3 whitespace-nowrap">
-                      <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                        tx.category === 'Penjualan' ? 'bg-amber-100 text-amber-900' :
-                        tx.category === 'Pembelian Ayam' ? 'bg-rose-100 text-rose-900' :
-                        tx.category === 'Gaji Karyawan' ? 'bg-blue-100 text-blue-900' :
-                        tx.category === 'Pinjaman Kasbon Karyawan' ? 'bg-purple-100 text-purple-900' :
-                        tx.category === 'Pelunasan Kasbon Karyawan' ? 'bg-teal-100 text-teal-900' :
-                        tx.category === 'Pembayaran Piutang Pelanggan' ? 'bg-emerald-100 text-emerald-900' :
-                        tx.category === 'Pembayaran Utang Supplier' ? 'bg-orange-100 text-orange-900' :
-                        'bg-slate-100 text-slate-800'
-                      }`}>
-                        {tx.category}
+      {/* 2. VIEW TAB: LAPORAN HUTANG & PIUTANG USAHA (PEMBELIAN & PENJUALAN)      */}
+      {/* ========================================================================= */}
+      {activeReportTab === 'hutang_piutang' && (
+        <div className="space-y-5">
+          {selectedPartyDetail ? (
+            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-5 sm:p-6 shadow-xs border border-white/80 animate-in fade-in zoom-in-95 duration-150 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2.5">
+                  <button 
+                    type="button" 
+                    onClick={() => setSelectedPartyDetail(null)} 
+                    className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 cursor-pointer transition-colors"
+                    title="Kembali ke Ringkasan"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <span>Rincian Transaksi: <strong className="text-amber-800">{selectedPartyDetail.name}</strong></span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold">
+                        {selectedPartyDetail.type === 'purchase' ? 'Supplier' : 'Pelanggan'}
                       </span>
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <div className="font-semibold text-slate-900">{tx.counterparty || tx.title}</div>
-                      <div className="text-[11px] text-slate-500 line-clamp-1">{tx.description}</div>
-                    </td>
-                    <td className="py-2.5 px-3 whitespace-nowrap font-medium text-slate-700">
-                      {tx.paymentMethod || '-'}
-                    </td>
-                    <td className="py-2.5 px-3 text-right whitespace-nowrap font-mono font-bold text-emerald-600 tabular-nums">
-                      {tx.flowType === 'masuk' ? `+${formatCurrency(tx.amount)}` : '-'}
-                    </td>
-                    <td className="py-2.5 px-3 text-right whitespace-nowrap font-mono font-bold text-rose-600 tabular-nums">
-                      {tx.flowType === 'keluar' ? `-${formatCurrency(tx.amount)}` : '-'}
-                    </td>
-                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {/* If Sale with unpaid debt */}
-                        {matchedSale && !matchedSale.isLunas && (
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenPaySaleModal(matchedSale)}
-                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold cursor-pointer"
-                              title="Terima Cicilan / Pelunasan Piutang (BKM)"
-                            >
-                              Terima BKM
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleSendWAReminder(matchedSale)}
-                              className="p-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-md cursor-pointer"
-                              title="Kirim Pengingat Tagihan via WhatsApp"
-                            >
-                              <Send className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Daftar semua faktur dan status pelunasan
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedPartyDetail(null)} 
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors self-start sm:self-auto"
+                >
+                  ← Kembali ke Ringkasan
+                </button>
+              </div>
 
-                        {/* If Purchase with unpaid debt */}
-                        {matchedPurchase && !matchedPurchase.isLunas && (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenPayPurchaseModal(matchedPurchase)}
-                            className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[10px] font-bold cursor-pointer"
-                            title="Bayar Cicilan / Pelunasan Hutang (BKK)"
-                          >
-                            Bayar BKK
-                          </button>
-                        )}
-
-                        {/* View Details Button */}
-                        {matchedSale && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDetailModal({ type: 'sale', id: matchedSale.id })}
-                            className="p-1 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 cursor-pointer"
-                            title="Lihat Detail Transaksi"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        {matchedPurchase && (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDetailModal({ type: 'purchase', id: matchedPurchase.id })}
-                            className="p-1 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 cursor-pointer"
-                            title="Lihat Detail Transaksi"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-
-                        {!matchedSale && !matchedPurchase && (
-                          <span className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>Selesai</span>
+              <div className="overflow-x-auto py-2">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
+                      <th className="py-2.5 px-3">No Nota / Faktur</th>
+                      <th className="py-2.5 px-3">Tanggal</th>
+                      <th className="py-2.5 px-3 text-right">Total Transaksi</th>
+                      <th className="py-2.5 px-3 text-right">Sudah Dibayar</th>
+                      <th className="py-2.5 px-3 text-right">Sisa {selectedPartyDetail.type === 'purchase' ? 'Hutang' : 'Piutang'}</th>
+                      <th className="py-2.5 px-3 text-center">Status</th>
+                      <th className="py-2.5 px-3 text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(selectedPartyDetail.type === 'purchase' 
+                        ? processedPurchases.filter(p => p.supplierName.toLowerCase() === selectedPartyDetail.name.toLowerCase())
+                        : processedSales.filter(s => s.customerName.toLowerCase() === selectedPartyDetail.name.toLowerCase())
+                    ).map((tx) => (
+                      <tr key={tx.id} className="hover:bg-slate-50/70">
+                        <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{tx.invoiceNumber}</td>
+                        <td className="py-2.5 px-3 text-slate-600">{formatDate(tx.date)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(tx.grandTotal)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono text-emerald-700 font-semibold">{formatCurrency((tx as any).computedPaid)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700">{formatCurrency((tx as any).computedRemaining)}</td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            tx.isLunas ? 'bg-emerald-100 text-emerald-800' : (tx as any).computedPaid > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                          }`}>
+                            {tx.isLunas ? 'Lunas' : (tx as any).computedPaid > 0 ? 'Sebagian' : 'Belum Lunas'}
                           </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button 
+                              type="button"
+                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white rounded text-[11px] font-bold cursor-pointer transition-colors"
+                              onClick={() => setSelectedDetailModal({ type: selectedPartyDetail.type, id: tx.id })}
+                            >
+                              Detail Nota
+                            </button>
+                            {selectedPartyDetail.type === 'purchase' ? (
+                              !tx.isLunas && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPayPurchaseModal(tx as any)}
+                                  className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[11px] font-bold cursor-pointer transition-colors"
+                                >
+                                  Bayar Hutang
+                                </button>
+                              )
+                            ) : (
+                              !tx.isLunas && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPaySaleModal(tx as any)}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold cursor-pointer transition-colors"
+                                >
+                                  Terima Cicilan
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button 
+                type="button"
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors" 
+                onClick={() => setSelectedPartyDetail(null)}
+              >
+                Kembali ke Ringkasan
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* 4 TOP SUMMARY CARDS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Total Hutang Usaha (ke Pemasok) */}
+                <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-rose-200/80 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">HUTANG KE SUPPLIER</span>
+                    <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
+                      <ArrowUpRight className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-xl font-bold font-mono text-rose-700 mt-2 tabular-nums">
+                    {formatCurrency(totalUnpaidPurchaseDebt)}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{countUnpaidPurchases} belanjaan ayam ke supplier belum kita bayar</span>
+                  </div>
+                </div>
 
-              {filteredCashFlowTransactions.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
-                    Tidak ditemukan data transaksi untuk kriteria filter ini.
-                  </td>
-                </tr>
+                {/* Total Piutang Usaha (dari Pelanggan) */}
+                <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-amber-200/80 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">BON / TAGIHAN PELANGGAN</span>
+                    <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                      <ArrowDownLeft className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-xl font-bold font-mono text-amber-700 mt-2 tabular-nums">
+                    {formatCurrency(totalUnpaidSaleReceivable)}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{countUnpaidSales} nota pembeli yang belum dibayar ke kita</span>
+                  </div>
+                </div>
+
+                {/* Posisi Bersih (Piutang - Hutang) */}
+                <div className={`bg-white/85 backdrop-blur-xs p-4 rounded-xl border shadow-2xs ${
+                  (totalUnpaidSaleReceivable - totalUnpaidPurchaseDebt) >= 0 
+                    ? 'border-emerald-200/80' 
+                    : 'border-orange-200/80'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">SELISIH TAGIHAN & HUTANG</span>
+                    <div className="p-2 bg-slate-100 text-slate-700 rounded-lg">
+                      <Wallet className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className={`text-xl font-bold font-mono mt-2 tabular-nums ${
+                    (totalUnpaidSaleReceivable - totalUnpaidPurchaseDebt) >= 0 
+                      ? 'text-emerald-700' 
+                      : 'text-orange-700'
+                  }`}>
+                    {formatCurrency(totalUnpaidSaleReceivable - totalUnpaidPurchaseDebt)}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    {(totalUnpaidSaleReceivable - totalUnpaidPurchaseDebt) >= 0 
+                      ? 'Uang tagihan pelanggan lebih banyak dari hutang kita' 
+                      : 'Hutang kita ke supplier lebih besar dari tagihan pelanggan'}
+                  </div>
+                </div>
+
+                {/* Total Transaksi Bermasalah / Butuh Tindakan */}
+                <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-white/80 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">NOTA BELUM LUNAS</span>
+                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                      <AlertCircle className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
+                    {countUnpaidPurchases + countUnpaidSales} <span className="text-xs font-normal text-slate-500">transaksi</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    Perlu ditagih atau dibayar cicilannya
+                  </div>
+                </div>
+              </div>
+
+              {/* Filter Bar */}
+              <div className="bg-white/80 backdrop-blur-md p-4 rounded-xl border border-white/60 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+                {/* Filter Type Pills */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-semibold text-slate-500 mr-1">Tampilkan:</span>
+                  <button
+                    type="button"
+                    onClick={() => setDebtFilterType('all')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
+                      debtFilterType === 'all'
+                        ? 'bg-slate-900 text-white'
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    }`}
+                  >
+                    Semua ({processedPurchases.length + processedSales.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDebtFilterType('hutang_pembelian')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      debtFilterType === 'hutang_pembelian'
+                        ? 'bg-rose-700 text-white'
+                        : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                    }`}
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>Hutang ke Supplier ({countUnpaidPurchases} sisa)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDebtFilterType('piutang_penjualan')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                      debtFilterType === 'piutang_penjualan'
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Bon Pelanggan ({countUnpaidSales} sisa)</span>
+                  </button>
+                </div>
+
+                {/* Status & Search */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-slate-600 font-medium">Status:</label>
+                    <select
+                      value={debtStatusFilter}
+                      onChange={(e) => setDebtStatusFilter(e.target.value as any)}
+                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-semibold focus:outline-hidden"
+                    >
+                      <option value="unpaid">Belum Lunas / Masih Ada Sisa</option>
+                      <option value="all">Semua Nota</option>
+                      <option value="paid">Sudah Lunas</option>
+                    </select>
+                  </div>
+
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Cari nomor nota atau nama..."
+                      value={debtSearchQuery}
+                      onChange={(e) => setDebtSearchQuery(e.target.value)}
+                      className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-hidden w-48"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 select-none">
+                    <input
+                      type="checkbox"
+                      checked={filterByMonthOnly}
+                      onChange={(e) => setFilterByMonthOnly(e.target.checked)}
+                      className="rounded border-slate-300 text-amber-600 focus:ring-0"
+                    />
+                    <span>Hanya Bulan Ini</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 1. TABLE: SUMMARY VIEW (Grouping by Supplier) */}
+              {(debtFilterType === 'all' || debtFilterType === 'hutang_pembelian') && (
+                <div className="bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden">
+                  <div className="p-4 border-b border-slate-200/80 bg-rose-50/50">
+                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      Daftar Hutang ke Supplier (Belum Kita Bayar)
+                    </h3>
+                  </div>
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
+                        <th className="py-2.5 px-3">Nama Supplier / Pemasok</th>
+                        <th className="py-2.5 px-3 text-right">Sisa Hutang Belum Dibayar</th>
+                        <th className="py-2.5 px-3 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {Object.entries(processedPurchases.reduce((acc, p) => {
+                        if (!p.isLunas) {
+                          acc[p.supplierName] = (acc[p.supplierName] || 0) + p.computedRemaining;
+                        }
+                        return acc;
+                      }, {} as Record<string, number>)).map(([supplier, total]) => (
+                        <tr key={supplier} className="hover:bg-slate-50/60">
+                          <td className="py-2.5 px-3 font-semibold text-slate-900">{supplier}</td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600">{formatCurrency(total)}</td>
+                          <td className="py-2.5 px-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPartyDetail({ type: 'purchase', name: supplier })}
+                              className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors"
+                            >
+                              Lihat Rincian Nota
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
-{/* ========================================================================= */}
+              {/* 2. SUMMARY VIEW: PIUTANG PENJUALAN */}
+              {(debtFilterType === 'all' || debtFilterType === 'piutang_penjualan') && (
+                <div className="bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden">
+                  <div className="p-4 border-b border-slate-200/80 bg-amber-50/50">
+                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                      Daftar Bon Pelanggan (Belum Dibayar ke Kita)
+                    </h3>
+                  </div>
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
+                        <th className="py-2.5 px-3">Nama Pembeli / Pelanggan</th>
+                        <th className="py-2.5 px-3 text-right">Sisa Bon Belum Dibayar</th>
+                        <th className="py-2.5 px-3 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {Object.entries(processedSales.reduce((acc, s) => {
+                        if (!s.isLunas) {
+                          acc[s.customerName] = (acc[s.customerName] || 0) + s.computedRemaining;
+                        }
+                        return acc;
+                      }, {} as Record<string, number>)).map(([customer, total]) => (
+                        <tr key={customer} className="hover:bg-slate-50/60">
+                          <td className="py-2.5 px-3 font-semibold text-slate-900">{customer}</td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-700">{formatCurrency(total)}</td>
+                          <td className="py-2.5 px-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPartyDetail({ type: 'sale', name: customer })}
+                              className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors"
+                            >
+                              Lihat Rincian Nota
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* 3. TABLE: DAFTAR RINCIAN TRANSAKSI (SESUAI FILTER & PENCARIAN) */}
+              <div className="bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden">
+                <div className="p-4 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Daftar Semua Nota Belanja & Penjualan ({debtFilterType === 'hutang_pembelian' ? filteredPurchases.length : debtFilterType === 'piutang_penjualan' ? filteredSales.length : filteredPurchases.length + filteredSales.length} nota)</span>
+                  </h3>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    {debtStatusFilter === 'unpaid' ? 'Belum Lunas / Ada Sisa' : debtStatusFilter === 'paid' ? 'Sudah Lunas' : 'Semua Nota'}
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
+                        <th className="py-2.5 px-3">Jenis</th>
+                        <th className="py-2.5 px-3">No. Nota</th>
+                        <th className="py-2.5 px-3">Tanggal</th>
+                        <th className="py-2.5 px-3">Nama Supplier / Pembeli</th>
+                        <th className="py-2.5 px-3 text-right">Total Belanja</th>
+                        <th className="py-2.5 px-3 text-right">Sudah Dibayar</th>
+                        <th className="py-2.5 px-3 text-right">Sisa Belum Bayar</th>
+                        <th className="py-2.5 px-3 text-center">Status</th>
+                        <th className="py-2.5 px-3 text-center">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {/* Purchases */}
+                      {(debtFilterType === 'all' || debtFilterType === 'hutang_pembelian') &&
+                        filteredPurchases.map((p) => (
+                          <tr key={`pur-${p.id}`} className="hover:bg-slate-50/60">
+                            <td className="py-2.5 px-3">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
+                                Hutang Beli
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{p.invoiceNumber}</td>
+                            <td className="py-2.5 px-3 text-slate-600">{formatDate(p.date)}</td>
+                            <td className="py-2.5 px-3 font-semibold text-slate-800">{p.supplierName}</td>
+                            <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(p.grandTotal)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700">{formatCurrency(p.computedPaid)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700">{formatCurrency(p.computedRemaining)}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                p.isLunas ? 'bg-emerald-100 text-emerald-800' : p.computedPaid > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                              }`}>
+                                {p.isLunas ? 'Lunas' : p.computedPaid > 0 ? 'Ada Sisa' : 'Belum Lunas'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedDetailModal({ type: 'purchase', id: p.id })}
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded cursor-pointer transition-colors"
+                                >
+                                  Rincian
+                                </button>
+                                {!p.isLunas && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenPayPurchaseModal(p)}
+                                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded cursor-pointer transition-colors"
+                                  >
+                                    Bayar
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+
+                      {/* Sales */}
+                      {(debtFilterType === 'all' || debtFilterType === 'piutang_penjualan') &&
+                        filteredSales.map((s) => (
+                          <tr key={`sal-${s.id}`} className="hover:bg-slate-50/60">
+                            <td className="py-2.5 px-3">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                                Bon Jual
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{s.invoiceNumber}</td>
+                            <td className="py-2.5 px-3 text-slate-600">{formatDate(s.date)}</td>
+                            <td className="py-2.5 px-3 font-semibold text-slate-800">{s.customerName}</td>
+                            <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(s.grandTotal)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700">{formatCurrency(s.computedPaid)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-700">{formatCurrency(s.computedRemaining)}</td>
+                            <td className="py-2.5 px-3 text-center">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                s.isLunas ? 'bg-emerald-100 text-emerald-800' : s.computedPaid > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                              }`}>
+                                {s.isLunas ? 'Lunas' : s.computedPaid > 0 ? 'Ada Sisa' : 'Belum Lunas'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedDetailModal({ type: 'sale', id: s.id })}
+                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded cursor-pointer transition-colors"
+                                >
+                                  Rincian
+                                </button>
+                                {!s.isLunas && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenPaySaleModal(s)}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded cursor-pointer transition-colors"
+                                  >
+                                    Terima
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+
+                      {filteredPurchases.length === 0 && filteredSales.length === 0 && (
+                        <tr>
+                          <td colSpan={9} className="py-8 text-center text-slate-400">
+                            Tidak ditemukan transaksi dengan filter yang dipilih.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODALS SECTION                                                            */}
       {/* ========================================================================= */}
 
