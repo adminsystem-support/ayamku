@@ -623,6 +623,50 @@ function createInitialTransactions() {
   return { purchases, sales, attendances, expenses, opnames };
 }
 
+export const DEFAULT_PROCESSED_CALCS: ProcessedCalculationRecord[] = [
+  {
+    id: 'calc-101',
+    date: '2026-10-28',
+    source: 'PT Berkah Unggas Utama',
+    items: [
+      { itemId: 'item-1', itemName: 'Ayam Broiler Hidup', unit: 'kg', quantity: 100, sellPrice: 25500, subtotal: 2550000 },
+      { itemId: 'item-2', itemName: 'Ayam Karkas Segar (0.8 - 1.0 kg)', unit: 'pcs', quantity: 50, sellPrice: 34000, subtotal: 1700000 },
+    ],
+    totalModal: 3500000,
+    grandTotal: 4250000,
+    profit: 750000,
+    recordedBy: 'Admin Usaha',
+  },
+  {
+    id: 'calc-102',
+    date: '2026-10-29',
+    source: 'CV Sumber Ayam Segar',
+    items: [
+      { itemId: 'item-3', itemName: 'Dada Ayam Fillet Boneless', unit: 'kg', quantity: 30, sellPrice: 52000, subtotal: 1560000 },
+      { itemId: 'item-4', itemName: 'Paha Ayam Utuh', unit: 'kg', quantity: 25, sellPrice: 38000, subtotal: 950000 },
+      { itemId: 'item-5', itemName: 'Sayap Ayam Potong', unit: 'kg', quantity: 20, sellPrice: 35000, subtotal: 700000 },
+    ],
+    totalModal: 2600000,
+    grandTotal: 3210000,
+    profit: 610000,
+    recordedBy: 'Admin Usaha',
+  },
+  {
+    id: 'calc-103',
+    date: '2026-10-30',
+    source: 'Mandiri / Olahan Toko',
+    items: [
+      { itemId: 'item-6', itemName: 'Ati Ampela Bersih', unit: 'kg', quantity: 15, sellPrice: 28000, subtotal: 420000 },
+      { itemId: 'item-7', itemName: 'Ceker Ayam Bersih', unit: 'kg', quantity: 15, sellPrice: 22000, subtotal: 330000 },
+      { itemId: 'item-8', itemName: 'Kepala Ayam Segar', unit: 'kg', quantity: 10, sellPrice: 15000, subtotal: 150000 },
+    ],
+    totalModal: 700000,
+    grandTotal: 900000,
+    profit: 200000,
+    recordedBy: 'Admin Usaha',
+  },
+];
+
 // Storage Manager Functions
 export const StorageManager = {
   checkAndClearOldData() {
@@ -916,11 +960,12 @@ export const StorageManager = {
 
   getProcessedCalcs(): ProcessedCalculationRecord[] {
     const data = localStorage.getItem(STORAGE_KEYS.PROCESSED_CALCS);
-    if (!data) return [];
+    if (!data) return DEFAULT_PROCESSED_CALCS;
     try {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_PROCESSED_CALCS;
     } catch {
-      return [];
+      return DEFAULT_PROCESSED_CALCS;
     }
   },
 

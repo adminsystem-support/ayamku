@@ -60,7 +60,9 @@ export const ItemManagement: React.FC<ItemManagementProps> = ({
   // Sub-tabs: 'registrasi' (Hitung Keuntungan & Registrasi Item), 'daftar' (Katalog Item), 'riwayat' (Riwayat)
   const [activeSubTab, setActiveSubTab] = useState<'registrasi' | 'daftar' | 'riwayat'>('registrasi');
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [historySupplierFilter, setHistorySupplierFilter] = useState('');
   const [showItemModal, setShowItemModal] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
 
@@ -391,23 +393,50 @@ export const ItemManagement: React.FC<ItemManagementProps> = ({
   // -------------------------------------------------------------
   const filteredItems = useMemo(() => {
     return items.filter(item => {
-      return item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             item.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()));
+      return item.name.toLowerCase().includes(catalogSearchQuery.toLowerCase()) ||
+             item.code.toLowerCase().includes(catalogSearchQuery.toLowerCase()) ||
+             (item.category && item.category.toLowerCase().includes(catalogSearchQuery.toLowerCase()));
     });
-  }, [items, searchQuery]);
+  }, [items, catalogSearchQuery]);
+
+  // Unique sources list for history filter dropdown
+  const uniqueHistorySources = useMemo(() => {
+    const setOfSources = new Set<string>();
+    processedCalcs.forEach(rec => {
+      if (rec.source && rec.source.trim()) setOfSources.add(rec.source.trim());
+    });
+    return Array.from(setOfSources);
+  }, [processedCalcs]);
 
   const filteredHistoryRecords = useMemo(() => {
     return processedCalcs.filter(rec => {
       if (historyDateFilter && rec.date !== historyDateFilter) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+      if (historySupplierFilter && rec.source !== historySupplierFilter) return false;
+      if (historySearchQuery.trim()) {
+        const q = historySearchQuery.toLowerCase();
         return rec.source.toLowerCase().includes(q) ||
+               (rec.recordedBy && rec.recordedBy.toLowerCase().includes(q)) ||
                rec.items.some(i => i.itemName.toLowerCase().includes(q));
       }
       return true;
     });
-  }, [processedCalcs, historyDateFilter, searchQuery]);
+  }, [processedCalcs, historyDateFilter, historySupplierFilter, historySearchQuery]);
+
+  const historySummary = useMemo(() => {
+    const totalBatches = filteredHistoryRecords.length;
+    const totalItemsCount = filteredHistoryRecords.reduce((sum, r) => sum + r.items.length, 0);
+    const totalModal = filteredHistoryRecords.reduce((sum, r) => sum + r.totalModal, 0);
+    const totalSales = filteredHistoryRecords.reduce((sum, r) => sum + r.grandTotal, 0);
+    const totalProfit = filteredHistoryRecords.reduce((sum, r) => sum + (r.profit !== undefined ? r.profit : (r.grandTotal - r.totalModal)), 0);
+
+    return {
+      totalBatches,
+      totalItemsCount,
+      totalModal,
+      totalSales,
+      totalProfit,
+    };
+  }, [filteredHistoryRecords]);
 
   const handleOpenEditModal = (item: Item) => {
     setEditingItem(item);
@@ -1169,8 +1198,8 @@ export const ItemManagement: React.FC<ItemManagementProps> = ({
               <input
                 type="text"
                 placeholder="Cari kode, nama item, atau kategori..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={catalogSearchQuery}
+                onChange={(e) => setCatalogSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-3 py-2 bg-white/70 border border-slate-200 rounded-lg text-xs text-slate-900 focus:outline-hidden focus:bg-white"
               />
             </div>
@@ -1333,49 +1362,111 @@ export const ItemManagement: React.FC<ItemManagementProps> = ({
       {/* ========================================================= */}
       {activeSubTab === 'riwayat' && (
         <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-            <div>
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                <History className="w-4 h-4 text-amber-600" />
-                <span>Riwayat Perhitungan Keuntungan Olahan</span>
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Daftar arsip perhitungan keuntungan yang tersimpan otomatis saat registrasi item
-              </p>
+          
+          {/* HEADER & TOP SUMMARY CARDS */}
+          <div className="space-y-3 border-b border-slate-200 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <History className="w-4 h-4 text-amber-600" />
+                  <span>Riwayat Registrasi Item & Perhitungan Keuntungan</span>
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Menampilkan seluruh histori inputan barang olahan dari supplier/sumber terdaftar
+                </p>
+              </div>
+
+              {/* SUMMARY METRICS BADGES */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg text-xs font-bold">
+                  Total: {historySummary.totalBatches} Batch Registrasi
+                </span>
+                <span className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg text-xs font-bold">
+                  Untung: {formatCurrency(historySummary.totalProfit)}
+                </span>
+              </div>
             </div>
 
-            {/* Filter Harian & Pencarian */}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg">
-                <Calendar className="w-3.5 h-3.5 text-slate-500" />
+            {/* KPI STATS BAR */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs pt-1">
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Batch Input</span>
+                <span className="text-sm font-extrabold font-mono text-slate-900">{historySummary.totalBatches} Kali Registrasi</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">{historySummary.totalItemsCount} Total Rincian Item</span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Modal Belanja</span>
+                <span className="text-sm font-extrabold font-mono text-rose-700">{formatCurrency(historySummary.totalModal)}</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">Akumulasi modal olahan</span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Nilai Jual</span>
+                <span className="text-sm font-extrabold font-mono text-blue-700">{formatCurrency(historySummary.totalSales)}</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">Estimasi omset penjualan</span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Keuntungan</span>
+                <span className="text-sm font-extrabold font-mono text-emerald-700">{formatCurrency(historySummary.totalProfit)}</span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">Estimasi profit bersih</span>
+              </div>
+            </div>
+          </div>
+
+          {/* FILTER TOOLBAR */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-50/80 p-3 rounded-xl border border-slate-200 text-xs">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              {/* FILTER SUPPLIER / SUMBER */}
+              <div className="flex items-center gap-1.5 bg-white border border-slate-300 px-2.5 py-1.5 rounded-lg">
+                <Building2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <select
+                  value={historySupplierFilter}
+                  onChange={(e) => setHistorySupplierFilter(e.target.value)}
+                  className="bg-transparent font-semibold text-slate-900 focus:outline-hidden cursor-pointer"
+                >
+                  <option value="">-- Semua Sumber / Supplier --</option>
+                  {uniqueHistorySources.map(src => (
+                    <option key={src} value={src}>{src}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* FILTER TANGGAL */}
+              <div className="flex items-center gap-1.5 bg-white border border-slate-300 px-2.5 py-1.5 rounded-lg">
+                <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                 <input
                   type="date"
                   value={historyDateFilter}
                   onChange={(e) => setHistoryDateFilter(e.target.value)}
                   className="bg-transparent font-semibold text-slate-900 focus:outline-hidden cursor-pointer"
                 />
-                {historyDateFilter && (
-                  <button
-                    type="button"
-                    onClick={() => setHistoryDateFilter('')}
-                    className="text-slate-400 hover:text-slate-700 font-bold ml-1 cursor-pointer"
-                    title="Reset Filter Tanggal"
-                  >
-                    ✕
-                  </button>
-                )}
               </div>
 
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                <input
-                  type="text"
-                  placeholder="Cari sumber / item..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-hidden w-40"
-                />
-              </div>
+              {/* TOMBOL RESET FILTER */}
+              {(historyDateFilter || historySupplierFilter || historySearchQuery) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistoryDateFilter('');
+                    setHistorySupplierFilter('');
+                    setHistorySearchQuery('');
+                  }}
+                  className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                >
+                  Reset Filter
+                </button>
+              )}
+            </div>
+
+            {/* SEARCH BOX */}
+            <div className="relative w-full sm:w-60">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+              <input
+                type="text"
+                placeholder="Cari nama item / supplier..."
+                value={historySearchQuery}
+                onChange={(e) => setHistorySearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-hidden"
+              />
             </div>
           </div>
 
@@ -1384,28 +1475,40 @@ export const ItemManagement: React.FC<ItemManagementProps> = ({
             <table className="w-full text-xs text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-slate-600 bg-slate-50 font-bold">
-                  <th className="py-2.5 px-3">Tanggal</th>
-                  <th className="py-2.5 px-3">Sumber / Supplier</th>
-                  <th className="py-2.5 px-3">Daftar Item</th>
-                  <th className="py-2.5 px-3 text-right">Total Jual</th>
-                  <th className="py-2.5 px-3 text-right">Modal</th>
-                  <th className="py-2.5 px-3 text-right">Keuntungan</th>
-                  <th className="py-2.5 px-3 text-center">Petugas</th>
-                  <th className="py-2.5 px-3 text-center">Aksi</th>
+                  <th className="py-2.5 px-3 w-28">Tanggal</th>
+                  <th className="py-2.5 px-3 min-w-[160px]">Sumber / Supplier</th>
+                  <th className="py-2.5 px-3 min-w-[280px]">Rincian Semua Item Diinput</th>
+                  <th className="py-2.5 px-3 text-right w-32">Total Modal</th>
+                  <th className="py-2.5 px-3 text-right w-32">Total Jual</th>
+                  <th className="py-2.5 px-3 text-right w-32">Keuntungan</th>
+                  <th className="py-2.5 px-3 text-center w-24">Petugas</th>
+                  <th className="py-2.5 px-3 text-center w-20">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
                 {filteredHistoryRecords.map((rec) => (
-                  <tr key={rec.id} className="hover:bg-slate-50/60">
-                    <td className="py-3 px-3 font-mono text-slate-700">{formatDate(rec.date)}</td>
-                    <td className="py-3 px-3 font-semibold text-slate-900">{rec.source}</td>
-                    <td className="py-3 px-3 text-slate-600 text-[11px]">
-                      {rec.items.map(i => `${i.itemName} (${i.quantity} ${i.unit})`).join(', ')}
+                  <tr key={rec.id} className="hover:bg-slate-50/60 align-top">
+                    <td className="py-3 px-3 font-mono text-slate-700 whitespace-nowrap">{formatDate(rec.date)}</td>
+                    <td className="py-3 px-3">
+                      <span className="font-bold text-slate-900 block text-xs">{rec.source}</span>
+                      <span className="text-[10px] text-slate-400 block font-mono">ID: {rec.id}</span>
                     </td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums">{formatCurrency(rec.grandTotal)}</td>
-                    <td className="py-3 px-3 text-right font-mono tabular-nums text-slate-600">{formatCurrency(rec.totalModal)}</td>
+                    <td className="py-3 px-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {rec.items.map((item, iIdx) => (
+                          <div key={iIdx} className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50/90 text-amber-950 border border-amber-200/80 rounded-lg text-[11px]">
+                            <span className="font-bold text-slate-900">{item.itemName}</span>
+                            <span className="font-mono text-amber-900 font-semibold">{formatNumber(item.quantity)} {item.unit}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">@ {formatCurrency(item.sellPrice)}</span>
+                            <span className="font-mono font-bold text-slate-900">({formatCurrency(item.subtotal)})</span>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono tabular-nums text-rose-700 font-semibold">{formatCurrency(rec.totalModal)}</td>
+                    <td className="py-3 px-3 text-right font-mono tabular-nums text-slate-900 font-semibold">{formatCurrency(rec.grandTotal)}</td>
                     <td className="py-3 px-3 text-right font-mono font-bold tabular-nums text-emerald-700">{formatCurrency(rec.profit)}</td>
-                    <td className="py-3 px-3 text-center text-slate-500">{rec.recordedBy}</td>
+                    <td className="py-3 px-3 text-center text-slate-500 whitespace-nowrap">{rec.recordedBy}</td>
                     <td className="py-3 px-3 text-center">
                       <button
                         type="button"
