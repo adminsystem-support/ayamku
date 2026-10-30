@@ -96,7 +96,7 @@ export const ItemManagement: React.FC<ItemManagementProps> = ({
       quantity: 0,
       sellPrice: 0,
       subtotal: 0,
-      isCustom: true,
+      isCustom: false,
       showSuggestions: false,
     }
   ]);
@@ -173,7 +173,7 @@ export const ItemManagement: React.FC<ItemManagementProps> = ({
         quantity: 0,
         sellPrice: 0,
         subtotal: 0,
-        isCustom: true,
+        isCustom: false,
         showSuggestions: false,
       }
     ]);
@@ -219,7 +219,7 @@ export const ItemManagement: React.FC<ItemManagementProps> = ({
       const row = { ...updated[index] };
       row.itemId = '';
       row.itemName = '';
-      row.isCustom = true;
+      row.isCustom = false;
       row.showSuggestions = false;
       updated[index] = row;
       return updated;
@@ -374,7 +374,7 @@ export const ItemManagement: React.FC<ItemManagementProps> = ({
         quantity: 0,
         sellPrice: 0,
         subtotal: 0,
-        isCustom: true,
+        isCustom: false,
         showSuggestions: false,
       }
     ]);
@@ -637,75 +637,151 @@ export const ItemManagement: React.FC<ItemManagementProps> = ({
                       </button>
                     </div>
 
-                    {/* NAMA ITEM DENGAN DROPDOWN SUGGESTIONS */}
+                    {/* NAMA ITEM DENGAN DROPDOWN PILIHAN ITEM TERDAFTAR & MANUAL */}
                     <div className="relative">
                       <label className="text-[10px] uppercase font-bold text-slate-600 block mb-1">
                         Nama Item:
                       </label>
                       {row.itemId ? (
                         <div className="flex items-center justify-between bg-emerald-50 border border-emerald-300 rounded-lg p-2 text-emerald-950 font-bold">
-                          <span>{row.itemName}</span>
+                          <span className="flex items-center gap-1.5 truncate">
+                            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span className="truncate">{row.itemName}</span>
+                            <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-mono font-normal shrink-0">
+                              Terdaftar
+                            </span>
+                          </span>
                           <button
                             type="button"
                             onClick={() => handleResetRowSelection(idx)}
-                            className="text-slate-500 hover:text-rose-600 text-xs p-1 cursor-pointer"
-                            title="Ganti Item"
+                            className="text-slate-400 hover:text-rose-600 text-xs p-1 cursor-pointer shrink-0 ml-1"
+                            title="Ganti Item / Input Baru"
                           >
                             <X className="w-4 h-4" />
                           </button>
                         </div>
-                      ) : (
+                      ) : !row.isCustom ? (
                         <div>
-                          <input
-                            type="text"
-                            required
-                            placeholder="Ketik nama item..."
-                            value={row.itemName}
-                            onChange={(e) => handleItemNameChange(idx, e.target.value)}
-                            onFocus={() => {
-                              if (row.itemName.trim().length > 0) {
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '__MANUAL__') {
                                 setRows(prev => {
                                   const u = [...prev];
-                                  u[idx] = { ...u[idx], showSuggestions: true };
+                                  u[idx] = { ...u[idx], isCustom: true, itemId: '', itemName: '' };
                                   return u;
                                 });
+                              } else if (val) {
+                                const selectedItem = items.find(it => it.id === val);
+                                if (selectedItem) {
+                                  handleSelectExistingItem(idx, selectedItem);
+                                }
                               }
                             }}
-                            className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900 focus:outline-hidden focus:border-amber-500"
-                          />
+                            className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900 focus:outline-hidden focus:border-amber-500 cursor-pointer"
+                          >
+                            <option value="">-- Pilih Item Terdaftar --</option>
+                            {items.map(item => {
+                              const isPickedInOtherRow = rows.some((r, rIdx) => rIdx !== idx && r.itemId === item.id);
+                              return (
+                                <option key={item.id} value={item.id} disabled={isPickedInOtherRow}>
+                                  {item.name} (Stok: {formatNumber(item.currentStock)} {item.unit} • {formatCurrency(item.sellPrice)}){isPickedInOtherRow ? ' - (Sudah dipilih)' : ''}
+                                </option>
+                              );
+                            })}
+                            <option value="__MANUAL__" className="font-bold text-amber-800 bg-amber-50">
+                              + Registrasi Item Baru (Ketik Manual)
+                            </option>
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              Mode Input Manual (Item Baru)
+                            </span>
+                            {items.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRows(prev => {
+                                    const u = [...prev];
+                                    u[idx] = { ...u[idx], isCustom: false, itemId: '', itemName: '' };
+                                    return u;
+                                  });
+                                }}
+                                className="text-[11px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+                              >
+                                ← Pilih dari Dropdown Item
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              required
+                              placeholder="Ketik nama item baru..."
+                              value={row.itemName}
+                              onChange={(e) => handleItemNameChange(idx, e.target.value)}
+                              onFocus={() => {
+                                if (row.itemName.trim().length > 0) {
+                                  setRows(prev => {
+                                    const u = [...prev];
+                                    u[idx] = { ...u[idx], showSuggestions: true };
+                                    return u;
+                                  });
+                                }
+                              }}
+                              className="w-full p-2.5 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900 focus:outline-hidden focus:border-amber-500"
+                            />
 
-                          {/* DROPDOWN AUTOCOMPLETE SUGGESTIONS JIKA SUDAH ADA */}
-                          {row.showSuggestions && matchingItems.length > 0 && (
-                            <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-300 z-50 overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
-                              <div className="p-2 bg-amber-50 text-[11px] text-amber-900 font-bold">
-                                Item Terdaftar (Pilih agar tidak ganda):
-                              </div>
-                              {matchingItems.map(item => {
-                                const isPickedInOtherRow = rows.some((r, rIdx) => rIdx !== idx && r.itemId === item.id);
-                                return (
+                            {/* DROPDOWN AUTOCOMPLETE SUGGESTIONS JIKA SUDAH ADA */}
+                            {row.showSuggestions && matchingItems.length > 0 && (
+                              <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-300 z-50 overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                                <div className="p-2 bg-amber-50 text-[11px] text-amber-900 font-bold flex items-center justify-between">
+                                  <span>Item Sudah Terdaftar (Klik untuk memilih):</span>
                                   <button
-                                    key={item.id}
                                     type="button"
-                                    disabled={isPickedInOtherRow}
-                                    onClick={() => handleSelectExistingItem(idx, item)}
-                                    className="w-full text-left p-2.5 hover:bg-amber-50 transition-colors flex items-center justify-between disabled:opacity-50 cursor-pointer"
+                                    onClick={() => {
+                                      setRows(prev => {
+                                        const u = [...prev];
+                                        u[idx] = { ...u[idx], showSuggestions: false };
+                                        return u;
+                                      });
+                                    }}
+                                    className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
                                   >
-                                    <div>
-                                      <span className="font-bold text-slate-900 block">{item.name}</span>
-                                      <span className="text-[10px] text-slate-500">
-                                        Stok: {formatNumber(item.currentStock)} {item.unit} • Harga: {formatCurrency(item.sellPrice)}
-                                      </span>
-                                    </div>
-                                    {isPickedInOtherRow ? (
-                                      <span className="text-[10px] text-slate-400 italic">(sudah dipilih)</span>
-                                    ) : (
-                                      <span className="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Pilih</span>
-                                    )}
+                                    ✕
                                   </button>
-                                );
-                              })}
-                            </div>
-                          )}
+                                </div>
+                                {matchingItems.map(item => {
+                                  const isPickedInOtherRow = rows.some((r, rIdx) => rIdx !== idx && r.itemId === item.id);
+                                  return (
+                                    <button
+                                      key={item.id}
+                                      type="button"
+                                      disabled={isPickedInOtherRow}
+                                      onClick={() => handleSelectExistingItem(idx, item)}
+                                      className="w-full text-left p-2.5 hover:bg-amber-50 transition-colors flex items-center justify-between disabled:opacity-50 cursor-pointer"
+                                    >
+                                      <div>
+                                        <span className="font-bold text-slate-900 block">{item.name}</span>
+                                        <span className="text-[10px] text-slate-500">
+                                          Stok: {formatNumber(item.currentStock)} {item.unit} • Harga: {formatCurrency(item.sellPrice)}
+                                        </span>
+                                      </div>
+                                      {isPickedInOtherRow ? (
+                                        <span className="text-[10px] text-slate-400 italic">(sudah dipilih)</span>
+                                      ) : (
+                                        <span className="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Pilih</span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -802,88 +878,148 @@ export const ItemManagement: React.FC<ItemManagementProps> = ({
                           {idx + 1}
                         </td>
 
-                        {/* NAMA ITEM DENGAN AUTOCOMPLETE SUGGESTION */}
+                        {/* NAMA ITEM DENGAN DROPDOWN PILIHAN ITEM TERDAFTAR & MANUAL */}
                         <td className="py-3 px-3 relative">
                           {row.itemId ? (
                             <div className="flex items-center justify-between bg-emerald-50 border border-emerald-300 rounded-lg px-2.5 py-1.5 text-emerald-950 font-bold">
-                              <span className="flex items-center gap-1.5">
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                {row.itemName}
+                              <span className="flex items-center gap-1.5 truncate">
+                                <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span className="truncate">{row.itemName}</span>
+                                <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-mono font-normal shrink-0">
+                                  Terdaftar
+                                </span>
                               </span>
                               <button
                                 type="button"
                                 onClick={() => handleResetRowSelection(idx)}
-                                className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer"
-                                title="Ganti Item"
+                                className="text-slate-400 hover:text-rose-600 p-0.5 cursor-pointer shrink-0 ml-1"
+                                title="Ganti Item / Input Baru"
                               >
                                 <X className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                          ) : (
-                            <div className="relative">
-                              <input
-                                type="text"
-                                required
-                                placeholder="Ketik nama item..."
-                                value={row.itemName}
-                                onChange={(e) => handleItemNameChange(idx, e.target.value)}
-                                onFocus={() => {
-                                  if (row.itemName.trim().length > 0) {
+                          ) : !row.isCustom ? (
+                            <div>
+                              <select
+                                value=""
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === '__MANUAL__') {
                                     setRows(prev => {
                                       const u = [...prev];
-                                      u[idx] = { ...u[idx], showSuggestions: true };
+                                      u[idx] = { ...u[idx], isCustom: true, itemId: '', itemName: '' };
                                       return u;
                                     });
+                                  } else if (val) {
+                                    const selectedItem = items.find(it => it.id === val);
+                                    if (selectedItem) {
+                                      handleSelectExistingItem(idx, selectedItem);
+                                    }
                                   }
                                 }}
-                                className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900 focus:outline-hidden focus:border-amber-500"
-                              />
+                                className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900 focus:outline-hidden focus:border-amber-500 cursor-pointer text-xs"
+                              >
+                                <option value="">-- Pilih Item Terdaftar --</option>
+                                {items.map(item => {
+                                  const isPickedInOtherRow = rows.some((r, rIdx) => rIdx !== idx && r.itemId === item.id);
+                                  return (
+                                    <option key={item.id} value={item.id} disabled={isPickedInOtherRow}>
+                                      {item.name} (Stok: {formatNumber(item.currentStock)} {item.unit} • {formatCurrency(item.sellPrice)}){isPickedInOtherRow ? ' - (Sudah dipilih)' : ''}
+                                    </option>
+                                  );
+                                })}
+                                <option value="__MANUAL__" className="font-bold text-amber-800 bg-amber-50">
+                                  + Registrasi Item Baru (Ketik Manual)
+                                </option>
+                              </select>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                  Mode Input Manual (Item Baru)
+                                </span>
+                                {items.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRows(prev => {
+                                        const u = [...prev];
+                                        u[idx] = { ...u[idx], isCustom: false, itemId: '', itemName: '' };
+                                        return u;
+                                      });
+                                    }}
+                                    className="text-[11px] font-bold text-amber-700 hover:text-amber-900 underline cursor-pointer"
+                                  >
+                                    ← Pilih dari Dropdown Item
+                                  </button>
+                                )}
+                              </div>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Ketik nama item baru..."
+                                  value={row.itemName}
+                                  onChange={(e) => handleItemNameChange(idx, e.target.value)}
+                                  onFocus={() => {
+                                    if (row.itemName.trim().length > 0) {
+                                      setRows(prev => {
+                                        const u = [...prev];
+                                        u[idx] = { ...u[idx], showSuggestions: true };
+                                        return u;
+                                      });
+                                    }
+                                  }}
+                                  className="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold text-slate-900 focus:outline-hidden focus:border-amber-500"
+                                />
 
-                              {/* DROPDOWN AUTOCOMPLETE LIST */}
-                              {row.showSuggestions && matchingItems.length > 0 && (
-                                <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-300 z-50 overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
-                                  <div className="p-2 bg-amber-50 text-[11px] text-amber-900 font-bold flex items-center justify-between">
-                                    <span>Item Terdaftar (Pilih agar tidak ganda):</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setRows(prev => {
-                                          const u = [...prev];
-                                          u[idx] = { ...u[idx], showSuggestions: false };
-                                          return u;
-                                        });
-                                      }}
-                                      className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
-                                    >
-                                      ✕
-                                    </button>
-                                  </div>
-                                  {matchingItems.map(item => {
-                                    const isPickedInOtherRow = rows.some((r, rIdx) => rIdx !== idx && r.itemId === item.id);
-                                    return (
+                                {/* DROPDOWN AUTOCOMPLETE LIST */}
+                                {row.showSuggestions && matchingItems.length > 0 && (
+                                  <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-300 z-50 overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                                    <div className="p-2 bg-amber-50 text-[11px] text-amber-900 font-bold flex items-center justify-between">
+                                      <span>Item Sudah Terdaftar (Klik untuk memilih):</span>
                                       <button
-                                        key={item.id}
                                         type="button"
-                                        disabled={isPickedInOtherRow}
-                                        onClick={() => handleSelectExistingItem(idx, item)}
-                                        className="w-full text-left p-2.5 hover:bg-amber-50 transition-colors flex items-center justify-between disabled:opacity-50 cursor-pointer"
+                                        onClick={() => {
+                                          setRows(prev => {
+                                            const u = [...prev];
+                                            u[idx] = { ...u[idx], showSuggestions: false };
+                                            return u;
+                                          });
+                                        }}
+                                        className="text-slate-400 hover:text-slate-600 font-bold cursor-pointer"
                                       >
-                                        <div>
-                                          <span className="font-bold text-slate-900 block">{item.name}</span>
-                                          <span className="text-[10px] text-slate-500">
-                                            Stok: {formatNumber(item.currentStock)} {item.unit} • Harga: {formatCurrency(item.sellPrice)}
-                                          </span>
-                                        </div>
-                                        {isPickedInOtherRow ? (
-                                          <span className="text-[10px] text-slate-400 italic">(sudah dipilih)</span>
-                                        ) : (
-                                          <span className="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Pilih</span>
-                                        )}
+                                        ✕
                                       </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
+                                    </div>
+                                    {matchingItems.map(item => {
+                                      const isPickedInOtherRow = rows.some((r, rIdx) => rIdx !== idx && r.itemId === item.id);
+                                      return (
+                                        <button
+                                          key={item.id}
+                                          type="button"
+                                          disabled={isPickedInOtherRow}
+                                          onClick={() => handleSelectExistingItem(idx, item)}
+                                          className="w-full text-left p-2.5 hover:bg-amber-50 transition-colors flex items-center justify-between disabled:opacity-50 cursor-pointer"
+                                        >
+                                          <div>
+                                            <span className="font-bold text-slate-900 block">{item.name}</span>
+                                            <span className="text-[10px] text-slate-500">
+                                              Stok: {formatNumber(item.currentStock)} {item.unit} • Harga: {formatCurrency(item.sellPrice)}
+                                            </span>
+                                          </div>
+                                          {isPickedInOtherRow ? (
+                                            <span className="text-[10px] text-slate-400 italic">(sudah dipilih)</span>
+                                          ) : (
+                                            <span className="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">Pilih</span>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
                         </td>
