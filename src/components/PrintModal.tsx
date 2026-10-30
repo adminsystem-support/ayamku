@@ -597,19 +597,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   {printData.data.notes && (
                     <p className="text-xs text-slate-500 italic">Catatan: {printData.data.notes}</p>
                   )}
-
-                  {/* Official Electronic Verification Notice */}
-                  <div className="pt-2 border-t border-slate-200 text-center">
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 max-w-lg mx-auto space-y-1">
-                      <div className="flex items-center justify-center gap-1.5 text-emerald-800 font-bold text-xs">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                        <span>DOKUMEN NOTA PENJUALAN ELEKTRONIK SAH</span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 leading-tight">
-                        Dokumen Nota Penjualan ini diterbitkan secara otomatis oleh sistem operasional <strong>{storeProfile.name}</strong>. Berkas ini sah dan berlaku sebagai bukti transaksi penjualan resmi tanpa memerlukan tanda tangan basah.
-                      </p>
-                    </div>
-                  </div>
                 </div>
               ) : (
                 // Thermal Sale Receipt (58mm / 80mm)
@@ -903,19 +890,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   {printData.data.notes && (
                     <p className="text-xs text-slate-500 italic">Catatan: {printData.data.notes}</p>
                   )}
-
-                  {/* Official Electronic Verification Notice */}
-                  <div className="pt-2 border-t border-slate-200 text-center">
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 max-w-lg mx-auto space-y-1">
-                      <div className="flex items-center justify-center gap-1.5 text-emerald-800 font-bold text-xs">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                        <span>DOKUMEN FAKTUR PEMBELIAN ELEKTRONIK SAH</span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 leading-tight">
-                        Dokumen Faktur Pembelian ini diterbitkan secara otomatis oleh sistem operasional <strong>{storeProfile.name}</strong>. Berkas ini sah dan berlaku sebagai bukti transaksi pembelian resmi tanpa memerlukan tanda tangan basah.
-                      </p>
-                    </div>
-                  </div>
                 </div>
               ) : (
                 // Thermal Purchase Receipt
