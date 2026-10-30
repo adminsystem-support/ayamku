@@ -519,9 +519,6 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
             <BarChart3 className="w-4 h-4 text-amber-600" />
             <span>Ringkasan Keuangan & Catatan Bon Toko</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Pantau omset penjualan, modal belanja ayam, keuntungan bersih toko, dan daftar bon yang belum lunas
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
@@ -599,17 +596,6 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
               />
             )}
           </div>
-
-          {activeReportTab === 'laba_rugi' && (
-            <button
-              type="button"
-              onClick={() => setShowExpenseModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Catat Pengeluaran Toko</span>
-            </button>
-          )}
 
           <button
             type="button"
