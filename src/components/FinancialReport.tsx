@@ -113,9 +113,6 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   storeProfile,
   userRole,
 }) => {
-  // Report View Sub-tab
-  const [activeReportTab, setActiveReportTab] = useState<'laba_rugi' | 'arus_kas' | 'hutang_piutang'>('laba_rugi');
-
   // Current month & year selector
   const today = new Date();
   const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -719,16 +716,14 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
             />
           </div>
 
-          {activeReportTab === 'laba_rugi' && (
-            <button
-              type="button"
-              onClick={() => setShowExpenseModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Catat Pengeluaran Toko</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setShowExpenseModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Catat Pengeluaran Toko</span>
+          </button>
 
           <button
             type="button"
@@ -742,139 +737,165 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
         </div>
       </div>
 
-      {/* Sub-tab Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-200/80 pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveReportTab('laba_rugi')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeReportTab === 'laba_rugi'
-              ? 'bg-amber-600 text-white shadow-xs'
-              : 'bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900'
-          }`}
+      {/* Quick Jump Anchor Bar (Satu Halaman Laporan Terpadu) */}
+      <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-slate-200/80 text-xs">
+        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1 hidden sm:inline">
+          Lompat Ke Bagian:
+        </span>
+        <a
+          href="#section-untung-rugi"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold bg-white/90 hover:bg-amber-50 hover:text-amber-800 text-slate-700 border border-slate-200 shadow-2xs transition-all"
         >
-          <PieChart className="w-4 h-4" />
-          <span>Untung Rugi & Biaya Toko</span>
-        </button>
+          <PieChart className="w-3.5 h-3.5 text-amber-600" />
+          <span>1. Untung Rugi Bulanan</span>
+        </a>
 
-        <button
-          type="button"
-          onClick={() => setActiveReportTab('arus_kas')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
-            activeReportTab === 'arus_kas'
-              ? 'bg-amber-600 text-white shadow-xs'
-              : 'bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900'
-          }`}
+        <a
+          href="#section-arus-kas"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold bg-white/90 hover:bg-emerald-50 hover:text-emerald-800 text-slate-700 border border-slate-200 shadow-2xs transition-all"
         >
-          <ArrowUpDown className="w-4 h-4" />
-          <span>Arus Kas (Keluar Masuk Uang)</span>
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-            activeReportTab === 'arus_kas'
-              ? 'bg-white text-amber-700'
-              : 'bg-emerald-100 text-emerald-800'
-          }`}>
+          <ArrowUpDown className="w-3.5 h-3.5 text-emerald-600" />
+          <span>2. Mutasi Keluar Masuk Uang</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-mono font-bold">
             {monthlyCashFlowTransactions.length}
           </span>
-        </button>
+        </a>
 
-        <button
-          type="button"
-          onClick={() => setActiveReportTab('hutang_piutang')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
-            activeReportTab === 'hutang_piutang'
-              ? 'bg-amber-600 text-white shadow-xs'
-              : 'bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900'
-          }`}
+        <a
+          href="#section-bon-tagihan"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold bg-white/90 hover:bg-rose-50 hover:text-rose-800 text-slate-700 border border-slate-200 shadow-2xs transition-all"
         >
-          <CreditCard className="w-4 h-4" />
-          <span>Catatan Bon & Tagihan</span>
+          <CreditCard className="w-3.5 h-3.5 text-rose-600" />
+          <span>3. Bon & Tagihan Belum Lunas</span>
           {(countUnpaidPurchases + countUnpaidSales) > 0 && (
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-              activeReportTab === 'hutang_piutang'
-                ? 'bg-white text-amber-700'
-                : 'bg-rose-500 text-white'
-            }`}>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-mono font-bold">
               {countUnpaidPurchases + countUnpaidSales}
             </span>
           )}
-        </button>
+        </a>
+      </div>
+
+      {/* 6 TOP UNIFIED KPI SUMMARY CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        {/* Total Penjualan */}
+        <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-xl border border-white/80 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Penjualan</span>
+            <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
+              <DollarSign className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="text-lg font-bold font-mono text-slate-900 mt-1.5 tabular-nums">
+            {formatCurrency(totalRevenue)}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5">
+            {monthlySales.length} nota penjualan
+          </div>
+        </div>
+
+        {/* Modal Belanja Ayam */}
+        <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-xl border border-white/80 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Modal Belanja Ayam</span>
+            <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg">
+              <TrendingDown className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="text-lg font-bold font-mono text-slate-900 mt-1.5 tabular-nums">
+            {formatCurrency(totalHPP)}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5">
+            Modal pokok beli ayam (HPP)
+          </div>
+        </div>
+
+        {/* Gaji & Biaya Operasional */}
+        <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-xl border border-white/80 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Gaji & Operasional</span>
+            <div className="p-1.5 bg-orange-50 text-orange-600 rounded-lg">
+              <TrendingDown className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="text-lg font-bold font-mono text-slate-900 mt-1.5 tabular-nums">
+            {formatCurrency(totalOperatingCosts)}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5">
+            Gaji {formatCurrency(totalSalaries)} + Ops {formatCurrency(totalOtherExpenses)}
+          </div>
+        </div>
+
+        {/* Keuntungan Bersih Toko (Prominent) */}
+        <div className={`p-3.5 rounded-xl border shadow-2xs backdrop-blur-xs ${
+          netProfit >= 0 ? 'bg-emerald-50/90 border-emerald-300' : 'bg-rose-50/90 border-rose-300'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Keuntungan Bersih</span>
+            <div className={`p-1.5 rounded-lg ${netProfit >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+              <TrendingUp className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className={`text-lg font-bold font-mono mt-1.5 tabular-nums ${
+            netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
+          }`}>
+            {formatCurrency(netProfit)}
+          </div>
+          <div className="text-[10px] font-semibold mt-0.5 text-slate-600">
+            {netProfit >= 0 ? 'Surplus Laba Toko' : 'Defisit Rugi'}
+          </div>
+        </div>
+
+        {/* Arus Kas Riil (Uang Masuk vs Uang Keluar) */}
+        <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-xl border border-slate-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Arus Kas Riil</span>
+            <div className="p-1.5 bg-teal-50 text-teal-700 rounded-lg">
+              <Coins className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className={`text-lg font-bold font-mono mt-1.5 tabular-nums ${
+            netCashFlow >= 0 ? 'text-emerald-700' : 'text-rose-700'
+          }`}>
+            {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-0.5 flex justify-between font-mono">
+            <span className="text-emerald-600 font-semibold">+{formatCurrency(totalCashIn)}</span>
+            <span className="text-rose-600 font-semibold">-{formatCurrency(totalCashOut)}</span>
+          </div>
+        </div>
+
+        {/* Catatan Bon & Tagihan Belum Lunas */}
+        <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-xl border border-slate-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Bon & Tagihan</span>
+            <div className="p-1.5 bg-purple-50 text-purple-700 rounded-lg">
+              <CreditCard className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div className="text-sm font-bold font-mono text-slate-900 mt-1 flex flex-col gap-0.5">
+            <div className="flex justify-between text-[11px]">
+              <span className="text-rose-600 font-sans font-semibold">Hutang:</span>
+              <span className="text-rose-700">{formatCurrency(totalUnpaidPurchaseDebt)}</span>
+            </div>
+            <div className="flex justify-between text-[11px]">
+              <span className="text-amber-600 font-sans font-semibold">Piutang:</span>
+              <span className="text-amber-700">{formatCurrency(totalUnpaidSaleReceivable)}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. VIEW TAB: UNTUNG RUGI & BIAYA PENGELUARAN TOKO                         */}
+      {/* 1. SECTION: UNTUNG RUGI & BIAYA PENGELUARAN TOKO                          */}
       {/* ========================================================================= */}
-      {activeReportTab === 'laba_rugi' && (
-        <>
-          {/* 4 TOP KPI CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Revenue */}
-            <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-white/80 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Penjualan (Omset)</span>
-                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
-                  <DollarSign className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
-                {formatCurrency(totalRevenue)}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Dari <span className="font-semibold text-slate-800">{monthlySales.length}</span> nota penjualan bulan ini
-              </div>
-            </div>
-
-            {/* HPP */}
-            <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-white/80 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Modal Belanja Ayam (HPP)</span>
-                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
-                  <TrendingDown className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
-                {formatCurrency(totalHPP)}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Modal pokok ayam hidup & logistik
-              </div>
-            </div>
-
-            {/* Gross Profit */}
-            <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-white/80 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Keuntungan Kotor</span>
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-xl font-bold font-mono text-blue-700 mt-2 tabular-nums">
-                {formatCurrency(grossProfit)}
-              </div>
-              <div className="text-[11px] text-blue-700 font-medium mt-1">
-                (Penjualan dikurangi Modal Ayam)
-              </div>
-            </div>
-
-            {/* Net Profit */}
-            <div className={`p-4 rounded-xl border shadow-2xs backdrop-blur-xs ${
-              netProfit >= 0 ? 'bg-emerald-50/80 border-emerald-300' : 'bg-rose-50/80 border-rose-300'
-            }`}>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Keuntungan Bersih Toko</span>
-                <div className={`p-2 rounded-lg ${netProfit >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-              </div>
-              <div className={`text-2xl font-bold font-mono mt-2 tabular-nums ${
-                netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
-              }`}>
-                {formatCurrency(netProfit)}
-              </div>
-              <div className="text-[11px] font-semibold mt-1 text-slate-600">
-                Uang untung bersih setelah potong gaji & operasional
-              </div>
-            </div>
-          </div>
+      <div id="section-untung-rugi" className="space-y-4 pt-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+            <PieChart className="w-4 h-4 text-amber-600" />
+            <span>1. Laporan Untung Rugi Bulanan & Biaya Operasional</span>
+          </h3>
+          <span className="text-xs text-slate-500 font-mono">Periode: {selectedMonth}</span>
+        </div>
 
           {/* DETAILED STATEMENT & EXPENSES BREAKDOWN */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -986,62 +1007,41 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
             </div>
           </div>
 
-          {/* REAL CASH FLOW SYNCHRONIZATION RECONCILIATION CARD */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white rounded-2xl p-5 shadow-sm border border-slate-700/60 flex flex-col md:flex-row md:items-center justify-between gap-5">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Tersinkronisasi Lengkap
-                </span>
-                <span className="text-xs text-slate-400">Periode: {selectedMonth}</span>
-              </div>
-              <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                <Coins className="w-4 h-4 text-amber-400" />
-                <span>Sinkronisasi Arus Kas Riil (Keluar Masuk Uang Toko)</span>
-              </h4>
-              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                Semua uang masuk (penjualan langsung, pelunasan bon piutang BKM, kasbon karyawan) dan uang keluar (belanja ayam, cicilan/lunas utang supplier BKK, gaji bersih, kasbon, operasional) telah terintegrasi di Buku Kas.
-              </p>
-            </div>
+      </div>
 
-            <div className="flex flex-wrap items-center gap-4 border-t md:border-t-0 md:border-l border-slate-700/80 pt-3 md:pt-0 md:pl-5">
-              <div className="text-left">
-                <span className="text-[10px] uppercase font-bold text-emerald-400 block tracking-wider">Total Uang Masuk</span>
-                <span className="text-sm font-bold font-mono text-emerald-300">+{formatCurrency(totalCashIn)}</span>
-              </div>
-              <div className="text-left">
-                <span className="text-[10px] uppercase font-bold text-rose-400 block tracking-wider">Total Uang Keluar</span>
-                <span className="text-sm font-bold font-mono text-rose-300">-{formatCurrency(totalCashOut)}</span>
-              </div>
-              <div className="text-left">
-                <span className="text-[10px] uppercase font-bold text-amber-300 block tracking-wider">Arus Kas Bersih</span>
-                <span className={`text-sm font-bold font-mono ${netCashFlow >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveReportTab('arus_kas')}
-                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
-              >
-                <span>Buka Buku Arus Kas</span>
-                <ArrowUpRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
+      {/* ========================================================================= */}
+      {/* 2. SECTION: BUKU ARUS KAS (SINKRONISASI KELUAR MASUK UANG TOKO LENGKAP)    */}
+      {/* ========================================================================= */}
+      <div id="section-arus-kas" className="space-y-5 pt-6 border-t border-slate-200/90">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/85 backdrop-blur-md p-4 rounded-xl border border-emerald-100 shadow-2xs">
+          <div>
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <ArrowUpDown className="w-4 h-4 text-emerald-600" />
+              <span>2. Buku Arus Kas: Mutasi Keluar & Masuk Uang Toko (Tersinkronisasi)</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Semua transaksi uang masuk (penjualan langsung, bayar piutang BKM, kasbon) dan uang keluar (belanja ayam, bayar utang BKK, gaji bersih, kasbon, operasional) tercatat otomatis
+            </p>
           </div>
-        </>
-      )}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+              +{formatCurrency(totalCashIn)} Masuk
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200">
+              -{formatCurrency(totalCashOut)} Keluar
+            </span>
+            <span className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold ${
+              netCashFlow >= 0 ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+            }`}>
+              Kas: {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
+            </span>
+          </div>
+        </div>
 
-      {/* ========================================================================= */}
-      {/* 2. VIEW TAB: ARUS KAS (SINKRONISASI KELUAR MASUK UANG TOKO LENGKAP)       */}
-      {/* ========================================================================= */}
-      {activeReportTab === 'arus_kas' && (
-        <div className="space-y-5">
-          {/* 4 TOP KPI CARDS FOR CASH FLOW */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Total Cash In */}
-            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-emerald-100 shadow-xs relative overflow-hidden">
+        {/* 4 TOP KPI CARDS FOR CASH FLOW */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Total Cash In */}
+          <div className="bg-white/85 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-emerald-100 shadow-xs relative overflow-hidden">
               <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-500">Total Uang Masuk</span>
@@ -1460,13 +1460,30 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
             </div>
           </div>
         </div>
-      )}
 
       {/* ========================================================================= */}
-      {/* 3. VIEW TAB: LAPORAN HUTANG & PIUTANG USAHA (PEMBELIAN & PENJUALAN)      */}
+      {/* 3. SECTION: CATATAN BON & TAGIHAN BELUM LUNAS (HUTANG & PIUTANG)          */}
       {/* ========================================================================= */}
-      {activeReportTab === 'hutang_piutang' && (
-        <div className="space-y-5">
+      <div id="section-bon-tagihan" className="space-y-5 pt-6 border-t border-slate-200/90">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/85 backdrop-blur-md p-4 rounded-xl border border-rose-100 shadow-2xs">
+          <div>
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-rose-600" />
+              <span>3. Catatan Bon & Tagihan Usaha (Hutang Supplier & Piutang Pelanggan)</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Pantau seluruh nota pembeli yang belum dibayar serta tagihan pembelian ayam dari supplier untuk pelunasan tepat waktu
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200">
+              Hutang: {formatCurrency(totalUnpaidPurchaseDebt)}
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200">
+              Piutang: {formatCurrency(totalUnpaidSaleReceivable)}
+            </span>
+          </div>
+        </div>
           {selectedPartyDetail ? (
             <div className="bg-white/85 backdrop-blur-md rounded-2xl p-5 sm:p-6 shadow-xs border border-white/80 animate-in fade-in zoom-in-95 duration-150 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
@@ -1952,7 +1969,6 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
             </>
           )}
         </div>
-      )}
 
       {/* ========================================================================= */}
       {/* MODALS SECTION                                                            */}
