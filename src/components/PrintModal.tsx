@@ -36,7 +36,7 @@ import {
   AttendanceRecord
 } from '../types/index.ts';
 import { formatCurrency, formatNumber, formatDate, formatDateTime, generateWhatsAppSalaryMessage } from '../utils/formatters.ts';
-import { createDocumentPdf, formatWhatsAppPhone, generateWhatsAppMessage } from '../utils/documentPdf.ts';
+import { createDocumentPdf, formatWhatsAppPhone, generateWhatsAppMessage, getStoreLogoDataUrl } from '../utils/documentPdf.ts';
 
 export type PrintData = 
   | { type: 'sale'; data: SaleTransaction }
@@ -150,14 +150,27 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
     const summaryText = generateWhatsAppMessage(printData, storeProfile, recipientPhone);
 
+    // Pre-load store logo as Base64 Data URL so html2canvas and jsPDF vector render it 100% reliably
+    const logoDataUrl = await getStoreLogoDataUrl(storeProfile.logoUrl || '/logo_unggas.svg');
+
     const el = document.getElementById('printable-document');
     if (el) {
       try {
         const canvas = await html2canvas(el, {
           scale: 2,
           useCORS: true,
+          allowTaint: true,
           backgroundColor: '#ffffff',
           logging: false,
+          onclone: (clonedDoc) => {
+            if (logoDataUrl) {
+              const imgs = clonedDoc.querySelectorAll('img');
+              imgs.forEach(img => {
+                img.crossOrigin = 'anonymous';
+                img.src = logoDataUrl;
+              });
+            }
+          }
         });
 
         const imgData = canvas.toDataURL('image/png');
@@ -199,8 +212,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
       }
     }
 
-    // Fallback to jsPDF vector
-    const { doc } = createDocumentPdf(printData, storeProfile, printFormat);
+    // Fallback to jsPDF vector with loaded logo
+    const { doc } = createDocumentPdf(printData, storeProfile, printFormat, logoDataUrl);
     const blob = doc.output('blob');
     return { blob, fileName, summaryText };
   };

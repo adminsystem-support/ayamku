@@ -91,14 +91,49 @@ export function generateWhatsAppMessage(
 }
 
 /**
+ * Konversi URL Logo Toko (file path / HTTP / Base64) menjadi Data URL PNG agar bisa dirender sempurna di jsPDF & html2canvas
+ */
+export async function getStoreLogoDataUrl(logoUrl?: string): Promise<string> {
+  const targetUrl = logoUrl || '/logo_unggas.svg';
+  if (!targetUrl) return '';
+  if (targetUrl.startsWith('data:image')) return targetUrl;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width || 120;
+        canvas.height = img.height || 120;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/png');
+          resolve(dataUrl);
+          return;
+        }
+      } catch (e) {
+        console.warn('Canvas toDataURL failed for store logo:', e);
+      }
+      resolve('');
+    };
+    img.onerror = () => resolve('');
+    img.src = targetUrl;
+  });
+}
+
+/**
  * Membuat dokumen PDF vector langsung (resmi, tajam, dan tidak pernah error)
  */
 export function createDocumentPdf(
   data: DocumentPrintData,
   store: StoreProfile,
-  format: 'a4' | 'thermal' = 'a4'
+  format: 'a4' | 'thermal' = 'a4',
+  logoDataUrl?: string
 ): { doc: jsPDF; fileName: string } {
   const isA4 = format === 'a4';
+  const activeLogo = logoDataUrl || (store.logoUrl && store.logoUrl.startsWith('data:image') ? store.logoUrl : '');
   
   if (data.type === 'sale') {
     const sale = data.data;
@@ -116,13 +151,25 @@ export function createDocumentPdf(
       doc.setDrawColor(226, 232, 240);
       doc.roundedRect(14, 12, 14, 14, 2, 2, 'DF');
 
-      // Crisp logo badge icon
-      doc.setFillColor(16, 185, 129);
-      doc.circle(21, 19, 5, 'F');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
-      doc.setTextColor(255, 255, 255);
-      doc.text('ACG', 21, 21.2, { align: 'center' });
+      if (activeLogo && activeLogo.startsWith('data:image')) {
+        try {
+          doc.addImage(activeLogo, 'PNG', 14.5, 12.5, 13, 13);
+        } catch (e) {
+          doc.setFillColor(16, 185, 129);
+          doc.circle(21, 19, 5, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(7);
+          doc.setTextColor(255, 255, 255);
+          doc.text('ACG', 21, 21.2, { align: 'center' });
+        }
+      } else {
+        doc.setFillColor(16, 185, 129);
+        doc.circle(21, 19, 5, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text('ACG', 21, 21.2, { align: 'center' });
+      }
 
       startX = 32;
 
@@ -432,12 +479,25 @@ export function createDocumentPdf(
     doc.setDrawColor(226, 232, 240);
     doc.roundedRect(14, 12, 14, 14, 2, 2, 'DF');
 
-    doc.setFillColor(16, 185, 129);
-    doc.circle(21, 19, 5, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(255, 255, 255);
-    doc.text('ACG', 21, 21.2, { align: 'center' });
+    if (activeLogo && activeLogo.startsWith('data:image')) {
+      try {
+        doc.addImage(activeLogo, 'PNG', 14.5, 12.5, 13, 13);
+      } catch (e) {
+        doc.setFillColor(16, 185, 129);
+        doc.circle(21, 19, 5, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(255, 255, 255);
+        doc.text('ACG', 21, 21.2, { align: 'center' });
+      }
+    } else {
+      doc.setFillColor(16, 185, 129);
+      doc.circle(21, 19, 5, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(255, 255, 255);
+      doc.text('ACG', 21, 21.2, { align: 'center' });
+    }
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(15);
