@@ -93,6 +93,7 @@ interface FinancialReportProps {
   onPayPurchaseDebt?: (purchaseId: string, payment: DebtPayment) => void;
   onPayCustomerDebt?: (saleId: string, payment: DebtPayment) => void;
   onPrintDocument?: (printData: any) => void;
+  onNavigateTab?: (tab: string) => void;
   storeProfile: StoreProfile;
   userRole: UserRole;
 }
@@ -110,6 +111,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   onPayPurchaseDebt,
   onPayCustomerDebt,
   onPrintDocument,
+  onNavigateTab,
   storeProfile,
   userRole,
 }) => {
@@ -804,66 +806,32 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* 4 PILAR UTAMA KEUANGAN TOKO                                              */}
+      {/* 4 PILAR UTAMA KEUANGAN TOKO (SEDERHANA & JELAS UNTUK ORANG AWAM)          */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {/* 1. Total Penjualan */}
+        {/* 1. UANG MASUK */}
         <div className="bg-white/95 backdrop-blur-xs p-4 rounded-xl border border-slate-200/90 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">1. Total Penjualan (Omset)</span>
-            <div className="p-1.5 bg-amber-50 text-amber-700 rounded-lg">
-              <DollarSign className="w-4 h-4" />
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">1. Uang Masuk</span>
+            <div className="p-1.5 bg-emerald-50 text-emerald-700 rounded-lg">
+              <ArrowDownLeft className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
-            {formatCurrency(totalRevenue)}
+          <div className="text-xl font-bold font-mono text-emerald-700 mt-2 tabular-nums">
+            {formatCurrency(totalCashIn)}
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-            <span>{monthlySales.length} nota penjualan</span>
-            <span className="text-emerald-600 font-semibold">+{formatCurrency(totalCashIn)} kas masuk</span>
+            <span>Kas diterima dari penjualan & bon</span>
+            <span className="text-slate-700 font-semibold">{monthlySales.length} nota</span>
           </div>
         </div>
 
-        {/* 2. Modal Belanja Ayam (HPP) */}
-        <div className="bg-white/95 backdrop-blur-xs p-4 rounded-xl border border-slate-200/90 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">2. Modal Belanja Ayam (HPP)</span>
-            <div className="p-1.5 bg-rose-50 text-rose-700 rounded-lg">
-              <TrendingDown className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
-            {formatCurrency(totalHPP)}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-            <span>{monthlyPurchases.length} faktur supplier</span>
-            <span className="text-slate-700 font-semibold">{formatNumber(monthlyPurchases.reduce((s, p) => s + (p.totalQuantity || 0), 0))} kg ayam</span>
-          </div>
-        </div>
-
-        {/* 3. Beban Gaji & Operasional */}
-        <div className="bg-white/95 backdrop-blur-xs p-4 rounded-xl border border-slate-200/90 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">3. Gaji & Operasional</span>
-            <div className="p-1.5 bg-orange-50 text-orange-700 rounded-lg">
-              <TrendingDown className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
-            {formatCurrency(totalOperatingCosts)}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-            <span>Gaji: {formatCurrency(totalSalaries)}</span>
-            <span>Operasional: {formatCurrency(totalOtherExpenses)}</span>
-          </div>
-        </div>
-
-        {/* 4. Keuntungan Bersih Toko */}
+        {/* 2. UNTUNG (KEUNTUNGAN BERSIH) */}
         <div className={`p-4 rounded-xl border shadow-xs backdrop-blur-xs ${
           netProfit >= 0 ? 'bg-emerald-50/90 border-emerald-300 ring-1 ring-emerald-200' : 'bg-rose-50/90 border-rose-300 ring-1 ring-rose-200'
         }`}>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Keuntungan Bersih Toko</span>
+            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">2. Untung (Laba Bersih)</span>
             <div className={`p-1.5 rounded-lg ${netProfit >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
               <TrendingUp className="w-4 h-4" />
             </div>
@@ -882,42 +850,73 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
             </span>
           </div>
         </div>
+
+        {/* 3. UANG KELUAR */}
+        <div className="bg-white/95 backdrop-blur-xs p-4 rounded-xl border border-slate-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">3. Uang Keluar</span>
+            <div className="p-1.5 bg-rose-50 text-rose-700 rounded-lg">
+              <ArrowUpRight className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-xl font-bold font-mono text-rose-700 mt-2 tabular-nums">
+            {formatCurrency(totalCashOut)}
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+            <span>Beli ayam, upah & operasional</span>
+            <span className="text-rose-600 font-semibold">Kas keluar</span>
+          </div>
+        </div>
+
+        {/* 4. KASBON KARYAWAN */}
+        <div className="bg-white/95 backdrop-blur-xs p-4 rounded-xl border border-slate-200/90 shadow-2xs">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">4. Kasbon Karyawan</span>
+            <div className="p-1.5 bg-purple-50 text-purple-700 rounded-lg">
+              <Wallet className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="text-xl font-bold font-mono text-purple-700 mt-2 tabular-nums">
+            {formatCurrency(totalActiveKasbonBalance)}
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+            <span>Sisa pinjaman aktif karyawan</span>
+            <span className="text-purple-600 font-semibold font-mono">Pinjam: +{formatCurrency(monthlyKasbonGiven)}</span>
+          </div>
+        </div>
       </div>
 
-      {/* SUB-BAR: ARUS KAS RIIL & SALDO BON PIUTANG / HUTANG */}
-      <div className="bg-slate-900 text-white p-3.5 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2.5">
-          <Coins className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span className="font-bold text-slate-200">Arus Kas Riil (Net Cash Flow):</span>
-          <span className={`font-mono font-bold text-sm ${netCashFlow >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
-          </span>
-          <span className="text-[11px] text-slate-400 hidden sm:inline">
-            (Masuk: +{formatCurrency(totalCashIn)} | Keluar: -{formatCurrency(totalCashOut)})
-          </span>
-        </div>
-
-        <div className="flex items-center gap-4 text-xs font-mono">
-          <div className="flex items-center gap-1.5">
-            <span className="text-rose-300 font-sans font-semibold">Hutang ke Supplier:</span>
-            <span className="font-bold text-rose-400">{formatCurrency(totalUnpaidPurchaseDebt)}</span>
-            <span className="text-[10px] text-slate-400 font-sans">({countUnpaidPurchases} faktur)</span>
+      {/* BANNER SHORTCUT KE HALAMAN OPERASIONAL */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-amber-500/10 border border-amber-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-amber-500 text-white rounded-xl shadow-xs shrink-0">
+            <FileText className="w-5 h-5" />
           </div>
-          <div className="h-3 w-px bg-slate-700" />
-          <div className="flex items-center gap-1.5">
-            <span className="text-amber-300 font-sans font-semibold">Bon Piutang Pelanggan:</span>
-            <span className="font-bold text-amber-400">{formatCurrency(totalUnpaidSaleReceivable)}</span>
-            <span className="text-[10px] text-slate-400 font-sans">({countUnpaidSales} nota)</span>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">
+              Rincian Pengeluaran Operasional & Kas Harian
+            </h3>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Nota token listrik, plastik kemasan, armada BBM, perawatan alat toko, serta kasbon karyawan per orang dapat dilihat dan dicatat lengkap di halaman Operasional.
+            </p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => onNavigateTab?.('operasional')}
+          className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer shrink-0 flex items-center gap-2"
+        >
+          <span>Lihat Detail di Halaman Operasional</span>
+          <ArrowUpRight className="w-4 h-4 text-amber-400" />
+        </button>
       </div>
 
       {/* ========================================================================= */}
       {/* LEMBAR LAPORAN KEUANGAN TERPADU (SATU LEMBAR LAPORAN RESMI TOKO)          */}
       {/* ========================================================================= */}
-      <div id="unified-financial-statement" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden print:border-none print:shadow-none">
+      <div id="unified-financial-statement" className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden print:border-none print:shadow-none">
         {/* KOP RESMI LAPORAN TOKO */}
-        <div className="p-6 border-b border-slate-200 bg-linear-to-r from-slate-50 via-white to-slate-50">
+        <div className="p-5 sm:p-6 border-b border-slate-200 bg-linear-to-r from-slate-50 via-white to-slate-50">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3.5">
               <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 bg-white p-1 shrink-0 flex items-center justify-center">
@@ -935,14 +934,14 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
                   {storeProfile.address || 'Pasar Kemis - Tangerang'} {storeProfile.phone ? `• Telp/WA: ${storeProfile.phone}` : ''}
                 </p>
                 <div className="text-[11px] font-semibold text-emerald-700 mt-0.5">
-                  Laporan Keuangan & Laba Rugi Komprehensif
+                  Laporan Keuangan & Laba Bersih Toko
                 </div>
               </div>
             </div>
 
             <div className="text-left sm:text-right space-y-1">
               <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-200">
-                LAPORAN KEUANGAN TERPADU
+                RINGKASAN RESMI TOKO
               </span>
               <div className="text-xs font-bold text-slate-800">
                 Periode: <span className="font-mono">{selectedMonth}</span>
@@ -954,330 +953,115 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
           </div>
         </div>
 
-        {/* ISI SATU LEMBAR LAPORAN TERPADU */}
-        <div className="p-6 space-y-6 text-xs text-slate-800">
-          
-          {/* BAGIAN 1: TOTAL PENJUALAN & UANG MASUK (OMSET) */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden">
-            <div className="bg-amber-500/10 px-4 py-2.5 border-b border-amber-200/80 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-amber-500 text-white font-bold text-xs flex items-center justify-center">1</span>
-                <span className="font-bold text-slate-900 uppercase tracking-wider text-xs">Total Penjualan & Uang Masuk Toko</span>
-              </div>
-              <span className="font-mono font-bold text-slate-900 text-sm">{formatCurrency(totalRevenue)}</span>
+        {/* ISI RINGKASAN SEDERHANA */}
+        <div className="p-5 sm:p-6 space-y-5 text-xs text-slate-800">
+          {/* HITUNGAN UNTUNG BERSIH SEDERHANA */}
+          <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50/50">
+            <div className="bg-slate-100/90 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+              <span className="font-bold text-slate-900 uppercase tracking-wider text-xs">
+                Perhitungan Untung Bersih Toko
+              </span>
+              <span className="text-[11px] text-slate-500">Rumus: Penjualan dikurangi seluruh modal & biaya</span>
             </div>
-            
-            <div className="p-4 space-y-2 bg-white divide-y divide-slate-100">
-              <div className="flex justify-between items-center text-xs py-1">
-                <span className="text-slate-600">Penjualan Daging Ayam Tunai (Cash Langsung):</span>
-                <span className="font-mono font-semibold text-slate-900">
-                  {formatCurrency(monthlySales.filter(s => s.paymentMethod === 'Tunai').reduce((sum, s) => sum + s.grandTotal, 0))}
-                </span>
+
+            <div className="p-4 space-y-2.5 bg-white divide-y divide-slate-100">
+              <div className="flex justify-between items-center py-1">
+                <span className="text-slate-700 font-medium">1. Total Penjualan Toko (Omset):</span>
+                <span className="font-mono font-bold text-slate-900 tabular-nums">+{formatCurrency(totalRevenue)}</span>
               </div>
-              <div className="flex justify-between items-center text-xs py-1">
-                <span className="text-slate-600">Penjualan Transfer Bank / QRIS:</span>
-                <span className="font-mono font-semibold text-slate-900">
-                  {formatCurrency(monthlySales.filter(s => s.paymentMethod === 'Transfer').reduce((sum, s) => sum + s.grandTotal, 0))}
-                </span>
+              <div className="flex justify-between items-center py-1 text-rose-700">
+                <span className="font-medium">2. Modal Belanja Ayam Potong:</span>
+                <span className="font-mono font-bold tabular-nums">-{formatCurrency(totalHPP)}</span>
               </div>
-              <div className="flex justify-between items-center text-xs py-1">
-                <span className="text-slate-600">Penjualan Bon / Piutang Belum Lunas:</span>
-                <span className="font-mono font-semibold text-amber-700">
-                  {formatCurrency(totalUnpaidSaleReceivable)}
-                </span>
+              <div className="flex justify-between items-center py-1 text-rose-700">
+                <span className="font-medium">3. Total Gaji & Upah Karyawan:</span>
+                <span className="font-mono font-bold tabular-nums">-{formatCurrency(totalSalaries)}</span>
               </div>
-              <div className="flex justify-between items-center text-xs py-1 bg-emerald-50/50 px-2 rounded-md">
-                <span className="text-emerald-800 font-medium">Penerimaan Cicilan / Pelunasan Bon Pelanggan (BKM):</span>
-                <span className="font-mono font-bold text-emerald-700">
-                  +{formatCurrency(monthlyCashFlowTransactions.filter(t => t.category === 'Pembayaran Piutang Pelanggan').reduce((sum, t) => sum + t.amount, 0))}
-                </span>
+              <div className="flex justify-between items-center py-1 text-rose-700">
+                <span className="font-medium">4. Biaya Operasional Toko (Listrik, Plastik, dll):</span>
+                <span className="font-mono font-bold tabular-nums">-{formatCurrency(totalOtherExpenses)}</span>
               </div>
-              <div className="flex justify-between items-center text-xs py-1 bg-emerald-50/50 px-2 rounded-md">
-                <span className="text-emerald-800 font-medium">Penerimaan Setoran / Pelunasan Kasbon Karyawan:</span>
-                <span className="font-mono font-bold text-emerald-700">
-                  +{formatCurrency(monthlyKasbonRepaid)}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-xs font-bold pt-2 text-slate-900 border-t border-slate-200">
-                <span>Total Omset Penjualan Bersih Toko (1):</span>
-                <span className="font-mono text-sm text-amber-700">{formatCurrency(totalRevenue)}</span>
+
+              {/* BARIS HASIL UNTUNG */}
+              <div className={`flex justify-between items-center pt-3 border-t-2 font-bold text-sm ${
+                netProfit >= 0 ? 'border-emerald-300 text-emerald-800' : 'border-rose-300 text-rose-800'
+              }`}>
+                <div>
+                  <span>Total Keuntungan Bersih (Untung):</span>
+                  <span className="block text-[11px] font-normal text-slate-500">
+                    {netProfit >= 0 ? 'Toko menghasilkan keuntungan bersih' : 'Toko mengalami defisit rugi'}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <div className="font-mono text-base font-extrabold tabular-nums">
+                    {formatCurrency(netProfit)}
+                  </div>
+                  <span className="text-[11px] font-medium text-slate-600 font-mono">
+                    Margin: {netMarginPercent.toFixed(1)}%
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* BAGIAN 2: MODAL BELANJA AYAM (HPP) */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden">
-            <div className="bg-rose-500/10 px-4 py-2.5 border-b border-rose-200/80 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-rose-500 text-white font-bold text-xs flex items-center justify-center">2</span>
-                <span className="font-bold text-slate-900 uppercase tracking-wider text-xs">Modal Belanja Ayam (Harga Pokok Penjualan / HPP)</span>
-              </div>
-              <span className="font-mono font-bold text-rose-700 text-sm">{formatCurrency(totalHPP)}</span>
-            </div>
-
-            <div className="p-4 space-y-2 bg-white divide-y divide-slate-100">
-              <div className="flex justify-between items-center text-xs py-1">
-                <span className="text-slate-600">Total Pembelian Ayam Supplier (Harga Beli Ayam):</span>
-                <span className="font-mono font-semibold text-slate-900">{formatCurrency(totalHPP)}</span>
-              </div>
-              <div className="flex justify-between items-center text-xs py-1">
-                <span className="text-slate-600">Pembayaran Hutang Supplier Ayam (BKK Keluar):</span>
-                <span className="font-mono font-semibold text-rose-700">
-                  {formatCurrency(monthlyCashFlowTransactions.filter(t => t.category === 'Pembayaran Utang Supplier').reduce((sum, t) => sum + t.amount, 0))}
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-xs py-1 text-slate-500">
-                <span>Akumulasi Muatan Ayam Diterima:</span>
-                <span className="font-mono">
-                  {formatNumber(monthlyPurchases.reduce((sum, p) => sum + (p.totalQuantity || 0), 0))} kg ayam
-                </span>
-              </div>
-              <div className="flex justify-between items-center text-xs font-bold pt-2 text-slate-900 border-t border-slate-200">
-                <span>Total Modal Belanja Ayam / HPP (2):</span>
-                <span className="font-mono text-sm text-rose-700">{formatCurrency(totalHPP)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* HIGHLIGHT BOX: LABA KOTOR TOKO */}
-          <div className="bg-gradient-to-r from-amber-50 via-amber-100/60 to-amber-50 p-4 rounded-xl border border-amber-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-            <div>
-              <div className="text-xs font-bold text-amber-950 uppercase tracking-wider">
-                Laba Kotor Usaha (Gross Profit)
-              </div>
-              <p className="text-[11px] text-amber-800">
-                Rumus: Total Penjualan (1) dikurangi Modal Belanja Ayam HPP (2)
-              </p>
-            </div>
-            <div className="text-left sm:text-right">
-              <div className="font-mono text-lg font-extrabold text-amber-950">
-                {formatCurrency(grossProfit)}
-              </div>
-              <div className="text-[11px] font-semibold text-amber-800 font-mono">
-                Margin Kotor: {grossMarginPercent}%
-              </div>
-            </div>
-          </div>
-
-          {/* BAGIAN 3: BIAYA PENGELUARAN GAJI, KASBON & OPERASIONAL */}
-          <div className="rounded-xl border border-slate-200 overflow-hidden">
-            <div className="bg-orange-500/10 px-4 py-2.5 border-b border-orange-200/80 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-lg bg-orange-500 text-white font-bold text-xs flex items-center justify-center">3</span>
-                <span className="font-bold text-slate-900 uppercase tracking-wider text-xs">Biaya Pengeluaran Gaji, Kasbon & Operasional Toko</span>
-              </div>
-              <span className="font-mono font-bold text-orange-700 text-sm">{formatCurrency(totalOperatingCosts)}</span>
-            </div>
-
-            <div className="p-4 space-y-4 bg-white">
-              {/* SUB-SECTION A: GAJI & UPAH KARYAWAN */}
-              <div className="space-y-1.5 pb-3 border-b border-slate-100">
-                <div className="flex justify-between items-center text-xs font-bold text-slate-800">
-                  <span className="flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-blue-600" />
-                    <span>A. Total Gaji & Upah Karyawan:</span>
-                  </span>
-                  <span className="font-mono text-slate-900">{formatCurrency(totalSalaries)}</span>
+          {/* STATUS KASBON & BON (PIUTANG & HUTANG) BERJALAN */}
+          <div>
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2.5">
+              Catatan Kasbon & Bon Toko yang Belum Lunas
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Sisa Kasbon Karyawan */}
+              <div className="p-3.5 bg-purple-50/70 border border-purple-200/80 rounded-xl space-y-1">
+                <div className="flex items-center justify-between text-purple-900">
+                  <span className="font-bold text-xs">Sisa Kasbon Karyawan</span>
+                  <Wallet className="w-3.5 h-3.5 text-purple-600" />
                 </div>
-                <div className="pl-5 space-y-1 text-[11px] text-slate-600">
-                  <div className="flex justify-between">
-                    <span>• Upah Harian Pokok Karyawan ({monthlySlips.length > 0 ? monthlySlips.length : 1} orang):</span>
-                    <span className="font-mono">{formatCurrency(totalBaseSalaries)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>• Upah Lembur Karyawan:</span>
-                    <span className="font-mono">+{formatCurrency(totalOvertimeSalaries)}</span>
-                  </div>
-                  {totalKasbonDeductions > 0 && (
-                    <div className="flex justify-between text-rose-600 font-semibold">
-                      <span>• Potongan Kasbon di Slip Gaji (Mengurangi kas keluar gaji):</span>
-                      <span className="font-mono">-{formatCurrency(totalKasbonDeductions)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-bold text-slate-800 pt-0.5">
-                    <span>Subtotal Beban Gaji Karyawan:</span>
-                    <span className="font-mono">{formatCurrency(totalSalaries)}</span>
-                  </div>
+                <div className="font-mono font-bold text-base text-purple-800 tabular-nums">
+                  {formatCurrency(totalActiveKasbonBalance)}
                 </div>
-              </div>
-
-              {/* SUB-SECTION B: BIAYA OPERASIONAL TOKO */}
-              <div className="space-y-1.5 pb-3 border-b border-slate-100">
-                <div className="flex justify-between items-center text-xs font-bold text-slate-800">
-                  <span className="flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-amber-600" />
-                    <span>B. Biaya Operasional Toko:</span>
-                  </span>
-                  <span className="font-mono text-slate-900">{formatCurrency(totalOtherExpenses)}</span>
-                </div>
-                <div className="pl-5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-[11px] text-slate-600">
-                  <div className="flex justify-between">
-                    <span>• Listrik & Air (Freezer/Cold Storage):</span>
-                    <span className="font-mono font-semibold">{formatCurrency(expenseBreakdown['Listrik & Air'])}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>• Bahan Bakar & Armada Toko:</span>
-                    <span className="font-mono font-semibold">{formatCurrency(expenseBreakdown['Bahan Bakar & Kendaraan'])}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>• Plastik & Kemasan Ayam:</span>
-                    <span className="font-mono font-semibold">{formatCurrency(expenseBreakdown['Plastik & Kemasan'])}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>• Sewa Kios & Cold Storage:</span>
-                    <span className="font-mono font-semibold">{formatCurrency(expenseBreakdown['Sewa Tempat & Cold Storage'])}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>• Perawatan Pisau & Timbangan:</span>
-                    <span className="font-mono font-semibold">{formatCurrency(expenseBreakdown['Perawatan Peralatan'])}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>• Operasional Toko Lainnya:</span>
-                    <span className="font-mono font-semibold">{formatCurrency(expenseBreakdown['Lain-lain'])}</span>
-                  </div>
-                </div>
-                <div className="pl-5 flex justify-between font-bold text-slate-800 pt-1 text-xs">
-                  <span>Subtotal Biaya Operasional Toko:</span>
-                  <span className="font-mono">{formatCurrency(totalOtherExpenses)}</span>
-                </div>
-              </div>
-
-              {/* SUB-SECTION C: REKAP KASBON KARYAWAN */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center text-xs font-bold text-slate-800">
-                  <span className="flex items-center gap-1.5">
-                    <Wallet className="w-3.5 h-3.5 text-purple-600" />
-                    <span>C. Rekap Transaksi Kasbon Karyawan:</span>
-                  </span>
-                  <span className="font-mono text-purple-700">Saldo Berjalan: {formatCurrency(totalActiveKasbonBalance)}</span>
-                </div>
-                <div className="pl-5 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
-                  <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                    <span className="text-slate-500 block">Pinjaman Baru Dicairkan:</span>
-                    <span className="font-mono font-bold text-rose-600">{formatCurrency(monthlyKasbonGiven)}</span>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                    <span className="text-slate-500 block">Kasbon Dilunasi Periode Ini:</span>
-                    <span className="font-mono font-bold text-emerald-600">{formatCurrency(monthlyKasbonRepaid)}</span>
-                  </div>
-                  <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
-                    <span className="text-slate-500 block">Sisa Saldo Kasbon Karyawan:</span>
-                    <span className="font-mono font-bold text-slate-900">{formatCurrency(totalActiveKasbonBalance)}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-between items-center text-xs font-bold pt-3 text-slate-900 border-t border-slate-200">
-                <span>Total Biaya Beban Usaha Toko (Gaji + Operasional) (3):</span>
-                <span className="font-mono text-sm text-orange-700">{formatCurrency(totalOperatingCosts)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* BAGIAN 4: KEUNTUNGAN BERSIH TOKO (LABA BERSIH) */}
-          <div className={`p-5 rounded-xl border-2 transition-all ${
-            netProfit >= 0 
-              ? 'bg-linear-to-r from-emerald-50 via-emerald-100/70 to-emerald-50 border-emerald-400 text-emerald-950' 
-              : 'bg-linear-to-r from-rose-50 via-rose-100/70 to-rose-50 border-rose-400 text-rose-950'
-          }`}>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider ${
-                    netProfit >= 0 ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
-                  }`}>
-                    {netProfit >= 0 ? 'SURPLUS KEUNTUNGAN BERSIH' : 'DEFISIT RUGI'}
-                  </span>
-                  <span className="text-xs font-bold text-slate-700">BAGIAN 4</span>
-                </div>
-                <h2 className="text-base font-extrabold mt-1">
-                  Keuntungan Bersih Toko (Laba Bersih Akhir)
-                </h2>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  Laba Kotor ({formatCurrency(grossProfit)}) dikurangi Beban Gaji & Operasional ({formatCurrency(totalOperatingCosts)})
+                <p className="text-[10px] text-purple-700">
+                  Pinjaman aktif karyawan toko yang belum dipotong gaji
                 </p>
               </div>
 
-              <div className="text-left sm:text-right">
-                <div className={`text-2xl font-black font-mono tracking-tight ${
-                  netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
-                }`}>
-                  {formatCurrency(netProfit)}
+              {/* Bon Piutang Pelanggan */}
+              <div className="p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl space-y-1">
+                <div className="flex items-center justify-between text-amber-900">
+                  <span className="font-bold text-xs">Bon Piutang Pelanggan</span>
+                  <CreditCard className="w-3.5 h-3.5 text-amber-600" />
                 </div>
-                <div className="text-xs font-bold mt-0.5 text-slate-700">
-                  Margin Laba Bersih: <span className="font-mono">{netMarginPercent.toFixed(1)}%</span>
+                <div className="font-mono font-bold text-base text-amber-800 tabular-nums">
+                  {formatCurrency(totalUnpaidSaleReceivable)}
                 </div>
+                <p className="text-[10px] text-amber-700">
+                  {countUnpaidSales} nota penjualan pelanggan belum lunas
+                </p>
               </div>
-            </div>
-          </div>
 
-          {/* BAGIAN 5: STATUS ARUS KAS RIIL & SALDO BON / HUTANG */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-            {/* KAS MASUK VS KAS KELUAR */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                  <Coins className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Arus Kas Riil Masuk & Keluar</span>
-                </span>
-                <span className={`font-mono font-bold text-xs ${netCashFlow >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
-                </span>
-              </div>
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>Total Kas Masuk Riil:</span>
-                  <span className="font-mono font-bold text-emerald-600">+{formatCurrency(totalCashIn)}</span>
+              {/* Hutang ke Supplier Ayam */}
+              <div className="p-3.5 bg-rose-50/70 border border-rose-200/80 rounded-xl space-y-1">
+                <div className="flex items-center justify-between text-rose-900">
+                  <span className="font-bold text-xs">Hutang ke Supplier Ayam</span>
+                  <Building2 className="w-3.5 h-3.5 text-rose-600" />
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Total Kas Keluar Riil:</span>
-                  <span className="font-mono font-bold text-rose-600">-{formatCurrency(totalCashOut)}</span>
+                <div className="font-mono font-bold text-base text-rose-800 tabular-nums">
+                  {formatCurrency(totalUnpaidPurchaseDebt)}
                 </div>
-                <div className="flex justify-between text-xs font-bold pt-1 border-t border-slate-200 text-slate-900">
-                  <span>Net Cash Flow (Selisih Kas):</span>
-                  <span className={`font-mono ${netCashFlow >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* STATUS BON PIUTANG & HUTANG */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Saldo Bon Belum Lunas</span>
-                </span>
-                <span className="text-[11px] text-slate-500 font-sans">
-                  Total {countUnpaidPurchases + countUnpaidSales} Tagihan
-                </span>
-              </div>
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>Hutang ke Supplier Ayam:</span>
-                  <span className="font-mono font-bold text-rose-600">{formatCurrency(totalUnpaidPurchaseDebt)}</span>
-                </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Bon Piutang Pelanggan Toko:</span>
-                  <span className="font-mono font-bold text-amber-600">{formatCurrency(totalUnpaidSaleReceivable)}</span>
-                </div>
-                <div className="flex justify-between text-xs font-bold pt-1 border-t border-slate-200 text-slate-900">
-                  <span>Sisa Kasbon Karyawan Berjalan:</span>
-                  <span className="font-mono text-purple-700">{formatCurrency(totalActiveKasbonBalance)}</span>
-                </div>
+                <p className="text-[10px] text-rose-700">
+                  {countUnpaidPurchases} faktur belanja ayam ke supplier belum lunas
+                </p>
               </div>
             </div>
           </div>
 
           {/* DOKUMEN FOOTER KETERANGAN RESMI */}
-          <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-slate-400">
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Seluruh transaksi uang masuk, keuntungan, penjualan, pengeluaran, dan kasbon tersinkron dalam 1 laporan resmi.</span>
+          <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-[11px] text-slate-400">
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Seluruh transaksi uang masuk, untung, uang keluar, dan kasbon tersinkron dalam laporan.</span>
             </div>
             <div className="font-medium text-slate-500">
-              {storeProfile.name || 'Ans Chicken Group'} • Sistem Keuangan Otomatis
+              {storeProfile.name || 'Ans Chicken Group'} • Sistem Kasir Toko
             </div>
           </div>
 

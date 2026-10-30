@@ -953,6 +953,7 @@ export default function App() {
               }}
               storeProfile={storeProfile}
               userRole={currentUser.role}
+              onNavigateTab={(tab) => setActiveTab(tab as ActiveTab)}
             />
           )}
 
