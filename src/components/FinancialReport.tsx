@@ -229,10 +229,68 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
     return totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
   }, [netProfit, totalRevenue]);
 
+  // Breakdown detail pengeluaran operasional per kategori
+  const expenseBreakdown = useMemo(() => {
+    const map: Record<string, number> = {
+      'Listrik & Air': 0,
+      'Bahan Bakar & Kendaraan': 0,
+      'Plastik & Kemasan': 0,
+      'Sewa Tempat & Cold Storage': 0,
+      'Perawatan Peralatan': 0,
+      'Lain-lain': 0,
+    };
+    monthlyExpenses.forEach(e => {
+      if (map[e.category] !== undefined) {
+        map[e.category] += e.amount;
+      } else {
+        map['Lain-lain'] += e.amount;
+      }
+    });
+    return map;
+  }, [monthlyExpenses]);
+
+  // Total Kasbon Diberikan & Dibayar Bulan Ini
+  const monthlyKasbonGiven = useMemo(() => {
+    return kasbonRecords
+      .filter(k => k.type === 'pinjam' && k.date.startsWith(selectedMonth))
+      .reduce((sum, k) => sum + k.amount, 0);
+  }, [kasbonRecords, selectedMonth]);
+
+  const monthlyKasbonRepaid = useMemo(() => {
+    return kasbonRecords
+      .filter(k => (k.type === 'bayar_manual' || k.type === 'bayar_slip') && k.date.startsWith(selectedMonth))
+      .reduce((sum, k) => sum + k.amount, 0);
+  }, [kasbonRecords, selectedMonth]);
+
+  const totalActiveKasbonBalance = useMemo(() => {
+    return Math.max(0, kasbonRecords.reduce((sum, k) => {
+      if (k.type === 'pinjam') return sum + k.amount;
+      return sum - k.amount;
+    }, 0));
+  }, [kasbonRecords]);
+
+  const totalBaseSalaries = useMemo(() => {
+    if (monthlySlips.length > 0) {
+      return monthlySlips.reduce((sum, s) => sum + s.totalDailyWage, 0);
+    }
+    return monthlyAttendanceWages.reduce((sum, a) => sum + a.wageAmount, 0);
+  }, [monthlySlips, monthlyAttendanceWages]);
+
+  const totalOvertimeSalaries = useMemo(() => {
+    if (monthlySlips.length > 0) {
+      return monthlySlips.reduce((sum, s) => sum + s.totalOvertimePay, 0);
+    }
+    return monthlyAttendanceWages.reduce((sum, a) => sum + (a.overtimePay || 0), 0);
+  }, [monthlySlips, monthlyAttendanceWages]);
+
+  const totalKasbonDeductions = useMemo(() => {
+    return monthlySlips.reduce((sum, s) => sum + s.deduction, 0);
+  }, [monthlySlips]);
+
   // ----------------------------------------------------
   // ARUS KAS / MUTASI KELUAR MASUK UANG (SYNCHRONIZED CASH FLOW)
   // ----------------------------------------------------
-  const [cashFlowFilterType, setCashFlowFilterType] = useState<'all' | 'masuk' | 'keluar'>('all');
+  const [cashFlowFilterType, setCashFlowFilterType] = useState<'all' | 'masuk' | 'keluar' | 'bon'>('all');
   const [cashFlowCategoryFilter, setCashFlowCategoryFilter] = useState<string>('all');
   const [cashFlowSearch, setCashFlowSearch] = useState<string>('');
 
@@ -428,26 +486,6 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   const cashOutExpense = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Biaya Operasional').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
   const cashOutKasbon = useMemo(() => monthlyCashFlowTransactions.filter(i => i.category === 'Pinjaman Kasbon Karyawan').reduce((s, i) => s + i.amount, 0), [monthlyCashFlowTransactions]);
 
-  // Filtered Cash Flow list for display table
-  const filteredCashFlowTransactions = useMemo(() => {
-    return monthlyCashFlowTransactions.filter((item) => {
-      // Flow type filter
-      if (cashFlowFilterType !== 'all' && item.flowType !== cashFlowFilterType) return false;
-      // Category filter
-      if (cashFlowCategoryFilter !== 'all' && item.category !== cashFlowCategoryFilter) return false;
-      // Search filter
-      if (cashFlowSearch.trim()) {
-        const q = cashFlowSearch.toLowerCase();
-        const matchTitle = item.title.toLowerCase().includes(q);
-        const matchDesc = item.description.toLowerCase().includes(q);
-        const matchParty = item.counterparty.toLowerCase().includes(q);
-        const matchRef = (item.referenceNo || '').toLowerCase().includes(q);
-        if (!matchTitle && !matchDesc && !matchParty && !matchRef) return false;
-      }
-      return true;
-    });
-  }, [monthlyCashFlowTransactions, cashFlowFilterType, cashFlowCategoryFilter, cashFlowSearch]);
-
   // ----------------------------------------------------
   // HUTANG & PIUTANG CALCULATIONS & LISTS
   // ----------------------------------------------------
@@ -491,6 +529,34 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
       };
     });
   }, [sales, filterByMonthOnly, selectedMonth]);
+
+  // Filtered Cash Flow list for display table
+  const filteredCashFlowTransactions = useMemo(() => {
+    return monthlyCashFlowTransactions.filter((item) => {
+      // Flow type / bon filter
+      if (cashFlowFilterType === 'masuk' && item.flowType !== 'masuk') return false;
+      if (cashFlowFilterType === 'keluar' && item.flowType !== 'keluar') return false;
+      if (cashFlowFilterType === 'bon') {
+        const isPiutangOrHutang = item.category === 'Pembayaran Piutang Pelanggan' || item.category === 'Pembayaran Utang Supplier';
+        const matchedPurchase = processedPurchases.find(p => p.invoiceNumber === item.referenceNo);
+        const matchedSale = processedSales.find(s => s.invoiceNumber === item.referenceNo);
+        const hasUnpaid = (matchedPurchase && !matchedPurchase.isLunas) || (matchedSale && !matchedSale.isLunas);
+        if (!isPiutangOrHutang && !hasUnpaid) return false;
+      }
+      // Category filter
+      if (cashFlowCategoryFilter !== 'all' && item.category !== cashFlowCategoryFilter) return false;
+      // Search filter
+      if (cashFlowSearch.trim()) {
+        const q = cashFlowSearch.toLowerCase();
+        const matchTitle = item.title.toLowerCase().includes(q);
+        const matchDesc = item.description.toLowerCase().includes(q);
+        const matchParty = item.counterparty.toLowerCase().includes(q);
+        const matchRef = (item.referenceNo || '').toLowerCase().includes(q);
+        if (!matchTitle && !matchDesc && !matchParty && !matchRef) return false;
+      }
+      return true;
+    });
+  }, [monthlyCashFlowTransactions, cashFlowFilterType, cashFlowCategoryFilter, cashFlowSearch, processedPurchases, processedSales]);
 
   // Filtered Purchases list for table
   const filteredPurchases = useMemo(() => {
@@ -737,1240 +803,743 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
         </div>
       </div>
 
-      {/* Quick Jump Anchor Bar (Satu Halaman Laporan Terpadu) */}
-      <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-slate-200/80 text-xs">
-        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1 hidden sm:inline">
-          Lompat Ke Bagian:
-        </span>
-        <a
-          href="#section-untung-rugi"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold bg-white/90 hover:bg-amber-50 hover:text-amber-800 text-slate-700 border border-slate-200 shadow-2xs transition-all"
-        >
-          <PieChart className="w-3.5 h-3.5 text-amber-600" />
-          <span>1. Untung Rugi Bulanan</span>
-        </a>
-
-        <a
-          href="#section-arus-kas"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold bg-white/90 hover:bg-emerald-50 hover:text-emerald-800 text-slate-700 border border-slate-200 shadow-2xs transition-all"
-        >
-          <ArrowUpDown className="w-3.5 h-3.5 text-emerald-600" />
-          <span>2. Mutasi Keluar Masuk Uang</span>
-          <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-mono font-bold">
-            {monthlyCashFlowTransactions.length}
-          </span>
-        </a>
-
-        <a
-          href="#section-bon-tagihan"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold bg-white/90 hover:bg-rose-50 hover:text-rose-800 text-slate-700 border border-slate-200 shadow-2xs transition-all"
-        >
-          <CreditCard className="w-3.5 h-3.5 text-rose-600" />
-          <span>3. Bon & Tagihan Belum Lunas</span>
-          {(countUnpaidPurchases + countUnpaidSales) > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-500 text-white font-mono font-bold">
-              {countUnpaidPurchases + countUnpaidSales}
-            </span>
-          )}
-        </a>
-      </div>
-
-      {/* 6 TOP UNIFIED KPI SUMMARY CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-        {/* Total Penjualan */}
-        <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-xl border border-white/80 shadow-2xs">
+      {/* ========================================================================= */}
+      {/* 4 PILAR UTAMA KEUANGAN TOKO                                              */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        {/* 1. Total Penjualan */}
+        <div className="bg-white/95 backdrop-blur-xs p-4 rounded-xl border border-slate-200/90 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Total Penjualan</span>
-            <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg">
-              <DollarSign className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">1. Total Penjualan (Omset)</span>
+            <div className="p-1.5 bg-amber-50 text-amber-700 rounded-lg">
+              <DollarSign className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-lg font-bold font-mono text-slate-900 mt-1.5 tabular-nums">
+          <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
             {formatCurrency(totalRevenue)}
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">
-            {monthlySales.length} nota penjualan
+          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+            <span>{monthlySales.length} nota penjualan</span>
+            <span className="text-emerald-600 font-semibold">+{formatCurrency(totalCashIn)} kas masuk</span>
           </div>
         </div>
 
-        {/* Modal Belanja Ayam */}
-        <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-xl border border-white/80 shadow-2xs">
+        {/* 2. Modal Belanja Ayam (HPP) */}
+        <div className="bg-white/95 backdrop-blur-xs p-4 rounded-xl border border-slate-200/90 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Modal Belanja Ayam</span>
-            <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg">
-              <TrendingDown className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">2. Modal Belanja Ayam (HPP)</span>
+            <div className="p-1.5 bg-rose-50 text-rose-700 rounded-lg">
+              <TrendingDown className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-lg font-bold font-mono text-slate-900 mt-1.5 tabular-nums">
+          <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
             {formatCurrency(totalHPP)}
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">
-            Modal pokok beli ayam (HPP)
+          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+            <span>{monthlyPurchases.length} faktur supplier</span>
+            <span className="text-slate-700 font-semibold">{formatNumber(monthlyPurchases.reduce((s, p) => s + (p.totalQuantity || 0), 0))} kg ayam</span>
           </div>
         </div>
 
-        {/* Gaji & Biaya Operasional */}
-        <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-xl border border-white/80 shadow-2xs">
+        {/* 3. Beban Gaji & Operasional */}
+        <div className="bg-white/95 backdrop-blur-xs p-4 rounded-xl border border-slate-200/90 shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Gaji & Operasional</span>
-            <div className="p-1.5 bg-orange-50 text-orange-600 rounded-lg">
-              <TrendingDown className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">3. Gaji & Operasional</span>
+            <div className="p-1.5 bg-orange-50 text-orange-700 rounded-lg">
+              <TrendingDown className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-lg font-bold font-mono text-slate-900 mt-1.5 tabular-nums">
+          <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
             {formatCurrency(totalOperatingCosts)}
           </div>
-          <div className="text-[10px] text-slate-500 mt-0.5">
-            Gaji {formatCurrency(totalSalaries)} + Ops {formatCurrency(totalOtherExpenses)}
+          <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+            <span>Gaji: {formatCurrency(totalSalaries)}</span>
+            <span>Operasional: {formatCurrency(totalOtherExpenses)}</span>
           </div>
         </div>
 
-        {/* Keuntungan Bersih Toko (Prominent) */}
-        <div className={`p-3.5 rounded-xl border shadow-2xs backdrop-blur-xs ${
-          netProfit >= 0 ? 'bg-emerald-50/90 border-emerald-300' : 'bg-rose-50/90 border-rose-300'
+        {/* 4. Keuntungan Bersih Toko */}
+        <div className={`p-4 rounded-xl border shadow-xs backdrop-blur-xs ${
+          netProfit >= 0 ? 'bg-emerald-50/90 border-emerald-300 ring-1 ring-emerald-200' : 'bg-rose-50/90 border-rose-300 ring-1 ring-rose-200'
         }`}>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Keuntungan Bersih</span>
+            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">Keuntungan Bersih Toko</span>
             <div className={`p-1.5 rounded-lg ${netProfit >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-              <TrendingUp className="w-3.5 h-3.5" />
+              <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className={`text-lg font-bold font-mono mt-1.5 tabular-nums ${
+          <div className={`text-xl font-bold font-mono mt-2 tabular-nums ${
             netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
           }`}>
             {formatCurrency(netProfit)}
           </div>
-          <div className="text-[10px] font-semibold mt-0.5 text-slate-600">
-            {netProfit >= 0 ? 'Surplus Laba Toko' : 'Defisit Rugi'}
+          <div className="text-[11px] font-semibold mt-1 flex items-center justify-between">
+            <span className={netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
+              {netProfit >= 0 ? 'SURPLUS KEUNTUNGAN' : 'DEFISIT RUGI'}
+            </span>
+            <span className="text-slate-600 font-mono">
+              Margin {netMarginPercent.toFixed(1)}%
+            </span>
           </div>
         </div>
+      </div>
 
-        {/* Arus Kas Riil (Uang Masuk vs Uang Keluar) */}
-        <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-xl border border-slate-200/90 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Arus Kas Riil</span>
-            <div className="p-1.5 bg-teal-50 text-teal-700 rounded-lg">
-              <Coins className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className={`text-lg font-bold font-mono mt-1.5 tabular-nums ${
-            netCashFlow >= 0 ? 'text-emerald-700' : 'text-rose-700'
-          }`}>
+      {/* SUB-BAR: ARUS KAS RIIL & SALDO BON PIUTANG / HUTANG */}
+      <div className="bg-slate-900 text-white p-3.5 rounded-xl shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5">
+          <Coins className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span className="font-bold text-slate-200">Arus Kas Riil (Net Cash Flow):</span>
+          <span className={`font-mono font-bold text-sm ${netCashFlow >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
             {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-0.5 flex justify-between font-mono">
-            <span className="text-emerald-600 font-semibold">+{formatCurrency(totalCashIn)}</span>
-            <span className="text-rose-600 font-semibold">-{formatCurrency(totalCashOut)}</span>
-          </div>
+          </span>
+          <span className="text-[11px] text-slate-400 hidden sm:inline">
+            (Masuk: +{formatCurrency(totalCashIn)} | Keluar: -{formatCurrency(totalCashOut)})
+          </span>
         </div>
 
-        {/* Catatan Bon & Tagihan Belum Lunas */}
-        <div className="bg-white/90 backdrop-blur-xs p-3.5 rounded-xl border border-slate-200/90 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Bon & Tagihan</span>
-            <div className="p-1.5 bg-purple-50 text-purple-700 rounded-lg">
-              <CreditCard className="w-3.5 h-3.5" />
-            </div>
+        <div className="flex items-center gap-4 text-xs font-mono">
+          <div className="flex items-center gap-1.5">
+            <span className="text-rose-300 font-sans font-semibold">Hutang ke Supplier:</span>
+            <span className="font-bold text-rose-400">{formatCurrency(totalUnpaidPurchaseDebt)}</span>
+            <span className="text-[10px] text-slate-400 font-sans">({countUnpaidPurchases} faktur)</span>
           </div>
-          <div className="text-sm font-bold font-mono text-slate-900 mt-1 flex flex-col gap-0.5">
-            <div className="flex justify-between text-[11px]">
-              <span className="text-rose-600 font-sans font-semibold">Hutang:</span>
-              <span className="text-rose-700">{formatCurrency(totalUnpaidPurchaseDebt)}</span>
-            </div>
-            <div className="flex justify-between text-[11px]">
-              <span className="text-amber-600 font-sans font-semibold">Piutang:</span>
-              <span className="text-amber-700">{formatCurrency(totalUnpaidSaleReceivable)}</span>
-            </div>
+          <div className="h-3 w-px bg-slate-700" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-amber-300 font-sans font-semibold">Bon Piutang Pelanggan:</span>
+            <span className="font-bold text-amber-400">{formatCurrency(totalUnpaidSaleReceivable)}</span>
+            <span className="text-[10px] text-slate-400 font-sans">({countUnpaidSales} nota)</span>
           </div>
         </div>
       </div>
 
       {/* ========================================================================= */}
-      {/* 1. SECTION: UNTUNG RUGI & BIAYA PENGELUARAN TOKO                          */}
+      {/* LEMBAR LAPORAN KEUANGAN TERPADU (SATU LEMBAR LAPORAN RESMI TOKO)          */}
       {/* ========================================================================= */}
-      <div id="section-untung-rugi" className="space-y-4 pt-2">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-            <PieChart className="w-4 h-4 text-amber-600" />
-            <span>1. Laporan Untung Rugi Bulanan & Biaya Operasional</span>
-          </h3>
-          <span className="text-xs text-slate-500 font-mono">Periode: {selectedMonth}</span>
-        </div>
-
-          {/* DETAILED STATEMENT & EXPENSES BREAKDOWN */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* LEFT COLUMN: FORMAL LABA RUGI STATEMENT (7 COLS) */}
-            <div className="lg:col-span-7 bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden">
-              <div className="p-4 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between">
-                <div>
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Rincian Untung Rugi Bulanan
-                  </h3>
-                  <p className="text-[11px] text-slate-500">Bulan: {selectedMonth}</p>
-                </div>
-              </div>
-
-              <div className="p-4 space-y-4 text-xs">
-                {/* 1. TOTAL PENJUALAN */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between font-bold text-slate-900 text-sm pb-1 border-b border-slate-200">
-                    <span>1. Total Penjualan</span>
-                    <span className="font-mono tabular-nums">{formatCurrency(totalRevenue)}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600 pl-3">
-                    <span>Penjualan Daging Ayam ({monthlySales.length} transaksi)</span>
-                    <span className="font-mono tabular-nums text-slate-800">{formatCurrency(totalRevenue)}</span>
-                  </div>
-                </div>
-
-                {/* 2. MODAL BELANJA AYAM (HPP) */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between font-bold text-slate-900 text-sm pb-1 border-b border-slate-200">
-                    <span>2. Modal Belanja Ayam (HPP)</span>
-                    <span className="font-mono text-rose-700 tabular-nums">({formatCurrency(totalHPP)})</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600 pl-3">
-                    <span>Harga Beli Ayam</span>
-                    <span className="font-mono tabular-nums text-slate-800">{formatCurrency(totalHPP)}</span>
-                  </div>
-                </div>
-
-                {/* KEUNTUNGAN KOTOR ROW */}
-                <div className="p-3 bg-slate-50 rounded-lg flex justify-between font-bold text-sm text-slate-900 border border-slate-200">
-                  <span>KEUNTUNGAN KOTOR (PENJUALAN DIKURANGI MODAL):</span>
-                  <span className="font-mono tabular-nums text-blue-700">{formatCurrency(grossProfit)}</span>
-                </div>
-
-                {/* 3. BIAYA PENGELUARAN GAJI & OPERASIONAL */}
-                <div className="space-y-1.5 pt-2">
-                  <div className="flex justify-between font-bold text-slate-900 text-sm pb-1 border-b border-slate-200">
-                    <span>3. Biaya Pengeluaran Gaji & Operasional</span>
-                    <span className="font-mono text-rose-700 tabular-nums">({formatCurrency(totalOperatingCosts)})</span>
-                  </div>
-                  
-                  <div className="flex justify-between text-slate-700 pl-3 py-1">
-                    <span className="font-medium">Total Gaji & Upah Karyawan</span>
-                    <span className="font-mono tabular-nums font-semibold text-slate-900">{formatCurrency(totalSalaries)}</span>
-                  </div>
-
-                  <div className="flex justify-between text-slate-700 pl-3 py-1">
-                    <span className="font-medium">Biaya Operasional</span>
-                    <span className="font-mono tabular-nums font-semibold text-slate-900">{formatCurrency(totalOtherExpenses)}</span>
-                  </div>
-                </div>
-
-                {/* KEUNTUNGAN BERSIH FINAL */}
-                <div className={`p-4 rounded-xl flex justify-between items-center text-base font-bold border shadow-xs ${
-                  netProfit >= 0 ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-rose-500 text-white border-rose-600'
-                }`}>
-                  <span className="uppercase tracking-wide font-extrabold">Keuntungan Bersih</span>
-                  <span className="font-mono text-xl tabular-nums font-extrabold">{formatCurrency(netProfit)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT COLUMN: OPERATIONAL EXPENSES LOG (5 COLS) */}
-            <div className="lg:col-span-5 bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs flex flex-col">
-              <div className="p-4 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between">
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Daftar Pengeluaran Operasional
-                </h3>
-                <span className="text-[11px] text-slate-500 font-mono font-bold">
-                  {formatCurrency(totalOtherExpenses)}
-                </span>
-              </div>
-
-              <div className="p-3 divide-y divide-slate-100 flex-1 overflow-y-auto max-h-[380px] text-xs">
-                {monthlyExpenses.map((exp) => (
-                  <div key={exp.id} className="py-2.5 first:pt-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium inline-block mb-1">
-                          {exp.category}
-                        </span>
-                        <h5 className="font-medium text-slate-900">{exp.description}</h5>
-                        <span className="text-[10px] text-slate-400 mt-0.5 block">{formatDate(exp.date)}</span>
-                      </div>
-                      <span className="font-bold font-mono text-slate-900 tabular-nums">
-                        {formatCurrency(exp.amount)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-
-                {monthlyExpenses.length === 0 && (
-                  <div className="py-12 text-center text-slate-400">
-                    Belum ada biaya operasional lain yang dicatat bulan ini.
-                  </div>
+      <div id="unified-financial-statement" className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden print:border-none print:shadow-none">
+        {/* KOP RESMI LAPORAN TOKO */}
+        <div className="p-6 border-b border-slate-200 bg-linear-to-r from-slate-50 via-white to-slate-50">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl overflow-hidden border border-slate-200 bg-white p-1 shrink-0 flex items-center justify-center">
+                {storeProfile.logoUrl ? (
+                  <img src={storeProfile.logoUrl} alt="Logo Toko" className="w-full h-full object-contain" />
+                ) : (
+                  <Building2 className="w-6 h-6 text-amber-600" />
                 )}
               </div>
+              <div>
+                <h1 className="text-base font-extrabold text-slate-900 tracking-tight">
+                  {storeProfile.name || 'Ans Chicken Group'}
+                </h1>
+                <p className="text-xs text-slate-500">
+                  {storeProfile.address || 'Pasar Kemis - Tangerang'} {storeProfile.phone ? `• Telp/WA: ${storeProfile.phone}` : ''}
+                </p>
+                <div className="text-[11px] font-semibold text-emerald-700 mt-0.5">
+                  Laporan Keuangan & Laba Rugi Komprehensif
+                </div>
+              </div>
+            </div>
+
+            <div className="text-left sm:text-right space-y-1">
+              <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                LAPORAN KEUANGAN TERPADU
+              </span>
+              <div className="text-xs font-bold text-slate-800">
+                Periode: <span className="font-mono">{selectedMonth}</span>
+              </div>
+              <div className="text-[11px] text-slate-400">
+                Dicetak: {formatDate(new Date().toISOString())}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ISI SATU LEMBAR LAPORAN TERPADU */}
+        <div className="p-6 space-y-6 text-xs text-slate-800">
+          
+          {/* BAGIAN 1: TOTAL PENJUALAN & UANG MASUK (OMSET) */}
+          <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-amber-500/10 px-4 py-2.5 border-b border-amber-200/80 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-amber-500 text-white font-bold text-xs flex items-center justify-center">1</span>
+                <span className="font-bold text-slate-900 uppercase tracking-wider text-xs">Total Penjualan & Uang Masuk Toko</span>
+              </div>
+              <span className="font-mono font-bold text-slate-900 text-sm">{formatCurrency(totalRevenue)}</span>
+            </div>
+            
+            <div className="p-4 space-y-2 bg-white divide-y divide-slate-100">
+              <div className="flex justify-between items-center text-xs py-1">
+                <span className="text-slate-600">Penjualan Daging Ayam Tunai (Cash Langsung):</span>
+                <span className="font-mono font-semibold text-slate-900">
+                  {formatCurrency(monthlySales.filter(s => s.paymentMethod === 'Tunai').reduce((sum, s) => sum + s.grandTotal, 0))}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs py-1">
+                <span className="text-slate-600">Penjualan Transfer Bank / QRIS:</span>
+                <span className="font-mono font-semibold text-slate-900">
+                  {formatCurrency(monthlySales.filter(s => s.paymentMethod === 'Transfer').reduce((sum, s) => sum + s.grandTotal, 0))}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs py-1">
+                <span className="text-slate-600">Penjualan Bon / Piutang Belum Lunas:</span>
+                <span className="font-mono font-semibold text-amber-700">
+                  {formatCurrency(totalUnpaidSaleReceivable)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs py-1 bg-emerald-50/50 px-2 rounded-md">
+                <span className="text-emerald-800 font-medium">Penerimaan Cicilan / Pelunasan Bon Pelanggan (BKM):</span>
+                <span className="font-mono font-bold text-emerald-700">
+                  +{formatCurrency(monthlyCashFlowTransactions.filter(t => t.category === 'Pembayaran Piutang Pelanggan').reduce((sum, t) => sum + t.amount, 0))}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs py-1 bg-emerald-50/50 px-2 rounded-md">
+                <span className="text-emerald-800 font-medium">Penerimaan Setoran / Pelunasan Kasbon Karyawan:</span>
+                <span className="font-mono font-bold text-emerald-700">
+                  +{formatCurrency(monthlyKasbonRepaid)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs font-bold pt-2 text-slate-900 border-t border-slate-200">
+                <span>Total Omset Penjualan Bersih Toko (1):</span>
+                <span className="font-mono text-sm text-amber-700">{formatCurrency(totalRevenue)}</span>
+              </div>
             </div>
           </div>
 
+          {/* BAGIAN 2: MODAL BELANJA AYAM (HPP) */}
+          <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-rose-500/10 px-4 py-2.5 border-b border-rose-200/80 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-rose-500 text-white font-bold text-xs flex items-center justify-center">2</span>
+                <span className="font-bold text-slate-900 uppercase tracking-wider text-xs">Modal Belanja Ayam (Harga Pokok Penjualan / HPP)</span>
+              </div>
+              <span className="font-mono font-bold text-rose-700 text-sm">{formatCurrency(totalHPP)}</span>
+            </div>
+
+            <div className="p-4 space-y-2 bg-white divide-y divide-slate-100">
+              <div className="flex justify-between items-center text-xs py-1">
+                <span className="text-slate-600">Total Pembelian Ayam Supplier (Harga Beli Ayam):</span>
+                <span className="font-mono font-semibold text-slate-900">{formatCurrency(totalHPP)}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs py-1">
+                <span className="text-slate-600">Pembayaran Hutang Supplier Ayam (BKK Keluar):</span>
+                <span className="font-mono font-semibold text-rose-700">
+                  {formatCurrency(monthlyCashFlowTransactions.filter(t => t.category === 'Pembayaran Utang Supplier').reduce((sum, t) => sum + t.amount, 0))}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs py-1 text-slate-500">
+                <span>Akumulasi Muatan Ayam Diterima:</span>
+                <span className="font-mono">
+                  {formatNumber(monthlyPurchases.reduce((sum, p) => sum + (p.totalQuantity || 0), 0))} kg ayam
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs font-bold pt-2 text-slate-900 border-t border-slate-200">
+                <span>Total Modal Belanja Ayam / HPP (2):</span>
+                <span className="font-mono text-sm text-rose-700">{formatCurrency(totalHPP)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* HIGHLIGHT BOX: LABA KOTOR TOKO */}
+          <div className="bg-gradient-to-r from-amber-50 via-amber-100/60 to-amber-50 p-4 rounded-xl border border-amber-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                Laba Kotor Usaha (Gross Profit)
+              </div>
+              <p className="text-[11px] text-amber-800">
+                Rumus: Total Penjualan (1) dikurangi Modal Belanja Ayam HPP (2)
+              </p>
+            </div>
+            <div className="text-left sm:text-right">
+              <div className="font-mono text-lg font-extrabold text-amber-950">
+                {formatCurrency(grossProfit)}
+              </div>
+              <div className="text-[11px] font-semibold text-amber-800 font-mono">
+                Margin Kotor: {grossMarginPercent}%
+              </div>
+            </div>
+          </div>
+
+          {/* BAGIAN 3: BIAYA PENGELUARAN GAJI, KASBON & OPERASIONAL */}
+          <div className="rounded-xl border border-slate-200 overflow-hidden">
+            <div className="bg-orange-500/10 px-4 py-2.5 border-b border-orange-200/80 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-lg bg-orange-500 text-white font-bold text-xs flex items-center justify-center">3</span>
+                <span className="font-bold text-slate-900 uppercase tracking-wider text-xs">Biaya Pengeluaran Gaji, Kasbon & Operasional Toko</span>
+              </div>
+              <span className="font-mono font-bold text-orange-700 text-sm">{formatCurrency(totalOperatingCosts)}</span>
+            </div>
+
+            <div className="p-4 space-y-4 bg-white">
+              {/* SUB-SECTION A: GAJI & UPAH KARYAWAN */}
+              <div className="space-y-1.5 pb-3 border-b border-slate-100">
+                <div className="flex justify-between items-center text-xs font-bold text-slate-800">
+                  <span className="flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-blue-600" />
+                    <span>A. Total Gaji & Upah Karyawan:</span>
+                  </span>
+                  <span className="font-mono text-slate-900">{formatCurrency(totalSalaries)}</span>
+                </div>
+                <div className="pl-5 space-y-1 text-[11px] text-slate-600">
+                  <div className="flex justify-between">
+                    <span>• Upah Harian Pokok Karyawan ({monthlySlips.length > 0 ? monthlySlips.length : 1} orang):</span>
+                    <span className="font-mono">{formatCurrency(totalBaseSalaries)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>• Upah Lembur Karyawan:</span>
+                    <span className="font-mono">+{formatCurrency(totalOvertimeSalaries)}</span>
+                  </div>
+                  {totalKasbonDeductions > 0 && (
+                    <div className="flex justify-between text-rose-600 font-semibold">
+                      <span>• Potongan Kasbon di Slip Gaji (Mengurangi kas keluar gaji):</span>
+                      <span className="font-mono">-{formatCurrency(totalKasbonDeductions)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-slate-800 pt-0.5">
+                    <span>Subtotal Beban Gaji Karyawan:</span>
+                    <span className="font-mono">{formatCurrency(totalSalaries)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SUB-SECTION B: BIAYA OPERASIONAL TOKO */}
+              <div className="space-y-1.5 pb-3 border-b border-slate-100">
+                <div className="flex justify-between items-center text-xs font-bold text-slate-800">
+                  <span className="flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                    <span>B. Biaya Operasional Toko:</span>
+                  </span>
+                  <span className="font-mono text-slate-900">{formatCurrency(totalOtherExpenses)}</span>
+                </div>
+                <div className="pl-5 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-[11px] text-slate-600">
+                  <div className="flex justify-between">
+                    <span>• Listrik & Air (Freezer/Cold Storage):</span>
+                    <span className="font-mono font-semibold">{formatCurrency(expenseBreakdown['Listrik & Air'])}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>• Bahan Bakar & Armada Toko:</span>
+                    <span className="font-mono font-semibold">{formatCurrency(expenseBreakdown['Bahan Bakar & Kendaraan'])}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>• Plastik & Kemasan Ayam:</span>
+                    <span className="font-mono font-semibold">{formatCurrency(expenseBreakdown['Plastik & Kemasan'])}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>• Sewa Kios & Cold Storage:</span>
+                    <span className="font-mono font-semibold">{formatCurrency(expenseBreakdown['Sewa Tempat & Cold Storage'])}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>• Perawatan Pisau & Timbangan:</span>
+                    <span className="font-mono font-semibold">{formatCurrency(expenseBreakdown['Perawatan Peralatan'])}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>• Operasional Toko Lainnya:</span>
+                    <span className="font-mono font-semibold">{formatCurrency(expenseBreakdown['Lain-lain'])}</span>
+                  </div>
+                </div>
+                <div className="pl-5 flex justify-between font-bold text-slate-800 pt-1 text-xs">
+                  <span>Subtotal Biaya Operasional Toko:</span>
+                  <span className="font-mono">{formatCurrency(totalOtherExpenses)}</span>
+                </div>
+              </div>
+
+              {/* SUB-SECTION C: REKAP KASBON KARYAWAN */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-xs font-bold text-slate-800">
+                  <span className="flex items-center gap-1.5">
+                    <Wallet className="w-3.5 h-3.5 text-purple-600" />
+                    <span>C. Rekap Transaksi Kasbon Karyawan:</span>
+                  </span>
+                  <span className="font-mono text-purple-700">Saldo Berjalan: {formatCurrency(totalActiveKasbonBalance)}</span>
+                </div>
+                <div className="pl-5 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                  <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                    <span className="text-slate-500 block">Pinjaman Baru Dicairkan:</span>
+                    <span className="font-mono font-bold text-rose-600">{formatCurrency(monthlyKasbonGiven)}</span>
+                  </div>
+                  <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                    <span className="text-slate-500 block">Kasbon Dilunasi Periode Ini:</span>
+                    <span className="font-mono font-bold text-emerald-600">{formatCurrency(monthlyKasbonRepaid)}</span>
+                  </div>
+                  <div className="p-2 bg-slate-50 rounded-lg border border-slate-200">
+                    <span className="text-slate-500 block">Sisa Saldo Kasbon Karyawan:</span>
+                    <span className="font-mono font-bold text-slate-900">{formatCurrency(totalActiveKasbonBalance)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center text-xs font-bold pt-3 text-slate-900 border-t border-slate-200">
+                <span>Total Biaya Beban Usaha Toko (Gaji + Operasional) (3):</span>
+                <span className="font-mono text-sm text-orange-700">{formatCurrency(totalOperatingCosts)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* BAGIAN 4: KEUNTUNGAN BERSIH TOKO (LABA BERSIH) */}
+          <div className={`p-5 rounded-xl border-2 transition-all ${
+            netProfit >= 0 
+              ? 'bg-linear-to-r from-emerald-50 via-emerald-100/70 to-emerald-50 border-emerald-400 text-emerald-950' 
+              : 'bg-linear-to-r from-rose-50 via-rose-100/70 to-rose-50 border-rose-400 text-rose-950'
+          }`}>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider ${
+                    netProfit >= 0 ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                  }`}>
+                    {netProfit >= 0 ? 'SURPLUS KEUNTUNGAN BERSIH' : 'DEFISIT RUGI'}
+                  </span>
+                  <span className="text-xs font-bold text-slate-700">BAGIAN 4</span>
+                </div>
+                <h2 className="text-base font-extrabold mt-1">
+                  Keuntungan Bersih Toko (Laba Bersih Akhir)
+                </h2>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Laba Kotor ({formatCurrency(grossProfit)}) dikurangi Beban Gaji & Operasional ({formatCurrency(totalOperatingCosts)})
+                </p>
+              </div>
+
+              <div className="text-left sm:text-right">
+                <div className={`text-2xl font-black font-mono tracking-tight ${
+                  netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
+                }`}>
+                  {formatCurrency(netProfit)}
+                </div>
+                <div className="text-xs font-bold mt-0.5 text-slate-700">
+                  Margin Laba Bersih: <span className="font-mono">{netMarginPercent.toFixed(1)}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* BAGIAN 5: STATUS ARUS KAS RIIL & SALDO BON / HUTANG */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            {/* KAS MASUK VS KAS KELUAR */}
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <Coins className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Arus Kas Riil Masuk & Keluar</span>
+                </span>
+                <span className={`font-mono font-bold text-xs ${netCashFlow >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
+                </span>
+              </div>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between text-slate-600">
+                  <span>Total Kas Masuk Riil:</span>
+                  <span className="font-mono font-bold text-emerald-600">+{formatCurrency(totalCashIn)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Total Kas Keluar Riil:</span>
+                  <span className="font-mono font-bold text-rose-600">-{formatCurrency(totalCashOut)}</span>
+                </div>
+                <div className="flex justify-between text-xs font-bold pt-1 border-t border-slate-200 text-slate-900">
+                  <span>Net Cash Flow (Selisih Kas):</span>
+                  <span className={`font-mono ${netCashFlow >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* STATUS BON PIUTANG & HUTANG */}
+            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Saldo Bon Belum Lunas</span>
+                </span>
+                <span className="text-[11px] text-slate-500 font-sans">
+                  Total {countUnpaidPurchases + countUnpaidSales} Tagihan
+                </span>
+              </div>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between text-slate-600">
+                  <span>Hutang ke Supplier Ayam:</span>
+                  <span className="font-mono font-bold text-rose-600">{formatCurrency(totalUnpaidPurchaseDebt)}</span>
+                </div>
+                <div className="flex justify-between text-slate-600">
+                  <span>Bon Piutang Pelanggan Toko:</span>
+                  <span className="font-mono font-bold text-amber-600">{formatCurrency(totalUnpaidSaleReceivable)}</span>
+                </div>
+                <div className="flex justify-between text-xs font-bold pt-1 border-t border-slate-200 text-slate-900">
+                  <span>Sisa Kasbon Karyawan Berjalan:</span>
+                  <span className="font-mono text-purple-700">{formatCurrency(totalActiveKasbonBalance)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* DOKUMEN FOOTER KETERANGAN RESMI */}
+          <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-[11px] text-slate-400">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>Seluruh transaksi uang masuk, keuntungan, penjualan, pengeluaran, dan kasbon tersinkron dalam 1 laporan resmi.</span>
+            </div>
+            <div className="font-medium text-slate-500">
+              {storeProfile.name || 'Ans Chicken Group'} • Sistem Keuangan Otomatis
+            </div>
+          </div>
+
+        </div>
       </div>
 
+            {/* ========================================================================= */}
+      {/* TABEL MUTASI TRANSAKSI TERPADU (SATU BUKU TRANSAKSI LENGKAP & SINKRON)     */}
       {/* ========================================================================= */}
-      {/* 2. SECTION: BUKU ARUS KAS (SINKRONISASI KELUAR MASUK UANG TOKO LENGKAP)    */}
-      {/* ========================================================================= */}
-      <div id="section-arus-kas" className="space-y-5 pt-6 border-t border-slate-200/90">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/85 backdrop-blur-md p-4 rounded-xl border border-emerald-100 shadow-2xs">
+      <div className="bg-white/90 backdrop-blur-md rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-3 p-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-200">
           <div>
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
               <ArrowUpDown className="w-4 h-4 text-emerald-600" />
-              <span>2. Buku Arus Kas: Mutasi Keluar & Masuk Uang Toko (Tersinkronisasi)</span>
+              <span>Rincian Seluruh Transaksi & Mutasi Keuangan</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Semua transaksi uang masuk (penjualan langsung, bayar piutang BKM, kasbon) dan uang keluar (belanja ayam, bayar utang BKK, gaji bersih, kasbon, operasional) tercatat otomatis
+              Daftar kronologis uang masuk, uang keluar, belanja modal ayam, gaji, operasional, kasbon, dan cicilan bon
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
-              +{formatCurrency(totalCashIn)} Masuk
-            </span>
-            <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200">
-              -{formatCurrency(totalCashOut)} Keluar
-            </span>
-            <span className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold ${
-              netCashFlow >= 0 ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
-            }`}>
-              Kas: {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
-            </span>
+
+          <button
+            type="button"
+            onClick={() => setShowExpenseModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors cursor-pointer self-start lg:self-auto"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Catat Biaya Operasional</span>
+          </button>
+        </div>
+
+        {/* CONTROLS & FILTER BAR */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
+          {/* Quick Filter Buttons */}
+          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setCashFlowFilterType('all')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                cashFlowFilterType === 'all'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Semua Mutasi ({monthlyCashFlowTransactions.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setCashFlowFilterType('masuk')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                cashFlowFilterType === 'masuk'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-emerald-700'
+              }`}
+            >
+              <span>Uang Masuk</span>
+              <span className="font-mono text-[10px] opacity-90">
+                (+{formatCurrency(totalCashIn)})
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCashFlowFilterType('keluar')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                cashFlowFilterType === 'keluar'
+                  ? 'bg-rose-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-rose-700'
+              }`}
+            >
+              <span>Uang Keluar</span>
+              <span className="font-mono text-[10px] opacity-90">
+                (-{formatCurrency(totalCashOut)})
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCashFlowFilterType('bon')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                cashFlowFilterType === 'bon'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-purple-700'
+              }`}
+            >
+              <span>Bon & Tagihan</span>
+              {(countUnpaidPurchases + countUnpaidSales) > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-mono text-[10px]">
+                  {countUnpaidPurchases + countUnpaidSales}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Category Dropdown */}
+            <select
+              value={cashFlowCategoryFilter}
+              onChange={(e) => setCashFlowCategoryFilter(e.target.value)}
+              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 cursor-pointer"
+            >
+              <option value="all">Semua Kategori Transaksi</option>
+              <option value="Penjualan">Penjualan Ayam</option>
+              <option value="Pembelian Ayam">Modal Belanja Ayam</option>
+              <option value="Gaji Karyawan">Gaji Karyawan</option>
+              <option value="Pinjaman Kasbon Karyawan">Pinjaman Kasbon</option>
+              <option value="Pelunasan Kasbon Karyawan">Pelunasan Kasbon</option>
+              <option value="Biaya Operasional">Biaya Operasional Toko</option>
+              <option value="Pembayaran Piutang Pelanggan">Pembayaran Piutang (BKM)</option>
+              <option value="Pembayaran Utang Supplier">Pembayaran Utang (BKK)</option>
+            </select>
+
+            {/* Search Input */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Cari transaksi..."
+                value={cashFlowSearch}
+                onChange={(e) => setCashFlowSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-amber-500 w-36 sm:w-48"
+              />
+            </div>
           </div>
         </div>
 
-        {/* 4 TOP KPI CARDS FOR CASH FLOW */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Total Cash In */}
-          <div className="bg-white/85 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-emerald-100 shadow-xs relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">Total Uang Masuk</span>
-                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100">
-                  <ArrowDownLeft className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <h3 className="text-xl sm:text-2xl font-bold font-mono text-emerald-600">
-                  +{formatCurrency(totalCashIn)}
-                </h3>
-                <div className="mt-2 space-y-1 text-[11px] text-slate-500 pt-2 border-t border-slate-100">
-                  <div className="flex justify-between">
-                    <span>Penjualan Tunai/Transfer:</span>
-                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashInSales)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Pelunasan Piutang (BKM):</span>
-                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashInDebt)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Bayar Kasbon Karyawan:</span>
-                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashInKasbon)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+        {/* TABEL TRANSAKSI TERPADU */}
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-100/80 text-slate-700 font-bold border-b border-slate-200">
+                <th className="py-2.5 px-3">Tanggal & Waktu</th>
+                <th className="py-2.5 px-3">No. Ref</th>
+                <th className="py-2.5 px-3">Kategori</th>
+                <th className="py-2.5 px-3">Pihak / Keterangan</th>
+                <th className="py-2.5 px-3">Metode</th>
+                <th className="py-2.5 px-3 text-right text-emerald-700">Uang Masuk</th>
+                <th className="py-2.5 px-3 text-right text-rose-700">Uang Keluar</th>
+                <th className="py-2.5 px-3 text-center">Status / Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredCashFlowTransactions.map((tx) => {
+                const matchedSale = processedSales.find(s => s.invoiceNumber === tx.referenceNo);
+                const matchedPurchase = processedPurchases.find(p => p.invoiceNumber === tx.referenceNo);
 
-            {/* Total Cash Out */}
-            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-rose-100 shadow-xs relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/10 rounded-full blur-2xl -mr-6 -mt-6 pointer-events-none" />
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">Total Uang Keluar</span>
-                <div className="p-2 rounded-xl bg-rose-50 text-rose-600 border border-rose-100">
-                  <ArrowUpRight className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <h3 className="text-xl sm:text-2xl font-bold font-mono text-rose-600">
-                  -{formatCurrency(totalCashOut)}
-                </h3>
-                <div className="mt-2 space-y-1 text-[11px] text-slate-500 pt-2 border-t border-slate-100">
-                  <div className="flex justify-between">
-                    <span>Belanja Ayam (Tunai/Trf):</span>
-                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashOutPurchase)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Bayar Utang Supplier (BKK):</span>
-                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashOutDebt)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Gaji Karyawan:</span>
-                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashOutSalary)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Biaya Operasional:</span>
-                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashOutExpense)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Kasbon Karyawan:</span>
-                    <span className="font-mono font-semibold text-slate-700">{formatCurrency(cashOutKasbon)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Net Cash Flow */}
-            <div className={`bg-white/85 backdrop-blur-md rounded-2xl p-4 sm:p-5 border ${netCashFlow >= 0 ? 'border-emerald-200' : 'border-rose-200'} shadow-xs relative overflow-hidden`}>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">Arus Kas Bersih (Surplus)</span>
-                <div className={`p-2 rounded-xl ${netCashFlow >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                  <Coins className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <h3 className={`text-xl sm:text-2xl font-bold font-mono ${netCashFlow >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                  {netCashFlow >= 0 ? '+' : ''}{formatCurrency(netCashFlow)}
-                </h3>
-                <span className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                  netCashFlow >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                }`}>
-                  {netCashFlow >= 0 ? 'Surplus Kas Riil' : 'Defisit Kas Riil'}
-                </span>
-                <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
-                  Selisih riil antara seluruh uang yang masuk dan uang yang keluar pada periode ini.
-                </p>
-              </div>
-            </div>
-
-            {/* Cash Transactions Count */}
-            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500">Mutasi Kas Tercatat</span>
-                <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
-                  <Receipt className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="mt-3">
-                <h3 className="text-xl sm:text-2xl font-bold font-mono text-slate-900">
-                  {monthlyCashFlowTransactions.length} <span className="text-sm font-normal text-slate-500">Transaksi</span>
-                </h3>
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                    {monthlyCashFlowTransactions.filter(i => i.flowType === 'masuk').length} Masuk
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 text-[10px] font-bold">
-                    {monthlyCashFlowTransactions.filter(i => i.flowType === 'keluar').length} Keluar
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-2 pt-2 border-t border-slate-100">
-                  Mencakup kasbon, utang, piutang, gaji, belanja, & operasional.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* 2-COLUMN BREAKDOWN OF INFLOW & OUTFLOW */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* INFLOW BREAKDOWN */}
-            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
-                  <span>Rincian Pos Uang Masuk</span>
-                </h4>
-                <span className="text-xs font-mono font-bold text-emerald-600">
-                  +{formatCurrency(totalCashIn)}
-                </span>
-              </div>
-              <div className="space-y-2.5 text-xs">
-                <div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-slate-700 font-medium">1. Penjualan Tunai / Transfer Langsung</span>
-                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashInSales)}</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className="bg-emerald-500 h-1.5 rounded-full transition-all" 
-                      style={{ width: `${totalCashIn > 0 ? (cashInSales / totalCashIn) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-slate-700 font-medium">2. Pelunasan Bon / Piutang Pelanggan (BKM)</span>
-                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashInDebt)}</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className="bg-teal-500 h-1.5 rounded-full transition-all" 
-                      style={{ width: `${totalCashIn > 0 ? (cashInDebt / totalCashIn) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-slate-700 font-medium">3. Pembayaran / Setoran Kasbon Karyawan</span>
-                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashInKasbon)}</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className="bg-amber-500 h-1.5 rounded-full transition-all" 
-                      style={{ width: `${totalCashIn > 0 ? (cashInKasbon / totalCashIn) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* OUTFLOW BREAKDOWN */}
-            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <ArrowUpRight className="w-4 h-4 text-rose-600" />
-                  <span>Rincian Pos Uang Keluar</span>
-                </h4>
-                <span className="text-xs font-mono font-bold text-rose-600">
-                  -{formatCurrency(totalCashOut)}
-                </span>
-              </div>
-              <div className="space-y-2.5 text-xs">
-                <div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-slate-700 font-medium">1. Belanja Modal Ayam (Tunai / Transfer)</span>
-                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashOutPurchase)}</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className="bg-rose-500 h-1.5 rounded-full transition-all" 
-                      style={{ width: `${totalCashOut > 0 ? (cashOutPurchase / totalCashOut) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-slate-700 font-medium">2. Pembayaran Cicilan / Pelunasan Hutang Supplier (BKK)</span>
-                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashOutDebt)}</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className="bg-orange-500 h-1.5 rounded-full transition-all" 
-                      style={{ width: `${totalCashOut > 0 ? (cashOutDebt / totalCashOut) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-slate-700 font-medium">3. Pembayaran Gaji Bersih Karyawan</span>
-                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashOutSalary)}</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className="bg-indigo-500 h-1.5 rounded-full transition-all" 
-                      style={{ width: `${totalCashOut > 0 ? (cashOutSalary / totalCashOut) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-slate-700 font-medium">4. Biaya Operasional Toko (Listrik, Plastik, dll)</span>
-                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashOutExpense)}</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className="bg-amber-600 h-1.5 rounded-full transition-all" 
-                      style={{ width: `${totalCashOut > 0 ? (cashOutExpense / totalCashOut) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-slate-700 font-medium">5. Pencairan Pinjaman Kasbon Karyawan</span>
-                    <span className="font-mono font-bold text-slate-900">{formatCurrency(cashOutKasbon)}</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                    <div 
-                      className="bg-purple-500 h-1.5 rounded-full transition-all" 
-                      style={{ width: `${totalCashOut > 0 ? (cashOutKasbon / totalCashOut) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* FILTER & SEARCH TOOLBAR */}
-          <div className="bg-white/85 backdrop-blur-md rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-bold text-slate-600 mr-1">Filter Arus:</span>
-              <button
-                type="button"
-                onClick={() => setCashFlowFilterType('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
-                  cashFlowFilterType === 'all'
-                    ? 'bg-slate-900 text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                Semua ({monthlyCashFlowTransactions.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setCashFlowFilterType('masuk')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
-                  cashFlowFilterType === 'masuk'
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                }`}
-              >
-                Uang Masuk ({monthlyCashFlowTransactions.filter(i => i.flowType === 'masuk').length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setCashFlowFilterType('keluar')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
-                  cashFlowFilterType === 'keluar'
-                    ? 'bg-rose-600 text-white'
-                    : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                }`}
-              >
-                Uang Keluar ({monthlyCashFlowTransactions.filter(i => i.flowType === 'keluar').length})
-              </button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <select
-                value={cashFlowCategoryFilter}
-                onChange={(e) => setCashFlowCategoryFilter(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 focus:outline-hidden font-medium cursor-pointer"
-              >
-                <option value="all">Semua Kategori Pos</option>
-                <option value="Penjualan">Penjualan Tunai / Trf</option>
-                <option value="Pembayaran Piutang Pelanggan">Pelunasan Piutang (BKM)</option>
-                <option value="Pelunasan Kasbon Karyawan">Setoran Kasbon Karyawan</option>
-                <option value="Pembelian Ayam">Belanja Modal Ayam</option>
-                <option value="Pembayaran Utang Supplier">Bayar Hutang Supplier (BKK)</option>
-                <option value="Gaji Karyawan">Gaji Karyawan</option>
-                <option value="Biaya Operasional">Biaya Operasional Toko</option>
-                <option value="Pinjaman Kasbon Karyawan">Pinjaman Kasbon Karyawan</option>
-              </select>
-
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Cari transaksi / nama..."
-                  value={cashFlowSearch}
-                  onChange={(e) => setCashFlowSearch(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 focus:outline-hidden w-full sm:w-48"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* CASH FLOW TRANSACTION LEDGER TABLE */}
-          <div className="bg-white/85 backdrop-blur-md rounded-2xl shadow-xs border border-white/80 overflow-hidden">
-            <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <ArrowUpDown className="w-4 h-4 text-amber-600" />
-                  <span>Buku Kas & Riwayat Mutasi Uang</span>
-                </h3>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Menampilkan {filteredCashFlowTransactions.length} dari {monthlyCashFlowTransactions.length} transaksi keluar masuk uang bulan ini
-                </p>
-              </div>
-
-              <div className="text-right">
-                <span className="text-[10px] text-slate-500 block uppercase font-semibold">Subtotal Mutasi Terfilter</span>
-                <span className="text-xs font-mono font-bold text-slate-900">
-                  {formatCurrency(filteredCashFlowTransactions.reduce((acc, curr) => acc + (curr.flowType === 'masuk' ? curr.amount : -curr.amount), 0))}
-                </span>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
-                    <th className="py-2.5 px-3">Tanggal & Waktu</th>
-                    <th className="py-2.5 px-3">No. Bukti / Ref</th>
-                    <th className="py-2.5 px-3">Kategori</th>
-                    <th className="py-2.5 px-3">Keterangan & Pihak Terkait</th>
-                    <th className="py-2.5 px-3 text-center">Metode</th>
-                    <th className="py-2.5 px-3 text-center">Arah Arus</th>
-                    <th className="py-2.5 px-3 text-right">Nominal</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredCashFlowTransactions.map((tx) => (
-                    <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
-                        {formatDateTime(tx.date)}
-                      </td>
-                      <td className="py-2.5 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">
-                        {tx.referenceNo || '-'}
-                      </td>
-                      <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                          tx.flowType === 'masuk' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}>
-                          {tx.category}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <div className="font-semibold text-slate-900">{tx.counterparty}</div>
-                        <div className="text-[11px] text-slate-500 line-clamp-1">{tx.description}</div>
-                      </td>
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-medium">
-                          {tx.paymentMethod}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          tx.flowType === 'masuk'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}>
-                          {tx.flowType === 'masuk' ? (
-                            <>
-                              <ArrowDownLeft className="w-3 h-3 text-emerald-600" />
-                              <span>UANG MASUK</span>
-                            </>
-                          ) : (
-                            <>
-                              <ArrowUpRight className="w-3 h-3 text-rose-600" />
-                              <span>UANG KELUAR</span>
-                            </>
-                          )}
-                        </span>
-                      </td>
-                      <td className={`py-2.5 px-3 text-right font-mono font-bold whitespace-nowrap tabular-nums ${
-                        tx.flowType === 'masuk' ? 'text-emerald-700' : 'text-rose-700'
+                return (
+                  <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="py-2.5 px-3 whitespace-nowrap text-slate-600 font-mono text-[11px]">
+                      {formatDateTime(tx.date)}
+                    </td>
+                    <td className="py-2.5 px-3 whitespace-nowrap font-mono font-bold text-slate-900">
+                      {tx.referenceNo || '-'}
+                    </td>
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                        tx.category === 'Penjualan' ? 'bg-amber-100 text-amber-900' :
+                        tx.category === 'Pembelian Ayam' ? 'bg-rose-100 text-rose-900' :
+                        tx.category === 'Gaji Karyawan' ? 'bg-blue-100 text-blue-900' :
+                        tx.category === 'Pinjaman Kasbon Karyawan' ? 'bg-purple-100 text-purple-900' :
+                        tx.category === 'Pelunasan Kasbon Karyawan' ? 'bg-teal-100 text-teal-900' :
+                        tx.category === 'Pembayaran Piutang Pelanggan' ? 'bg-emerald-100 text-emerald-900' :
+                        tx.category === 'Pembayaran Utang Supplier' ? 'bg-orange-100 text-orange-900' :
+                        'bg-slate-100 text-slate-800'
                       }`}>
-                        {tx.flowType === 'masuk' ? '+' : '-'}{formatCurrency(tx.amount)}
-                      </td>
-                    </tr>
-                  ))}
-
-                  {filteredCashFlowTransactions.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="py-12 text-center text-slate-400">
-                        Tidak ada transaksi arus kas yang sesuai dengan filter atau pencarian.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-      {/* ========================================================================= */}
-      {/* 3. SECTION: CATATAN BON & TAGIHAN BELUM LUNAS (HUTANG & PIUTANG)          */}
-      {/* ========================================================================= */}
-      <div id="section-bon-tagihan" className="space-y-5 pt-6 border-t border-slate-200/90">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/85 backdrop-blur-md p-4 rounded-xl border border-rose-100 shadow-2xs">
-          <div>
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-rose-600" />
-              <span>3. Catatan Bon & Tagihan Usaha (Hutang Supplier & Piutang Pelanggan)</span>
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Pantau seluruh nota pembeli yang belum dibayar serta tagihan pembelian ayam dari supplier untuk pelunasan tepat waktu
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 text-xs font-bold border border-rose-200">
-              Hutang: {formatCurrency(totalUnpaidPurchaseDebt)}
-            </span>
-            <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200">
-              Piutang: {formatCurrency(totalUnpaidSaleReceivable)}
-            </span>
-          </div>
-        </div>
-          {selectedPartyDetail ? (
-            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-5 sm:p-6 shadow-xs border border-white/80 animate-in fade-in zoom-in-95 duration-150 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-                <div className="flex items-center gap-2.5">
-                  <button 
-                    type="button" 
-                    onClick={() => setSelectedPartyDetail(null)} 
-                    className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 cursor-pointer transition-colors"
-                    title="Kembali ke Ringkasan"
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </button>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                      <span>Rincian Transaksi: <strong className="text-amber-800">{selectedPartyDetail.name}</strong></span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold">
-                        {selectedPartyDetail.type === 'purchase' ? 'Supplier' : 'Pelanggan'}
+                        {tx.category}
                       </span>
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Daftar semua faktur dan status pelunasan
-                    </p>
-                  </div>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setSelectedPartyDetail(null)} 
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors self-start sm:self-auto"
-                >
-                  ← Kembali ke Ringkasan
-                </button>
-              </div>
-
-              <div className="overflow-x-auto py-2">
-                <table className="w-full text-xs text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
-                      <th className="py-2.5 px-3">No Nota / Faktur</th>
-                      <th className="py-2.5 px-3">Tanggal</th>
-                      <th className="py-2.5 px-3 text-right">Total Transaksi</th>
-                      <th className="py-2.5 px-3 text-right">Sudah Dibayar</th>
-                      <th className="py-2.5 px-3 text-right">Sisa {selectedPartyDetail.type === 'purchase' ? 'Hutang' : 'Piutang'}</th>
-                      <th className="py-2.5 px-3 text-center">Status</th>
-                      <th className="py-2.5 px-3 text-center">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {(selectedPartyDetail.type === 'purchase' 
-                        ? processedPurchases.filter(p => p.supplierName.toLowerCase() === selectedPartyDetail.name.toLowerCase())
-                        : processedSales.filter(s => s.customerName.toLowerCase() === selectedPartyDetail.name.toLowerCase())
-                    ).map((tx) => (
-                      <tr key={tx.id} className="hover:bg-slate-50/70">
-                        <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{tx.invoiceNumber}</td>
-                        <td className="py-2.5 px-3 text-slate-600">{formatDate(tx.date)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(tx.grandTotal)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono text-emerald-700 font-semibold">{formatCurrency((tx as any).computedPaid)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700">{formatCurrency((tx as any).computedRemaining)}</td>
-                        <td className="py-2.5 px-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            tx.isLunas ? 'bg-emerald-100 text-emerald-800' : (tx as any).computedPaid > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                          }`}>
-                            {tx.isLunas ? 'Lunas' : (tx as any).computedPaid > 0 ? 'Sebagian' : 'Belum Lunas'}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button 
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <div className="font-semibold text-slate-900">{tx.counterparty || tx.title}</div>
+                      <div className="text-[11px] text-slate-500 line-clamp-1">{tx.description}</div>
+                    </td>
+                    <td className="py-2.5 px-3 whitespace-nowrap font-medium text-slate-700">
+                      {tx.paymentMethod || '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap font-mono font-bold text-emerald-600 tabular-nums">
+                      {tx.flowType === 'masuk' ? `+${formatCurrency(tx.amount)}` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-right whitespace-nowrap font-mono font-bold text-rose-600 tabular-nums">
+                      {tx.flowType === 'keluar' ? `-${formatCurrency(tx.amount)}` : '-'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {/* If Sale with unpaid debt */}
+                        {matchedSale && !matchedSale.isLunas && (
+                          <div className="flex items-center gap-1">
+                            <button
                               type="button"
-                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white rounded text-[11px] font-bold cursor-pointer transition-colors"
-                              onClick={() => setSelectedDetailModal({ type: selectedPartyDetail.type, id: tx.id })}
+                              onClick={() => handleOpenPaySaleModal(matchedSale)}
+                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-[10px] font-bold cursor-pointer"
+                              title="Terima Cicilan / Pelunasan Piutang (BKM)"
                             >
-                              Detail Nota
+                              Terima BKM
                             </button>
-                            {selectedPartyDetail.type === 'purchase' ? (
-                              !tx.isLunas && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenPayPurchaseModal(tx as any)}
-                                  className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[11px] font-bold cursor-pointer transition-colors"
-                                >
-                                  Bayar Hutang
-                                </button>
-                              )
-                            ) : (
-                              !tx.isLunas && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenPaySaleModal(tx as any)}
-                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold cursor-pointer transition-colors"
-                                >
-                                  Terima Cicilan
-                                </button>
-                              )
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleSendWAReminder(matchedSale)}
+                              className="p-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-md cursor-pointer"
+                              title="Kirim Pengingat Tagihan via WhatsApp"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <button 
-                type="button"
-                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors" 
-                onClick={() => setSelectedPartyDetail(null)}
-              >
-                Kembali ke Ringkasan
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* 4 TOP SUMMARY CARDS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Total Hutang Usaha (ke Pemasok) */}
-                <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-rose-200/80 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">HUTANG KE SUPPLIER</span>
-                    <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
-                      <ArrowUpRight className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="text-xl font-bold font-mono text-rose-700 mt-2 tabular-nums">
-                    {formatCurrency(totalUnpaidPurchaseDebt)}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{countUnpaidPurchases} belanjaan ayam ke supplier belum kita bayar</span>
-                  </div>
-                </div>
+                        )}
 
-                {/* Total Piutang Usaha (dari Pelanggan) */}
-                <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-amber-200/80 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">BON / TAGIHAN PELANGGAN</span>
-                    <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
-                      <ArrowDownLeft className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="text-xl font-bold font-mono text-amber-700 mt-2 tabular-nums">
-                    {formatCurrency(totalUnpaidSaleReceivable)}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{countUnpaidSales} nota pembeli yang belum dibayar ke kita</span>
-                  </div>
-                </div>
+                        {/* If Purchase with unpaid debt */}
+                        {matchedPurchase && !matchedPurchase.isLunas && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPayPurchaseModal(matchedPurchase)}
+                            className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-[10px] font-bold cursor-pointer"
+                            title="Bayar Cicilan / Pelunasan Hutang (BKK)"
+                          >
+                            Bayar BKK
+                          </button>
+                        )}
 
-                {/* Posisi Bersih (Piutang - Hutang) */}
-                <div className={`bg-white/85 backdrop-blur-xs p-4 rounded-xl border shadow-2xs ${
-                  (totalUnpaidSaleReceivable - totalUnpaidPurchaseDebt) >= 0 
-                    ? 'border-emerald-200/80' 
-                    : 'border-orange-200/80'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">SELISIH TAGIHAN & HUTANG</span>
-                    <div className="p-2 bg-slate-100 text-slate-700 rounded-lg">
-                      <Wallet className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className={`text-xl font-bold font-mono mt-2 tabular-nums ${
-                    (totalUnpaidSaleReceivable - totalUnpaidPurchaseDebt) >= 0 
-                      ? 'text-emerald-700' 
-                      : 'text-orange-700'
-                  }`}>
-                    {formatCurrency(totalUnpaidSaleReceivable - totalUnpaidPurchaseDebt)}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1">
-                    {(totalUnpaidSaleReceivable - totalUnpaidPurchaseDebt) >= 0 
-                      ? 'Uang tagihan pelanggan lebih banyak dari hutang kita' 
-                      : 'Hutang kita ke supplier lebih besar dari tagihan pelanggan'}
-                  </div>
-                </div>
+                        {/* View Details Button */}
+                        {matchedSale && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDetailModal({ type: 'sale', id: matchedSale.id })}
+                            className="p-1 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 cursor-pointer"
+                            title="Lihat Detail Transaksi"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {matchedPurchase && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDetailModal({ type: 'purchase', id: matchedPurchase.id })}
+                            className="p-1 text-slate-500 hover:text-slate-900 rounded-md hover:bg-slate-100 cursor-pointer"
+                            title="Lihat Detail Transaksi"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
 
-                {/* Total Transaksi Bermasalah / Butuh Tindakan */}
-                <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-white/80 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">NOTA BELUM LUNAS</span>
-                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                      <AlertCircle className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
-                    {countUnpaidPurchases + countUnpaidSales} <span className="text-xs font-normal text-slate-500">transaksi</span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1">
-                    Perlu ditagih atau dibayar cicilannya
-                  </div>
-                </div>
-              </div>
+                        {!matchedSale && !matchedPurchase && (
+                          <span className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Selesai</span>
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
 
-              {/* Filter Bar */}
-              <div className="bg-white/80 backdrop-blur-md p-4 rounded-xl border border-white/60 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-                {/* Filter Type Pills */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-slate-500 mr-1">Tampilkan:</span>
-                  <button
-                    type="button"
-                    onClick={() => setDebtFilterType('all')}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
-                      debtFilterType === 'all'
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    Semua ({processedPurchases.length + processedSales.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDebtFilterType('hutang_pembelian')}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                      debtFilterType === 'hutang_pembelian'
-                        ? 'bg-rose-700 text-white'
-                        : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                    }`}
-                  >
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span>Hutang ke Supplier ({countUnpaidPurchases} sisa)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDebtFilterType('piutang_penjualan')}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                      debtFilterType === 'piutang_penjualan'
-                        ? 'bg-amber-600 text-white'
-                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                    }`}
-                  >
-                    <Users className="w-3.5 h-3.5" />
-                    <span>Bon Pelanggan ({countUnpaidSales} sisa)</span>
-                  </button>
-                </div>
-
-                {/* Status & Search */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <label className="text-slate-600 font-medium">Status:</label>
-                    <select
-                      value={debtStatusFilter}
-                      onChange={(e) => setDebtStatusFilter(e.target.value as any)}
-                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-semibold focus:outline-hidden"
-                    >
-                      <option value="unpaid">Belum Lunas / Masih Ada Sisa</option>
-                      <option value="all">Semua Nota</option>
-                      <option value="paid">Sudah Lunas</option>
-                    </select>
-                  </div>
-
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                    <input
-                      type="text"
-                      placeholder="Cari nomor nota atau nama..."
-                      value={debtSearchQuery}
-                      onChange={(e) => setDebtSearchQuery(e.target.value)}
-                      className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-hidden w-48"
-                    />
-                  </div>
-
-                  <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 select-none">
-                    <input
-                      type="checkbox"
-                      checked={filterByMonthOnly}
-                      onChange={(e) => setFilterByMonthOnly(e.target.checked)}
-                      className="rounded border-slate-300 text-amber-600 focus:ring-0"
-                    />
-                    <span>Hanya Bulan Ini</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* 1. TABLE: SUMMARY VIEW (Grouping by Supplier) */}
-              {(debtFilterType === 'all' || debtFilterType === 'hutang_pembelian') && (
-                <div className="bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden">
-                  <div className="p-4 border-b border-slate-200/80 bg-rose-50/50">
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                      Daftar Hutang ke Supplier (Belum Kita Bayar)
-                    </h3>
-                  </div>
-                  <table className="w-full text-xs text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
-                        <th className="py-2.5 px-3">Nama Supplier / Pemasok</th>
-                        <th className="py-2.5 px-3 text-right">Sisa Hutang Belum Dibayar</th>
-                        <th className="py-2.5 px-3 text-center">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {Object.entries(processedPurchases.reduce((acc, p) => {
-                        if (!p.isLunas) {
-                          acc[p.supplierName] = (acc[p.supplierName] || 0) + p.computedRemaining;
-                        }
-                        return acc;
-                      }, {} as Record<string, number>)).map(([supplier, total]) => (
-                        <tr key={supplier} className="hover:bg-slate-50/60">
-                          <td className="py-2.5 px-3 font-semibold text-slate-900">{supplier}</td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600">{formatCurrency(total)}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedPartyDetail({ type: 'purchase', name: supplier })}
-                              className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors"
-                            >
-                              Lihat Rincian Nota
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              {filteredCashFlowTransactions.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                    Tidak ditemukan data transaksi untuk kriteria filter ini.
+                  </td>
+                </tr>
               )}
-
-              {/* 2. SUMMARY VIEW: PIUTANG PENJUALAN */}
-              {(debtFilterType === 'all' || debtFilterType === 'piutang_penjualan') && (
-                <div className="bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden">
-                  <div className="p-4 border-b border-slate-200/80 bg-amber-50/50">
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                      Daftar Bon Pelanggan (Belum Dibayar ke Kita)
-                    </h3>
-                  </div>
-                  <table className="w-full text-xs text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
-                        <th className="py-2.5 px-3">Nama Pembeli / Pelanggan</th>
-                        <th className="py-2.5 px-3 text-right">Sisa Bon Belum Dibayar</th>
-                        <th className="py-2.5 px-3 text-center">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {Object.entries(processedSales.reduce((acc, s) => {
-                        if (!s.isLunas) {
-                          acc[s.customerName] = (acc[s.customerName] || 0) + s.computedRemaining;
-                        }
-                        return acc;
-                      }, {} as Record<string, number>)).map(([customer, total]) => (
-                        <tr key={customer} className="hover:bg-slate-50/60">
-                          <td className="py-2.5 px-3 font-semibold text-slate-900">{customer}</td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-700">{formatCurrency(total)}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedPartyDetail({ type: 'sale', name: customer })}
-                              className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors"
-                            >
-                              Lihat Rincian Nota
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* 3. TABLE: DAFTAR RINCIAN TRANSAKSI (SESUAI FILTER & PENCARIAN) */}
-              <div className="bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden">
-                <div className="p-4 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Daftar Semua Nota Belanja & Penjualan ({debtFilterType === 'hutang_pembelian' ? filteredPurchases.length : debtFilterType === 'piutang_penjualan' ? filteredSales.length : filteredPurchases.length + filteredSales.length} nota)</span>
-                  </h3>
-                  <span className="text-[11px] text-slate-500 font-medium">
-                    {debtStatusFilter === 'unpaid' ? 'Belum Lunas / Ada Sisa' : debtStatusFilter === 'paid' ? 'Sudah Lunas' : 'Semua Nota'}
-                  </span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
-                        <th className="py-2.5 px-3">Jenis</th>
-                        <th className="py-2.5 px-3">No. Nota</th>
-                        <th className="py-2.5 px-3">Tanggal</th>
-                        <th className="py-2.5 px-3">Nama Supplier / Pembeli</th>
-                        <th className="py-2.5 px-3 text-right">Total Belanja</th>
-                        <th className="py-2.5 px-3 text-right">Sudah Dibayar</th>
-                        <th className="py-2.5 px-3 text-right">Sisa Belum Bayar</th>
-                        <th className="py-2.5 px-3 text-center">Status</th>
-                        <th className="py-2.5 px-3 text-center">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {/* Purchases */}
-                      {(debtFilterType === 'all' || debtFilterType === 'hutang_pembelian') &&
-                        filteredPurchases.map((p) => (
-                          <tr key={`pur-${p.id}`} className="hover:bg-slate-50/60">
-                            <td className="py-2.5 px-3">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
-                                Hutang Beli
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{p.invoiceNumber}</td>
-                            <td className="py-2.5 px-3 text-slate-600">{formatDate(p.date)}</td>
-                            <td className="py-2.5 px-3 font-semibold text-slate-800">{p.supplierName}</td>
-                            <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(p.grandTotal)}</td>
-                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700">{formatCurrency(p.computedPaid)}</td>
-                            <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700">{formatCurrency(p.computedRemaining)}</td>
-                            <td className="py-2.5 px-3 text-center">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                p.isLunas ? 'bg-emerald-100 text-emerald-800' : p.computedPaid > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                              }`}>
-                                {p.isLunas ? 'Lunas' : p.computedPaid > 0 ? 'Ada Sisa' : 'Belum Lunas'}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedDetailModal({ type: 'purchase', id: p.id })}
-                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded cursor-pointer transition-colors"
-                                >
-                                  Rincian
-                                </button>
-                                {!p.isLunas && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenPayPurchaseModal(p)}
-                                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded cursor-pointer transition-colors"
-                                  >
-                                    Bayar
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-
-                      {/* Sales */}
-                      {(debtFilterType === 'all' || debtFilterType === 'piutang_penjualan') &&
-                        filteredSales.map((s) => (
-                          <tr key={`sal-${s.id}`} className="hover:bg-slate-50/60">
-                            <td className="py-2.5 px-3">
-                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
-                                Bon Jual
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{s.invoiceNumber}</td>
-                            <td className="py-2.5 px-3 text-slate-600">{formatDate(s.date)}</td>
-                            <td className="py-2.5 px-3 font-semibold text-slate-800">{s.customerName}</td>
-                            <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(s.grandTotal)}</td>
-                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700">{formatCurrency(s.computedPaid)}</td>
-                            <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-700">{formatCurrency(s.computedRemaining)}</td>
-                            <td className="py-2.5 px-3 text-center">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                s.isLunas ? 'bg-emerald-100 text-emerald-800' : s.computedPaid > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                              }`}>
-                                {s.isLunas ? 'Lunas' : s.computedPaid > 0 ? 'Ada Sisa' : 'Belum Lunas'}
-                              </span>
-                            </td>
-                            <td className="py-2.5 px-3 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedDetailModal({ type: 'sale', id: s.id })}
-                                  className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded cursor-pointer transition-colors"
-                                >
-                                  Rincian
-                                </button>
-                                {!s.isLunas && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenPaySaleModal(s)}
-                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded cursor-pointer transition-colors"
-                                  >
-                                    Terima
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-
-                      {filteredPurchases.length === 0 && filteredSales.length === 0 && (
-                        <tr>
-                          <td colSpan={9} className="py-8 text-center text-slate-400">
-                            Tidak ditemukan transaksi dengan filter yang dipilih.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
-          )}
+            </tbody>
+          </table>
         </div>
+      </div>
 
-      {/* ========================================================================= */}
+{/* ========================================================================= */}
       {/* MODALS SECTION                                                            */}
       {/* ========================================================================= */}
 
