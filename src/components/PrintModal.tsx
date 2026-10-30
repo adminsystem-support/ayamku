@@ -404,12 +404,12 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           {/* Print container with dynamic styles */}
           <div 
             id="printable-document" 
-            className={`bg-white shadow-sm transition-all text-slate-900 ${
+            className={`bg-white shadow-sm transition-all text-slate-900 mx-auto ${
               printFormat === 'a4' 
-                ? 'w-full max-w-[760px] p-8 border border-slate-200 rounded-xl' 
+                ? 'w-full max-w-[760px] p-8 border border-slate-200 rounded-xl print:p-0 print:border-none print:shadow-none print:max-w-full print:w-full' 
                 : thermalSize === '58mm'
-                  ? 'w-[280px] p-4 text-[11px] font-mono border border-slate-300 rounded-lg'
-                  : 'w-[360px] p-5 text-[12px] font-mono border border-slate-300 rounded-lg'
+                  ? 'w-[280px] p-4 text-[11px] font-mono border border-slate-300 rounded-lg print:p-0 print:border-none print:shadow-none print:w-[58mm] print:max-w-[58mm]'
+                  : 'w-[360px] p-5 text-[12px] font-mono border border-slate-300 rounded-lg print:p-0 print:border-none print:shadow-none print:w-[80mm] print:max-w-[80mm]'
             }`}
           >
             {/* 1. SALE TRANSACTION TEMPLATE (BUKTI TRANSAKSI ELEKTRONIK SAH TANPA TTD BASAH) */}
