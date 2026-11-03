@@ -29,7 +29,8 @@ import {
   Eye,
   FileText,
   MessageCircle,
-  Send
+  Send,
+  X
 } from 'lucide-react';
 import { 
   SaleTransaction, 
@@ -324,7 +325,20 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
 
   // Filtered Purchases list for table
   const filteredPurchases = useMemo(() => {
+    if (selectedPartyDetail && selectedPartyDetail.type !== 'purchase') return [];
+
     return processedPurchases.filter(p => {
+      // If a specific party is selected, show all notes and history for that supplier
+      if (selectedPartyDetail && selectedPartyDetail.type === 'purchase') {
+        if (p.supplierName.toLowerCase() !== selectedPartyDetail.name.toLowerCase()) return false;
+        if (debtSearchQuery.trim()) {
+          const q = debtSearchQuery.toLowerCase();
+          return p.invoiceNumber.toLowerCase().includes(q) ||
+                 p.supplierName.toLowerCase().includes(q);
+        }
+        return true;
+      }
+
       // Status filter
       if (debtStatusFilter === 'unpaid' && p.isLunas) return false;
       if (debtStatusFilter === 'paid' && !p.isLunas) return false;
@@ -336,11 +350,24 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
       }
       return true;
     });
-  }, [processedPurchases, debtStatusFilter, debtSearchQuery]);
+  }, [processedPurchases, debtStatusFilter, debtSearchQuery, selectedPartyDetail]);
 
   // Filtered Sales list for table
   const filteredSales = useMemo(() => {
+    if (selectedPartyDetail && selectedPartyDetail.type !== 'sale') return [];
+
     return processedSales.filter(s => {
+      // If a specific party is selected, show all notes and history for that customer
+      if (selectedPartyDetail && selectedPartyDetail.type === 'sale') {
+        if (s.customerName.toLowerCase() !== selectedPartyDetail.name.toLowerCase()) return false;
+        if (debtSearchQuery.trim()) {
+          const q = debtSearchQuery.toLowerCase();
+          return s.invoiceNumber.toLowerCase().includes(q) ||
+                 s.customerName.toLowerCase().includes(q);
+        }
+        return true;
+      }
+
       // Status filter
       if (debtStatusFilter === 'unpaid' && s.isLunas) return false;
       if (debtStatusFilter === 'paid' && !s.isLunas) return false;
@@ -352,7 +379,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
       }
       return true;
     });
-  }, [processedSales, debtStatusFilter, debtSearchQuery]);
+  }, [processedSales, debtStatusFilter, debtSearchQuery, selectedPartyDetail]);
 
   // Totals
   const totalUnpaidPurchaseDebt = useMemo(() => {
@@ -822,118 +849,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
       {/* ========================================================================= */}
       {activeReportTab === 'hutang_piutang' && (
         <div className="space-y-5">
-          {selectedPartyDetail ? (
-            <div className="bg-white/85 backdrop-blur-md rounded-2xl p-5 sm:p-6 shadow-xs border border-white/80 animate-in fade-in zoom-in-95 duration-150 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-                <div className="flex items-center gap-2.5">
-                  <button 
-                    type="button" 
-                    onClick={() => setSelectedPartyDetail(null)} 
-                    className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 cursor-pointer transition-colors"
-                    title="Kembali ke Ringkasan"
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </button>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                      <span>Rincian Transaksi: <strong className="text-amber-800">{selectedPartyDetail.name}</strong></span>
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-semibold">
-                        {selectedPartyDetail.type === 'purchase' ? 'Supplier' : 'Pelanggan'}
-                      </span>
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Daftar semua faktur dan status pelunasan
-                    </p>
-                  </div>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setSelectedPartyDetail(null)} 
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors self-start sm:self-auto"
-                >
-                  ← Kembali ke Ringkasan
-                </button>
-              </div>
-
-              <div className="overflow-x-auto py-2">
-                <table className="w-full text-xs text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
-                      <th className="py-2.5 px-3">No Nota / Faktur</th>
-                      <th className="py-2.5 px-3">Tanggal</th>
-                      <th className="py-2.5 px-3 text-right">Total Transaksi</th>
-                      <th className="py-2.5 px-3 text-right">Sudah Dibayar</th>
-                      <th className="py-2.5 px-3 text-right">Sisa {selectedPartyDetail.type === 'purchase' ? 'Hutang' : 'Piutang'}</th>
-                      <th className="py-2.5 px-3 text-center">Status</th>
-                      <th className="py-2.5 px-3 text-center">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {(selectedPartyDetail.type === 'purchase' 
-                        ? processedPurchases.filter(p => p.supplierName.toLowerCase() === selectedPartyDetail.name.toLowerCase())
-                        : processedSales.filter(s => s.customerName.toLowerCase() === selectedPartyDetail.name.toLowerCase())
-                    ).map((tx) => (
-                      <tr key={tx.id} className="hover:bg-slate-50/70">
-                        <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{tx.invoiceNumber}</td>
-                        <td className="py-2.5 px-3 text-slate-600">{formatDate(tx.date)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(tx.grandTotal)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono text-emerald-700 font-semibold">{formatCurrency((tx as any).computedPaid)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700">{formatCurrency((tx as any).computedRemaining)}</td>
-                        <td className="py-2.5 px-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            tx.isLunas ? 'bg-emerald-100 text-emerald-800' : (tx as any).computedPaid > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                          }`}>
-                            {tx.isLunas ? 'Lunas' : (tx as any).computedPaid > 0 ? 'Sebagian' : 'Belum Lunas'}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button 
-                              type="button"
-                              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white rounded text-[11px] font-bold cursor-pointer transition-colors"
-                              onClick={() => setSelectedDetailModal({ type: selectedPartyDetail.type, id: tx.id })}
-                            >
-                              Detail Nota
-                            </button>
-                            {selectedPartyDetail.type === 'purchase' ? (
-                              !tx.isLunas && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenPayPurchaseModal(tx as any)}
-                                  className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[11px] font-bold cursor-pointer transition-colors"
-                                >
-                                  Bayar Hutang
-                                </button>
-                              )
-                            ) : (
-                              !tx.isLunas && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenPaySaleModal(tx as any)}
-                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[11px] font-bold cursor-pointer transition-colors"
-                                >
-                                  Terima Cicilan
-                                </button>
-                              )
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <button 
-                type="button"
-                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors" 
-                onClick={() => setSelectedPartyDetail(null)}
-              >
-                Kembali ke Ringkasan
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* 4 TOP SUMMARY CARDS */}
+          {/* 4 TOP SUMMARY CARDS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Total Hutang Usaha (ke Pemasok) */}
                 <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-rose-200/80 shadow-2xs">
@@ -1121,8 +1037,13 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
                           <td className="py-2.5 px-3 text-center">
                             <button
                               type="button"
-                              onClick={() => setSelectedPartyDetail({ type: 'purchase', name: supplier })}
-                              className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors"
+                              onClick={() => {
+                                setSelectedPartyDetail({ type: 'purchase', name: supplier });
+                                setTimeout(() => {
+                                  document.getElementById('daftar-semua-nota-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }, 60);
+                              }}
+                              className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
                             >
                               Lihat Rincian Nota
                             </button>
@@ -1163,8 +1084,13 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
                           <td className="py-2.5 px-3 text-center">
                             <button
                               type="button"
-                              onClick={() => setSelectedPartyDetail({ type: 'sale', name: customer })}
-                              className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors"
+                              onClick={() => {
+                                setSelectedPartyDetail({ type: 'sale', name: customer });
+                                setTimeout(() => {
+                                  document.getElementById('daftar-semua-nota-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                }, 60);
+                              }}
+                              className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
                             >
                               Lihat Rincian Nota
                             </button>
@@ -1177,29 +1103,109 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
               )}
 
               {/* 3. TABLE: DAFTAR RINCIAN TRANSAKSI (SESUAI FILTER & PENCARIAN) */}
-              <div className="bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden">
+              {selectedPartyDetail && (() => {
+                const isPur = selectedPartyDetail.type === 'purchase';
+                const partyName = selectedPartyDetail.name;
+                const listSales = isPur ? [] : processedSales.filter(s => s.customerName.toLowerCase() === partyName.toLowerCase());
+                const listPurchases = isPur ? processedPurchases.filter(p => p.supplierName.toLowerCase() === partyName.toLowerCase()) : [];
+                const totalBill = isPur ? listPurchases.reduce((sum, p) => sum + p.grandTotal, 0) : listSales.reduce((sum, s) => sum + s.grandTotal, 0);
+                const totalPaid = isPur ? listPurchases.reduce((sum, p) => sum + p.computedPaid, 0) : listSales.reduce((sum, s) => sum + s.computedPaid, 0);
+                const totalRemaining = isPur ? listPurchases.reduce((sum, p) => sum + p.computedRemaining, 0) : listSales.reduce((sum, s) => sum + s.computedRemaining, 0);
+                const countInvoices = isPur ? listPurchases.length : listSales.length;
+
+                return (
+                  <div className="bg-white/90 backdrop-blur-md border border-amber-200/90 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3 animate-in fade-in duration-200">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-xl ${isPur ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {isPur ? <Building2 className="w-5 h-5" /> : <Users className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                              Rincian Semua Nota Bon & Tagihan: <span className="text-amber-800">{partyName}</span>
+                            </h3>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isPur ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'}`}>
+                              {isPur ? 'Supplier' : 'Pelanggan'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            Menampilkan seluruh riwayat {countInvoices} nota belanja & riwayat cicilan di tabel bawah
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPartyDetail(null)}
+                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shadow-2xs"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Tampilkan Semua Nota</span>
+                      </button>
+                    </div>
+
+                    {/* Summary KPI 3 Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block tracking-wider">Total Transaksi</span>
+                        <span className="font-mono font-bold text-slate-900 text-base">{formatCurrency(totalBill)}</span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block tracking-wider">Sudah Dibayar</span>
+                        <span className="font-mono font-bold text-emerald-700 text-base">{formatCurrency(totalPaid)}</span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block tracking-wider">
+                          {isPur ? 'Sisa Hutang Kita' : 'Sisa Tagihan Pelanggan'}
+                        </span>
+                        <span className={`font-mono font-bold text-base ${totalRemaining > 0 ? (isPur ? 'text-rose-700' : 'text-amber-700') : 'text-emerald-700'}`}>
+                          {formatCurrency(totalRemaining)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div id="daftar-semua-nota-section" className="bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden scroll-mt-20">
                 <div className="p-4 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <FileText className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Daftar Semua Nota Belanja & Penjualan ({debtFilterType === 'hutang_pembelian' ? filteredPurchases.length : debtFilterType === 'piutang_penjualan' ? filteredSales.length : filteredPurchases.length + filteredSales.length} nota)</span>
+                    <span>
+                      {selectedPartyDetail 
+                        ? `Rincian Semua Nota: ${selectedPartyDetail.name} (${filteredPurchases.length + filteredSales.length} nota)`
+                        : `Daftar Semua Nota Belanja & Penjualan (${debtFilterType === 'hutang_pembelian' ? filteredPurchases.length : debtFilterType === 'piutang_penjualan' ? filteredSales.length : filteredPurchases.length + filteredSales.length} nota)`
+                      }
+                    </span>
                   </h3>
-                  <span className="text-[11px] text-slate-500 font-medium">
-                    {debtStatusFilter === 'unpaid' ? 'Belum Lunas / Ada Sisa' : debtStatusFilter === 'paid' ? 'Sudah Lunas' : 'Semua Nota'}
-                  </span>
+                  {selectedPartyDetail ? (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPartyDetail(null)}
+                      className="text-[11px] font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md cursor-pointer"
+                    >
+                      ✕ Tampilkan Semua
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {debtStatusFilter === 'unpaid' ? 'Belum Lunas / Ada Sisa' : debtStatusFilter === 'paid' ? 'Sudah Lunas' : 'Semua Nota'}
+                    </span>
+                  )}
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left border-collapse">
                     <thead>
                       <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
-                        <th className="py-2.5 px-3">Jenis</th>
-                        <th className="py-2.5 px-3">No. Nota</th>
-                        <th className="py-2.5 px-3">Tanggal</th>
-                        <th className="py-2.5 px-3">Nama Supplier / Pembeli</th>
-                        <th className="py-2.5 px-3 text-right">Total Belanja</th>
-                        <th className="py-2.5 px-3 text-right">Sudah Dibayar</th>
-                        <th className="py-2.5 px-3 text-right">Sisa Belum Bayar</th>
-                        <th className="py-2.5 px-3 text-center">Status</th>
-                        <th className="py-2.5 px-3 text-center">Aksi</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap min-w-[95px]">Jenis</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">No. Nota</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Tanggal</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Nama Supplier / Pembeli</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Total Belanja</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Sudah Dibayar</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Sisa Belum Bayar</th>
+                        <th className="py-2.5 px-3 text-center whitespace-nowrap">Status</th>
+                        <th className="py-2.5 px-3 text-center whitespace-nowrap">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1223,73 +1229,50 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
                           return (
                             <React.Fragment key={`pur-${p.id}`}>
                               <tr className={`hover:bg-slate-50/60 transition-colors ${isExpanded ? 'bg-rose-50/30' : ''}`}>
-                                <td className="py-2.5 px-3">
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
+                                <td className="py-2.5 px-3 whitespace-nowrap">
+                                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 whitespace-nowrap inline-block">
                                     Hutang Beli
                                   </span>
                                 </td>
-                                <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{p.invoiceNumber}</td>
-                                <td className="py-2.5 px-3 text-slate-600">{formatDate(p.date)}</td>
-                                <td className="py-2.5 px-3 font-semibold text-slate-800">{p.supplierName}</td>
-                                <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(p.grandTotal)}</td>
-                                <td className="py-2.5 px-3 text-right">
-                                  <div className="font-mono font-bold text-emerald-700">{formatCurrency(p.computedPaid)}</div>
-                                  {historyPayments.length > 0 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleRowExpand(p.id)}
-                                      className="text-[10px] text-rose-700 hover:text-rose-900 font-semibold underline flex items-center justify-end gap-0.5 ml-auto cursor-pointer"
-                                      title="Lihat riwayat pembayaran"
-                                    >
-                                      <span>{historyPayments.length}x bayar</span>
-                                      {isExpanded ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
-                                    </button>
-                                  )}
+                                <td className="py-2.5 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">{p.invoiceNumber}</td>
+                                <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">{formatDate(p.date)}</td>
+                                <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{p.supplierName}</td>
+                                <td className="py-2.5 px-3 text-right font-mono whitespace-nowrap">{formatCurrency(p.grandTotal)}</td>
+                                <td 
+                                  onClick={() => toggleRowExpand(p.id)}
+                                  className="py-2.5 px-3 text-right cursor-pointer hover:bg-emerald-50/70 transition-colors select-none group"
+                                  title="Klik untuk membuka/menutup riwayat pembayaran & kwitansi"
+                                >
+                                  <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                    <span className="font-mono font-bold text-emerald-700 group-hover:underline">
+                                      {formatCurrency(p.computedPaid)}
+                                    </span>
+                                    {historyPayments.length > 0 && (
+                                      <span className="text-[10px] text-slate-400 group-hover:text-emerald-700">
+                                        {isExpanded ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />}
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
-                                <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700">{formatCurrency(p.computedRemaining)}</td>
-                                <td className="py-2.5 px-3 text-center">
+                                <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700 whitespace-nowrap">{formatCurrency(p.computedRemaining)}</td>
+                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                     p.isLunas ? 'bg-emerald-100 text-emerald-800' : p.computedPaid > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
                                   }`}>
                                     {p.isLunas ? 'Lunas' : p.computedPaid > 0 ? 'Ada Sisa' : 'Belum Lunas'}
                                   </span>
                                 </td>
-                                <td className="py-2.5 px-3 text-center">
-                                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                  <div className="flex items-center justify-center gap-1.5">
                                     {/* Tombol Cetak Faktur Langsung */}
                                     <button
                                       type="button"
                                       onClick={() => onPrintDocument?.({ type: 'purchase', data: p })}
-                                      className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                                       title="Cetak Faktur Pembelian (Beserta Riwayat Pembayaran & Status)"
                                     >
                                       <Printer className="w-3 h-3 text-white" />
                                       <span>Cetak</span>
-                                    </button>
-
-                                    {/* Tombol Toggle Riwayat Cicilan */}
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleRowExpand(p.id)}
-                                      className={`px-2 py-1 text-[11px] font-semibold rounded flex items-center gap-1 cursor-pointer transition-colors border ${
-                                        isExpanded
-                                          ? 'bg-rose-100 border-rose-300 text-rose-900 font-bold'
-                                          : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
-                                      }`}
-                                      title="Buka / Tutup Riwayat Pembayaran"
-                                    >
-                                      <History className="w-3 h-3 text-rose-600" />
-                                      <span>Riwayat ({historyPayments.length})</span>
-                                      {isExpanded ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
-                                    </button>
-
-                                    {/* Tombol Rincian Modal */}
-                                    <button
-                                      type="button"
-                                      onClick={() => setSelectedDetailModal({ type: 'purchase', id: p.id })}
-                                      className="px-2 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded cursor-pointer transition-colors"
-                                    >
-                                      Rincian
                                     </button>
 
                                     {/* Tombol Bayar Hutang */}
@@ -1297,7 +1280,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => handleOpenPayPurchaseModal(p)}
-                                        className="px-2 py-1 bg-rose-700 hover:bg-rose-800 text-white text-[11px] font-bold rounded cursor-pointer transition-colors shadow-2xs"
+                                        className="px-2.5 py-1 bg-rose-700 hover:bg-rose-800 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
                                       >
                                         Bayar
                                       </button>
@@ -1432,73 +1415,50 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
                           return (
                             <React.Fragment key={`sal-${s.id}`}>
                               <tr className={`hover:bg-slate-50/60 transition-colors ${isExpanded ? 'bg-amber-50/30' : ''}`}>
-                                <td className="py-2.5 px-3">
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                                <td className="py-2.5 px-3 whitespace-nowrap">
+                                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 whitespace-nowrap inline-block">
                                     Bon Jual
                                   </span>
                                 </td>
-                                <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{s.invoiceNumber}</td>
-                                <td className="py-2.5 px-3 text-slate-600">{formatDate(s.date)}</td>
-                                <td className="py-2.5 px-3 font-semibold text-slate-800">{s.customerName}</td>
-                                <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(s.grandTotal)}</td>
-                                <td className="py-2.5 px-3 text-right">
-                                  <div className="font-mono font-bold text-emerald-700">{formatCurrency(s.computedPaid)}</div>
-                                  {historyPayments.length > 0 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleRowExpand(s.id)}
-                                      className="text-[10px] text-amber-700 hover:text-amber-900 font-semibold underline flex items-center justify-end gap-0.5 ml-auto cursor-pointer"
-                                      title="Lihat riwayat pembayaran"
-                                    >
-                                      <span>{historyPayments.length}x bayar</span>
-                                      {isExpanded ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
-                                    </button>
-                                  )}
+                                <td className="py-2.5 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">{s.invoiceNumber}</td>
+                                <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">{formatDate(s.date)}</td>
+                                <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{s.customerName}</td>
+                                <td className="py-2.5 px-3 text-right font-mono whitespace-nowrap">{formatCurrency(s.grandTotal)}</td>
+                                <td 
+                                  onClick={() => toggleRowExpand(s.id)}
+                                  className="py-2.5 px-3 text-right cursor-pointer hover:bg-emerald-50/70 transition-colors select-none group"
+                                  title="Klik untuk membuka/menutup riwayat pembayaran & kwitansi"
+                                >
+                                  <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                    <span className="font-mono font-bold text-emerald-700 group-hover:underline">
+                                      {formatCurrency(s.computedPaid)}
+                                    </span>
+                                    {historyPayments.length > 0 && (
+                                      <span className="text-[10px] text-slate-400 group-hover:text-emerald-700">
+                                        {isExpanded ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />}
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
-                                <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-700">{formatCurrency(s.computedRemaining)}</td>
-                                <td className="py-2.5 px-3 text-center">
+                                <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-700 whitespace-nowrap">{formatCurrency(s.computedRemaining)}</td>
+                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                     s.isLunas ? 'bg-emerald-100 text-emerald-800' : s.computedPaid > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
                                   }`}>
                                     {s.isLunas ? 'Lunas' : s.computedPaid > 0 ? 'Ada Sisa' : 'Belum Lunas'}
                                   </span>
                                 </td>
-                                <td className="py-2.5 px-3 text-center">
-                                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                  <div className="flex items-center justify-center gap-1.5">
                                     {/* Tombol Cetak Nota Langsung */}
                                     <button
                                       type="button"
                                       onClick={() => onPrintDocument?.({ type: 'sale', data: s })}
-                                      className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                                       title="Cetak Nota Penjualan (Beserta Riwayat Pembayaran & Watermark Lunas)"
                                     >
                                       <Printer className="w-3 h-3 text-white" />
                                       <span>Cetak</span>
-                                    </button>
-
-                                    {/* Tombol Toggle Riwayat Cicilan */}
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleRowExpand(s.id)}
-                                      className={`px-2 py-1 text-[11px] font-semibold rounded flex items-center gap-1 cursor-pointer transition-colors border ${
-                                        isExpanded
-                                          ? 'bg-amber-100 border-amber-300 text-amber-900 font-bold'
-                                          : 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-700'
-                                      }`}
-                                      title="Buka / Tutup Riwayat Pembayaran"
-                                    >
-                                      <History className="w-3 h-3 text-amber-600" />
-                                      <span>Riwayat ({historyPayments.length})</span>
-                                      {isExpanded ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
-                                    </button>
-
-                                    {/* Tombol Rincian Modal */}
-                                    <button
-                                      type="button"
-                                      onClick={() => setSelectedDetailModal({ type: 'sale', id: s.id })}
-                                      className="px-2 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded cursor-pointer transition-colors"
-                                    >
-                                      Rincian
                                     </button>
 
                                     {/* Tombol Terima Pembayaran */}
@@ -1506,7 +1466,7 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
                                       <button
                                         type="button"
                                         onClick={() => handleOpenPaySaleModal(s)}
-                                        className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded cursor-pointer transition-colors shadow-2xs"
+                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
                                       >
                                         Terima
                                       </button>
@@ -1632,8 +1592,6 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
                   </table>
                 </div>
               </div>
-            </>
-          )}
         </div>
       )}
 
@@ -2390,192 +2348,6 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
         );
       })()}
 
-      {/* 6. MODAL RINCIAN PER PIHAK (PELANGGAN / SUPPLIER) BESERTA DAFTAR NOTA & CETAK */}
-      {selectedPartyDetail && (() => {
-        const isPur = selectedPartyDetail.type === 'purchase';
-        const partyName = selectedPartyDetail.name;
-        const listSales = isPur ? [] : processedSales.filter(s => s.customerName === partyName);
-        const listPurchases = isPur ? processedPurchases.filter(p => p.supplierName === partyName) : [];
-        const totalBill = isPur ? listPurchases.reduce((sum, p) => sum + p.grandTotal, 0) : listSales.reduce((sum, s) => sum + s.grandTotal, 0);
-        const totalPaid = isPur ? listPurchases.reduce((sum, p) => sum + p.computedPaid, 0) : listSales.reduce((sum, s) => sum + s.computedPaid, 0);
-        const totalRemaining = isPur ? listPurchases.reduce((sum, p) => sum + p.computedRemaining, 0) : listSales.reduce((sum, s) => sum + s.computedRemaining, 0);
-        const countInvoices = isPur ? listPurchases.length : listSales.length;
-
-        return (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-3xl w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 my-auto max-h-[92vh] flex flex-col">
-              
-              {/* Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
-                <div className="flex items-center gap-2.5">
-                  <div className={`p-2 rounded-xl ${isPur ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {isPur ? <Building2 className="w-5 h-5" /> : <Users className="w-5 h-5" />}
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900">
-                      Rincian Semua Nota Bon & Tagihan: {partyName}
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      {isPur ? 'Daftar Hutang Pembelian ke Supplier' : 'Daftar Bon & Tagihan Penjualan Pelanggan'} • {countInvoices} Nota
-                    </p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setSelectedPartyDetail(null)} 
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Summary Card */}
-              <div className="grid grid-cols-3 gap-2.5 my-3 p-3 bg-slate-50 rounded-xl border border-slate-200 shrink-0 text-xs">
-                <div>
-                  <span className="text-[10px] text-slate-500 font-bold block uppercase">Total Transaksi</span>
-                  <span className="font-mono font-bold text-slate-900 text-sm">{formatCurrency(totalBill)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 font-bold block uppercase">Sudah Dibayar</span>
-                  <span className="font-mono font-bold text-emerald-700 text-sm">{formatCurrency(totalPaid)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 font-bold block uppercase">
-                    {isPur ? 'Sisa Hutang Kita' : 'Sisa Tagihan Pelanggan'}
-                  </span>
-                  <span className={`font-mono font-bold text-sm ${totalRemaining > 0 ? (isPur ? 'text-rose-700' : 'text-amber-700') : 'text-emerald-700'}`}>
-                    {formatCurrency(totalRemaining)}
-                  </span>
-                </div>
-              </div>
-
-              {/* List of Invoices with Print & History */}
-              <div className="overflow-y-auto flex-1 space-y-3.5 pr-1">
-                {(isPur ? listPurchases : listSales).map((inv: any) => {
-                  const payments = isPur ? (inv.debtPayments || []) : (inv.customerDebtPayments || []);
-                  return (
-                    <div key={inv.id} className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-slate-900 text-xs">{inv.invoiceNumber}</span>
-                          <span className="text-[11px] text-slate-500">{formatDate(inv.date)}</span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            inv.isLunas ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {inv.isLunas ? 'Lunas' : 'Belum Lunas'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => onPrintDocument?.({ type: isPur ? 'purchase' : 'sale', data: inv })}
-                            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                            title="Cetak Nota Lengkap"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>Cetak Nota</span>
-                          </button>
-                          {!inv.isLunas && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedPartyDetail(null);
-                                if (isPur) handleOpenPayPurchaseModal(inv);
-                                else handleOpenPaySaleModal(inv);
-                              }}
-                              className={`px-2.5 py-1 text-white text-[11px] font-bold rounded cursor-pointer transition-colors shadow-2xs ${
-                                isPur ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'
-                              }`}
-                            >
-                              {isPur ? 'Bayar Hutang' : 'Terima Tagihan'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-lg font-mono">
-                        <span>Total: <strong>{formatCurrency(inv.grandTotal)}</strong></span>
-                        <span className="text-emerald-700">Terbayar: <strong>{formatCurrency(inv.computedPaid)}</strong></span>
-                        <span className={inv.computedRemaining > 0 ? (isPur ? 'text-rose-700 font-bold' : 'text-amber-700 font-bold') : 'text-emerald-700 font-bold'}>
-                          Sisa: {formatCurrency(inv.computedRemaining)}
-                        </span>
-                      </div>
-
-                      {/* Payment History Sub-table */}
-                      <div className="border-t border-slate-100 pt-2 text-xs">
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                          Riwayat Pembayaran & Cicilan ({payments.length}):
-                        </span>
-                        {payments.length > 0 ? (
-                          <div className="space-y-1">
-                            {payments.map((p: any, idx: number) => {
-                              const receiptNo = p.receiptNo || (isPur ? `BKK-${p.id}` : `BKM-${p.id}`);
-                              const remainingAfter = p.remainingAfter !== undefined ? p.remainingAfter : 0;
-                              return (
-                                <div key={p.id || idx} className="flex items-center justify-between p-2 bg-slate-50/80 rounded-lg text-[11px]">
-                                  <div className="space-y-0.5">
-                                    <div className="text-slate-800 font-semibold">
-                                      {idx + 1}. {p.notes || (idx === 0 ? 'DP' : 'Cicilan')} • <span className="font-mono text-slate-600">{receiptNo}</span>
-                                    </div>
-                                    <div className="text-[10px] text-slate-400">
-                                      {formatDateTime(p.date)} • Metode: {p.paymentMethod || 'Tunai'} • Oleh: {p.recordedBy || 'Admin'}
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-mono font-bold text-emerald-700">+{formatCurrency(p.amount)}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => onPrintDocument?.({
-                                        type: 'payment_receipt',
-                                        data: {
-                                          receiptType: isPur ? 'BKK' : 'BKM',
-                                          receiptNo,
-                                          title: isPur ? 'BUKTI PENGELUARAN KAS (BKK) - HUTANG SUPPLIER' : 'BUKTI PENERIMAAN KAS (BKM) - PIUTANG PELANGGAN',
-                                          date: p.date,
-                                          invoiceNumber: inv.invoiceNumber,
-                                          counterpartyName: partyName,
-                                          counterpartyType: isPur ? 'Supplier' : 'Pelanggan',
-                                          totalInvoiceAmount: inv.grandTotal,
-                                          paymentAmount: p.amount,
-                                          remainingDebt: remainingAfter,
-                                          paymentMethod: p.paymentMethod || 'Tunai',
-                                          notes: p.notes,
-                                          recordedBy: p.recordedBy || 'Admin',
-                                        }
-                                      })}
-                                      className="p-1 hover:bg-slate-200 rounded text-slate-600 cursor-pointer"
-                                      title="Cetak Kuitansi Bukti Pembayaran"
-                                    >
-                                      <Printer className="w-3.5 h-3.5 text-slate-700" />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 italic">Belum ada cicilan tercatat</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Footer */}
-              <div className="pt-3 border-t border-slate-200 flex justify-end shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setSelectedPartyDetail(null)}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
-                >
-                  Tutup
-                </button>
-              </div>
-
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 };
