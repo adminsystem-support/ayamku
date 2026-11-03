@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "Item": {
+      "title": "Item",
+      "description": "Indonesian poultry store stock item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "unit": { "type": "string" },
+        "currentStock": { "type": "number" },
+        "minStock": { "type": "number" },
+        "baseBuyPrice": { "type": "number" },
+        "sellPrice": { "type": "number" },
+        "description": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "unit", "currentStock", "sellPrice"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Poultry supplier profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Customer profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "type": { "type": "string" },
+        "defaultDiscountPercent": { "type": "number" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "PurchaseTransaction": {
+      "title": "PurchaseTransaction",
+      "description": "Stock purchase transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "date": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "totalItemsCost": { "type": "number" },
+        "grandTotal": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "paymentStatus": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "date", "supplierName", "grandTotal"]
+    },
+    "SaleTransaction": {
+      "title": "SaleTransaction",
+      "description": "POS sales transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "date": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "grandTotal": { "type": "number" },
+        "paymentMethod": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "date", "grandTotal"]
+    },
+    "StockOpnameRecord": {
+      "title": "StockOpnameRecord",
+      "description": "Stock adjustment record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "itemId": { "type": "string" },
+        "itemName": { "type": "string" },
+        "systemStock": { "type": "number" },
+        "physicalStock": { "type": "number" },
+        "difference": { "type": "number" },
+        "differenceCost": { "type": "number" },
+        "adjustedBy": { "type": "string" }
+      },
+      "required": ["id", "date", "itemId", "itemName", "physicalStock"]
+    }
+  },
+  "firestore": {
+    "/items/{itemId}": {
+      "schema": "Item",
+      "description": "Master stock items"
+    },
+    "/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "Suppliers database"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Customers database"
+    },
+    "/purchases/{purchaseId}": {
+      "schema": "PurchaseTransaction",
+      "description": "Purchases history"
+    },
+    "/sales/{saleId}": {
+      "schema": "SaleTransaction",
+      "description": "Sales history"
+    },
+    "/opnames/{opnameId}": {
+      "schema": "StockOpnameRecord",
+      "description": "Stock opname history"
+    }
+  }
+}

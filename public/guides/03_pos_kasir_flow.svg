@@ -1,0 +1,229 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="100%" height="100%">
+  <defs>
+    <linearGradient id="appBgGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <filter id="realShadow3" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- Canvas Background -->
+  <rect width="960" height="540" fill="url(#appBgGrad3)" rx="16"/>
+
+  <!-- Top System Header Banner -->
+  <rect x="25" y="20" width="910" height="60" rx="12" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+  <circle cx="58" cy="50" r="18" fill="#d97706" />
+  <text x="58" y="56" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="900" fill="#ffffff" text-anchor="middle">3</text>
+  <text x="92" y="44" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="800" fill="#ffffff">ALUR PROSES 3: KASIR NOTA, WATERMARK LUNAS &amp; CETAK/WA RAPI</text>
+  <text x="92" y="64" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#94a3b8">Nama Usaha: <tspan fill="#f59e0b" font-weight="bold">Ans Chicken Group</tspan> • Tampilan persis nota asli, watermark LUNAS &amp; total qty tanpa wraptex</text>
+
+  <!-- LEFT: KATALOG POS & KERANJANG (KasirPOS.tsx) -->
+  <g transform="translate(35, 96)">
+    <rect width="400" height="420" rx="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#realShadow3)"/>
+    
+    <!-- Header Kasir -->
+    <rect width="400" height="40" rx="14" fill="#f8fafc"/>
+    <text x="16" y="25" font-family="system-ui" font-size="11" font-weight="800" fill="#0f172a">🛒 Kasir POS - Ans Chicken Group</text>
+    <rect x="295" y="8" width="90" height="24" rx="6" fill="#065f46"/>
+    <text x="340" y="24" font-family="system-ui" font-size="8.5" font-weight="700" fill="#6ee7b7" text-anchor="middle">Kasir Aktif</text>
+    <line x1="0" y1="40" x2="400" y2="40" stroke="#e2e8f0"/>
+
+    <!-- Search & Category Filter -->
+    <g transform="translate(14, 50)">
+      <rect width="372" height="28" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="10" y="18" font-family="system-ui" font-size="9" fill="#94a3b8">🔍 Cari item ayam atau scan barcode...</text>
+
+      <!-- Category pills -->
+      <g transform="translate(0, 35)">
+        <rect width="50" height="20" rx="4" fill="#d97706"/>
+        <text x="25" y="14" font-family="system-ui" font-size="7.5" font-weight="700" fill="#ffffff" text-anchor="middle">Semua</text>
+
+        <rect x="56" width="70" height="20" rx="4" fill="#f1f5f9"/>
+        <text x="91" y="14" font-family="system-ui" font-size="7.5" fill="#475569" text-anchor="middle">Unggas Segar</text>
+
+        <rect x="132" width="55" height="20" rx="4" fill="#f1f5f9"/>
+        <text x="159" y="14" font-family="system-ui" font-size="7.5" fill="#475569" text-anchor="middle">Frozen</text>
+
+        <rect x="193" width="55" height="20" rx="4" fill="#f1f5f9"/>
+        <text x="220" y="14" font-family="system-ui" font-size="7.5" fill="#475569" text-anchor="middle">Olahan</text>
+      </g>
+    </g>
+
+    <!-- Item Cards Grid -->
+    <g transform="translate(14, 115)">
+      <!-- Item 1 -->
+      <rect width="180" height="52" rx="8" fill="#f8fafc" stroke="#f59e0b" stroke-width="1.2"/>
+      <text x="10" y="18" font-family="system-ui" font-size="9" font-weight="800" fill="#0f172a">Ayam Fillet Paha</text>
+      <text x="10" y="32" font-family="system-ui" font-size="8" fill="#059669">Rp 43.700/Kg • Stok: 45.5 Kg</text>
+      <rect x="130" y="12" width="42" height="26" rx="5" fill="#d97706"/>
+      <text x="151" y="28" font-family="system-ui" font-size="8.5" font-weight="800" fill="#ffffff" text-anchor="middle">＋ Pilih</text>
+
+      <!-- Item 2 -->
+      <g transform="translate(192, 0)">
+        <rect width="180" height="52" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="10" y="18" font-family="system-ui" font-size="9" font-weight="800" fill="#0f172a">Sayap Broiler</text>
+        <text x="10" y="32" font-family="system-ui" font-size="8" fill="#059669">Rp 32.000/Kg • Stok: 60 Kg</text>
+        <rect x="130" y="12" width="42" height="26" rx="5" fill="#f1f5f9" stroke="#cbd5e1"/>
+        <text x="151" y="28" font-family="system-ui" font-size="8.5" font-weight="600" fill="#334155" text-anchor="middle">＋ Pilih</text>
+      </g>
+    </g>
+
+    <!-- Cart Box in KasirPOS -->
+    <g transform="translate(14, 178)">
+      <rect width="372" height="150" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="12" y="20" font-family="system-ui" font-size="9" font-weight="800" fill="#0f172a">Keranjang Belanja Aktif:</text>
+
+      <!-- Cart Item 1 -->
+      <g transform="translate(12, 30)">
+        <text x="0" y="12" font-family="system-ui" font-size="8.5" font-weight="700" fill="#0f172a">Ayam Fillet Paha</text>
+        <text x="0" y="24" font-family="system-ui" font-size="7.5" fill="#64748b">12.50 Kg x Rp 43.700</text>
+        <text x="348" y="18" font-family="system-ui" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="end">Rp 546.250</text>
+        <line x1="0" y1="30" x2="348" y2="30" stroke="#e2e8f0"/>
+      </g>
+
+      <!-- Cart Item 2 -->
+      <g transform="translate(12, 65)">
+        <text x="0" y="12" font-family="system-ui" font-size="8.5" font-weight="700" fill="#0f172a">Sayap Broiler</text>
+        <text x="0" y="24" font-family="system-ui" font-size="7.5" fill="#64748b">5.00 Kg x Rp 32.000</text>
+        <text x="348" y="18" font-family="system-ui" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="end">Rp 160.000</text>
+        <line x1="0" y1="30" x2="348" y2="30" stroke="#e2e8f0"/>
+      </g>
+
+      <!-- Customer & Total -->
+      <g transform="translate(12, 105)">
+        <text x="0" y="14" font-family="system-ui" font-size="8.5" fill="#64748b">Pelanggan: <tspan fill="#0284c7" font-weight="bold">Resto Sambal Bakar</tspan></text>
+        <text x="348" y="14" font-family="system-ui" font-size="8.5" font-weight="700" fill="#475569" text-anchor="end">Total Qty: 17.50 Kg</text>
+
+        <text x="0" y="32" font-family="system-ui" font-size="9.5" font-weight="800" fill="#0f172a">TOTAL TAGIHAN:</text>
+        <text x="348" y="34" font-family="system-ui" font-size="13" font-weight="900" fill="#059669" text-anchor="end">Rp 706.250</text>
+      </g>
+    </g>
+
+    <!-- Payment CTA -->
+    <g transform="translate(14, 340)">
+      <rect width="180" height="34" rx="8" fill="#059669"/>
+      <text x="90" y="21" font-family="system-ui" font-size="9.5" font-weight="800" fill="#ffffff" text-anchor="middle">Bayar Tunai (Lunas)</text>
+
+      <rect x="192" width="180" height="34" rx="8" fill="#d97706"/>
+      <text x="282" y="21" font-family="system-ui" font-size="9.5" font-weight="800" fill="#ffffff" text-anchor="middle">Selesaikan &amp; Cetak ➔</text>
+      
+      <text x="186" y="55" font-family="system-ui" font-size="8" fill="#64748b" text-anchor="middle">Otomatis mencetak watermark LUNAS jika dibayar lunas</text>
+    </g>
+  </g>
+
+  <!-- Flow Connector -->
+  <g transform="translate(445, 290)">
+    <line x1="0" y1="0" x2="30" y2="0" stroke="#059669" stroke-width="3" stroke-linecap="round"/>
+    <polygon points="30,-5 40,0 30,5" fill="#059669" />
+  </g>
+
+  <!-- RIGHT: REAL PRINT PREVIEW DENGAN WATERMARK LUNAS (PrintModal.tsx) -->
+  <g transform="translate(495, 96)">
+    <!-- Document Card -->
+    <rect width="430" height="420" rx="14" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" filter="url(#realShadow3)"/>
+
+    <!-- Top Action Bar (PrintModal Actions: Cetak, PDF, WhatsApp) -->
+    <g transform="translate(14, 10)">
+      <rect width="402" height="36" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+      <text x="12" y="22" font-family="system-ui" font-size="8.5" font-weight="700" fill="#475569">Preview Nota:</text>
+
+      <!-- Print Button -->
+      <rect x="155" y="6" width="72" height="24" rx="5" fill="#2563eb"/>
+      <text x="191" y="21" font-family="system-ui" font-size="8" font-weight="800" fill="#ffffff" text-anchor="middle">🖨️ Cetak</text>
+
+      <!-- PDF Download Button -->
+      <rect x="233" y="6" width="76" height="24" rx="5" fill="#dc2626"/>
+      <text x="271" y="21" font-family="system-ui" font-size="8" font-weight="800" fill="#ffffff" text-anchor="middle">📥 PDF</text>
+
+      <!-- WhatsApp Button -->
+      <rect x="315" y="6" width="80" height="24" rx="5" fill="#16a34a"/>
+      <text x="355" y="21" font-family="system-ui" font-size="8" font-weight="800" fill="#ffffff" text-anchor="middle">💬 WhatsApp</text>
+    </g>
+    <line x1="0" y1="52" x2="430" y2="52" stroke="#e2e8f0"/>
+
+    <!-- Document Content (Exact Match to PrintModal.tsx Sale Template) -->
+    <g transform="translate(20, 60)">
+      
+      <!-- WATERMARK LUNAS (Identik persis dengan kode PrintModal.tsx) -->
+      <g transform="translate(195, 160) rotate(-22)">
+        <rect x="-120" y="-35" width="240" height="70" rx="16" fill="none" stroke="#059669" stroke-width="5" opacity="0.22"/>
+        <text x="0" y="8" font-family="system-ui, sans-serif" font-size="38" font-weight="900" fill="#059669" opacity="0.25" text-anchor="middle" letter-spacing="6">L U N A S</text>
+        <line x1="-100" y1="16" x2="100" y2="16" stroke="#059669" stroke-width="1.5" opacity="0.25"/>
+        <text x="0" y="27" font-family="system-ui, sans-serif" font-size="7" font-weight="800" fill="#059669" opacity="0.30" text-anchor="middle" letter-spacing="1">SUDAH DIBAYAR LUNAS • DIVERIFIKASI SISTEM</text>
+      </g>
+
+      <!-- Store Header with Logo -->
+      <g transform="translate(0, 0)">
+        <rect width="36" height="36" rx="8" fill="#fffbeb" stroke="#fde68a"/>
+        <text x="18" y="24" font-size="18" text-anchor="middle">🐓</text>
+        
+        <text x="46" y="14" font-family="system-ui" font-size="12" font-weight="900" fill="#0f172a">Ans Chicken Group</text>
+        <text x="46" y="26" font-family="system-ui" font-size="7.5" fill="#64748b">Pasar Kemis - Tangerang</text>
+        <text x="46" y="36" font-family="system-ui" font-size="7.5" fill="#64748b">Telp/WA: 0812-8648-218</text>
+
+        <text x="390" y="14" font-family="monospace" font-size="9" font-weight="bold" fill="#0f172a" text-anchor="end">NOTA-2026-0042</text>
+        <text x="390" y="26" font-family="system-ui" font-size="7.5" fill="#64748b" text-anchor="end">Tgl: 02/11/2026 10:15</text>
+      </g>
+      <line x1="0" y1="44" x2="390" y2="44" stroke="#cbd5e1" stroke-width="1.2"/>
+
+      <!-- Customer Info Box -->
+      <g transform="translate(0, 50)">
+        <text x="0" y="10" font-family="system-ui" font-size="8" fill="#64748b">Pelanggan: <tspan fill="#0f172a" font-weight="bold">Resto Sambal Bakar</tspan></text>
+        <text x="390" y="10" font-family="system-ui" font-size="8" fill="#64748b" text-anchor="end">Status: <tspan fill="#059669" font-weight="bold">LUNAS (TUNAI)</tspan></text>
+      </g>
+
+      <!-- Table Header -->
+      <g transform="translate(0, 70)">
+        <rect width="390" height="20" rx="3" fill="#f1f5f9"/>
+        <text x="8" y="14" font-family="system-ui" font-size="7.5" font-weight="bold" fill="#475569">ITEM BARANG</text>
+        <text x="180" y="14" font-family="system-ui" font-size="7.5" font-weight="bold" fill="#475569">QTY</text>
+        <text x="260" y="14" font-family="system-ui" font-size="7.5" font-weight="bold" fill="#475569">HARGA</text>
+        <text x="382" y="14" font-family="system-ui" font-size="7.5" font-weight="bold" fill="#475569" text-anchor="end">SUBTOTAL</text>
+
+        <!-- Item 1 -->
+        <text x="8" y="34" font-family="system-ui" font-size="8" font-weight="bold" fill="#0f172a">Ayam Fillet Paha</text>
+        <text x="180" y="34" font-family="system-ui" font-size="8" fill="#334155">12.50 Kg</text>
+        <text x="260" y="34" font-family="system-ui" font-size="8" fill="#334155">43.700</text>
+        <text x="382" y="34" font-family="system-ui" font-size="8" font-weight="bold" fill="#0f172a" text-anchor="end">546.250</text>
+
+        <!-- Item 2 -->
+        <text x="8" y="52" font-family="system-ui" font-size="8" font-weight="bold" fill="#0f172a">Sayap Broiler</text>
+        <text x="180" y="52" font-family="system-ui" font-size="8" fill="#334155">5.00 Kg</text>
+        <text x="260" y="52" font-family="system-ui" font-size="8" fill="#334155">32.000</text>
+        <text x="382" y="52" font-family="system-ui" font-size="8" font-weight="bold" fill="#0f172a" text-anchor="end">160.000</text>
+        
+        <line x1="0" y1="62" x2="390" y2="62" stroke="#e2e8f0"/>
+      </g>
+
+      <!-- SUMMARY BOX: TOTAL QTY SATU BARIS RAPI TANPA WRAPTEX -->
+      <g transform="translate(0, 142)">
+        <rect width="390" height="48" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+        
+        <!-- Total Qty Row (No Wrap) -->
+        <text x="12" y="18" font-family="system-ui" font-size="8" font-weight="bold" fill="#0f172a">TOTAL KUANTITAS (QTY) :</text>
+        <!-- Single unbroken line -->
+        <text x="378" y="18" font-family="system-ui" font-size="9" font-weight="bold" fill="#047857" text-anchor="end">17.50 Kg (Tanpa Wraptext/Terpotong)</text>
+
+        <line x1="12" y1="26" x2="378" y2="26" stroke="#e2e8f0"/>
+
+        <!-- Grand Total Row -->
+        <text x="12" y="40" font-family="system-ui" font-size="9" font-weight="900" fill="#0f172a">TOTAL TAGIHAN :</text>
+        <text x="378" y="40" font-family="system-ui" font-size="11" font-weight="900" fill="#059669" text-anchor="end">Rp 706.250</text>
+      </g>
+
+      <!-- Payment info & footer -->
+      <g transform="translate(0, 202)">
+        <text x="0" y="14" font-family="system-ui" font-size="8" fill="#64748b">Bayar Tunai: Rp 750.000 • Kembalian: Rp 43.750</text>
+        <text x="0" y="28" font-family="system-ui" font-size="8" fill="#64748b">BCA: 0000000001 (Ans Chicken Group)</text>
+        <text x="195" y="52" font-family="system-ui" font-size="8" fill="#64748b" text-anchor="middle">Terima kasih atas kepercayaan Anda kepada Ans Chicken Group!</text>
+      </g>
+    </g>
+
+    <!-- Bottom confirmation note -->
+    <rect x="14" y="380" width="402" height="26" rx="6" fill="#ecfdf5" stroke="#a7f3d0"/>
+    <text x="215" y="397" font-family="system-ui" font-size="8" font-weight="bold" fill="#065f46" text-anchor="middle">✓ Watermark LUNAS tampil seragam pada Print, Download PDF, dan WhatsApp</text>
+  </g>
+</svg>

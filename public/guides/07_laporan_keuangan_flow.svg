@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="100%" height="100%">
+  <defs>
+    <linearGradient id="appBgGrad7" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <filter id="realShadow7" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="540" fill="url(#appBgGrad7)" rx="16"/>
+
+  <!-- Top System Header Banner -->
+  <rect x="25" y="20" width="910" height="60" rx="12" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+  <circle cx="58" cy="50" r="18" fill="#10b981" />
+  <text x="58" y="56" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="900" fill="#ffffff" text-anchor="middle">7</text>
+  <text x="92" y="44" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="800" fill="#ffffff">ALUR PROSES 7: LAPORAN KEUANGAN TERPADU 1 HALAMAN (OWNER)</text>
+  <text x="92" y="64" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#94a3b8">Nama Usaha: <tspan fill="#f59e0b" font-weight="bold">Ans Chicken Group</tspan> • Tampilan persis 4 kotak indikator laba rugi &amp; arus kas nyata</text>
+
+  <!-- LEFT: 4 KOTAK KPI LAPORAN KEUANGAN (FinancialReport.tsx) -->
+  <g transform="translate(35, 96)">
+    <!-- Box 1: Total Penjualan -->
+    <rect width="270" height="92" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#realShadow7)"/>
+    <text x="16" y="24" font-family="system-ui" font-size="9" font-weight="800" fill="#047857">1. TOTAL PENJUALAN (OMSET)</text>
+    <text x="16" y="54" font-family="system-ui" font-size="19" font-weight="900" fill="#0f172a">Rp 48.750.000</text>
+    <text x="16" y="74" font-family="system-ui" font-size="7.5" fill="#64748b">Nota Kasir Tunai + Pelunasan Bon</text>
+
+    <!-- Box 2: HPP Belanja Modal -->
+    <g transform="translate(0, 106)">
+      <rect width="270" height="92" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#realShadow7)"/>
+      <text x="16" y="24" font-family="system-ui" font-size="9" font-weight="800" fill="#b45309">2. MODAL BELANJA AYAM (HPP)</text>
+      <text x="16" y="54" font-family="system-ui" font-size="19" font-weight="900" fill="#d97706">Rp 39.800.000</text>
+      <text x="16" y="74" font-family="system-ui" font-size="7.5" fill="#64748b">Pembelian Ayam Peternak (Keuntungan Kotor: Rp 8.950.000)</text>
+    </g>
+
+    <!-- Box 3: Biaya Operasional & Gaji -->
+    <g transform="translate(0, 212)">
+      <rect width="270" height="92" rx="10" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#realShadow7)"/>
+      <text x="16" y="24" font-family="system-ui" font-size="9" font-weight="800" fill="#b91c1c">3. BIAYA GAJI &amp; OPERASIONAL</text>
+      <text x="16" y="54" font-family="system-ui" font-size="19" font-weight="900" fill="#dc2626">- Rp 3.420.000</text>
+      <text x="16" y="74" font-family="system-ui" font-size="7.5" fill="#64748b">Gaji Karyawan, Kasbon, Es Balok, Bensin, Plastik</text>
+    </g>
+
+    <!-- Box 4: Keuntungan Bersih (Profit Nyata) -->
+    <g transform="translate(0, 318)">
+      <rect width="270" height="98" rx="10" fill="#ecfdf5" stroke="#10b981" stroke-width="2" filter="url(#realShadow7)"/>
+      <text x="16" y="24" font-family="system-ui" font-size="9.5" font-weight="900" fill="#065f46">KEUNTUNGAN BERSIH NYATA</text>
+      <text x="16" y="60" font-family="system-ui" font-size="23" font-weight="900" fill="#047857">+ Rp 5.530.000</text>
+      <text x="16" y="82" font-family="system-ui" font-size="8.5" font-weight="bold" fill="#059669">Margin Laba Bersih: 11.3% (Ans Chicken Group)</text>
+    </g>
+  </g>
+
+  <!-- CENTER: REKAP ARUS KAS LACI KASIR (FinancialReport.tsx Cashflow Table) -->
+  <g transform="translate(325, 96)">
+    <rect width="345" height="420" rx="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#realShadow7)"/>
+    <rect width="345" height="40" rx="14" fill="#f8fafc"/>
+    <text x="16" y="25" font-family="system-ui" font-size="10.5" font-weight="800" fill="#0f172a">💵 Rekonsiliasi Arus Kas Laci Kasir</text>
+    <line x1="0" y1="40" x2="345" y2="40" stroke="#e2e8f0"/>
+
+    <g transform="translate(14, 52)">
+      <text x="0" y="10" font-family="system-ui" font-size="8.5" font-weight="bold" fill="#475569">Rincian Perputaran Kas Fisik Toko:</text>
+
+      <!-- Row 1: Saldo Awal -->
+      <g transform="translate(0, 20)">
+        <rect width="317" height="45" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="10" y="20" font-family="system-ui" font-size="8.5" fill="#334155">Saldo Kas Awal Bulan:</text>
+        <text x="307" y="20" font-family="system-ui" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="end">Rp 4.000.000</text>
+        <text x="10" y="34" font-family="system-ui" font-size="7.5" fill="#64748b">Uang kas modal kerja di laci toko</text>
+      </g>
+
+      <!-- Row 2: Kas Masuk -->
+      <g transform="translate(0, 72)">
+        <rect width="317" height="45" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="10" y="20" font-family="system-ui" font-size="8.5" font-weight="bold" fill="#059669">(+) Penerimaan Kasir:</text>
+        <text x="307" y="20" font-family="system-ui" font-size="9.5" font-weight="900" fill="#059669" text-anchor="end">+ Rp 48.750.000</text>
+        <text x="10" y="34" font-family="system-ui" font-size="7.5" fill="#64748b">Penjualan ayam tunai &amp; cicilan piutang</text>
+      </g>
+
+      <!-- Row 3: Bayar Peternak -->
+      <g transform="translate(0, 124)">
+        <rect width="317" height="45" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="10" y="20" font-family="system-ui" font-size="8.5" font-weight="bold" fill="#dc2626">(-) Pembayaran Ayam Peternak:</text>
+        <text x="307" y="20" font-family="system-ui" font-size="9.5" font-weight="900" fill="#dc2626" text-anchor="end">- Rp 39.800.000</text>
+        <text x="10" y="34" font-family="system-ui" font-size="7.5" fill="#64748b">Faktur ayam hidup broiler &amp; karkas</text>
+      </g>
+
+      <!-- Row 4: Biaya Toko -->
+      <g transform="translate(0, 176)">
+        <rect width="317" height="45" rx="6" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="10" y="20" font-family="system-ui" font-size="8.5" font-weight="bold" fill="#dc2626">(-) Beban Toko &amp; Gaji:</text>
+        <text x="307" y="20" font-family="system-ui" font-size="9.5" font-weight="900" fill="#dc2626" text-anchor="end">- Rp 3.420.000</text>
+        <text x="10" y="34" font-family="system-ui" font-size="7.5" fill="#64748b">Es balok, bensin, plastik, &amp; gaji staf</text>
+      </g>
+
+      <!-- Final Cash Box -->
+      <g transform="translate(0, 230)">
+        <rect width="317" height="85" rx="8" fill="#047857" stroke="#059669"/>
+        <text x="14" y="24" font-family="system-ui" font-size="9.5" font-weight="900" fill="#ffffff">SALDO KAS FISIK AKHIR (REKOMENDASI)</text>
+        <text x="14" y="55" font-family="system-ui" font-size="22" font-weight="900" fill="#ffffff">Rp 9.530.000</text>
+        <text x="14" y="74" font-family="system-ui" font-size="7.5" fill="#a7f3d0">Harus sama persis dengan total uang di laci + rekening BCA</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- RIGHT: FILTER WAKTU & TOMBOL EKSPOR (FinancialReport.tsx) -->
+  <g transform="translate(690, 96)">
+    <rect width="235" height="420" rx="14" fill="#0f172a" stroke="#334155" stroke-width="1.5" filter="url(#realShadow7)"/>
+    <rect width="235" height="40" rx="14" fill="#1e293b"/>
+    <text x="117" y="25" font-family="system-ui" font-size="10" font-weight="800" fill="#cbd5e1" text-anchor="middle">Filter Waktu &amp; Ekspor Laporan</text>
+
+    <!-- Period buttons matching FinancialReport.tsx -->
+    <g transform="translate(14, 52)">
+      <text x="0" y="10" font-family="system-ui" font-size="8" font-weight="bold" fill="#94a3b8">PILIH PERIODE:</text>
+
+      <g transform="translate(0, 16)">
+        <rect width="64" height="26" rx="5" fill="#1e293b" stroke="#475569"/>
+        <text x="32" y="17" font-family="system-ui" font-size="8" fill="#cbd5e1" text-anchor="middle">Hari Ini</text>
+
+        <rect x="70" width="68" height="26" rx="5" fill="#1e293b" stroke="#475569"/>
+        <text x="104" y="17" font-family="system-ui" font-size="8" fill="#cbd5e1" text-anchor="middle">Minggu Ini</text>
+
+        <rect x="144" width="64" height="26" rx="5" fill="#d97706"/>
+        <text x="176" y="17" font-family="system-ui" font-size="8" font-weight="bold" fill="#ffffff" text-anchor="middle">Bulan Ini</text>
+      </g>
+    </g>
+
+    <!-- Export Action Buttons -->
+    <g transform="translate(14, 125)">
+      <text x="0" y="10" font-family="system-ui" font-size="8" font-weight="bold" fill="#cbd5e1">CETAK &amp; DOWNLOAD PEMBUKUAN:</text>
+
+      <!-- PDF Download -->
+      <rect x="0" y="20" width="207" height="38" rx="7" fill="#dc2626"/>
+      <text x="103" y="44" font-family="system-ui" font-size="10" font-weight="800" fill="#ffffff" text-anchor="middle">📥 Download Laporan PDF</text>
+
+      <!-- Excel Export -->
+      <rect x="0" y="66" width="207" height="38" rx="7" fill="#16a34a"/>
+      <text x="103" y="90" font-family="system-ui" font-size="10" font-weight="800" fill="#ffffff" text-anchor="middle">📊 Ekspor ke Microsoft Excel</text>
+
+      <!-- Print Button -->
+      <rect x="0" y="112" width="207" height="38" rx="7" fill="#2563eb"/>
+      <text x="103" y="136" font-family="system-ui" font-size="10" font-weight="800" fill="#ffffff" text-anchor="middle">🖨️ Cetak Lembaran A4</text>
+    </g>
+
+    <!-- Info text -->
+    <g transform="translate(14, 305)">
+      <rect width="207" height="90" rx="8" fill="#020617" stroke="#334155"/>
+      <text x="10" y="20" font-family="system-ui" font-size="8" font-weight="bold" fill="#38bdf8">Toko: Ans Chicken Group</text>
+      <text x="10" y="34" font-family="system-ui" font-size="7.5" fill="#94a3b8">Lokasi: Pasar Kemis - Tangerang</text>
+      <text x="10" y="48" font-family="system-ui" font-size="7.5" fill="#94a3b8">BCA: 0000000001 (Ans Chicken)</text>
+      <text x="10" y="64" font-family="system-ui" font-size="7.5" font-weight="bold" fill="#34d399">Siap untuk pelaporan pajak usaha</text>
+      <text x="10" y="78" font-family="system-ui" font-size="7" fill="#64748b">&amp; pembukuan owner H. Suryanto</text>
+    </g>
+  </g>
+</svg>
