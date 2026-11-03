@@ -36,7 +36,11 @@ const STORAGE_KEYS = {
   PROCESSED_CALCS: 'ayampro_processed_calcs',
   STORE_PROFILE: 'ayampro_profile',
   USERS: 'ayampro_users',
+  LAST_ACTIVITY: 'ayampro_last_activity',
 };
+
+export const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 Menit Auto-Kick
+export const SESSION_WARNING_MS = 28 * 60 * 1000; // 28 Menit Peringatan (2 menit sebelum kick)
 
 export const DEFAULT_USERS: AuthUser[] = [
   {
@@ -45,6 +49,7 @@ export const DEFAULT_USERS: AuthUser[] = [
     name: 'H. Suryanto (Owner/Admin)',
     role: 'admin',
     roleLabel: 'Administrator Usaha',
+    password: 'admin',
   },
   {
     id: 'user-operator',
@@ -52,20 +57,21 @@ export const DEFAULT_USERS: AuthUser[] = [
     name: 'Siti Rohimah (Kasir & Petugas Gudang)',
     role: 'user',
     roleLabel: 'User Operasional (Kasir / Gudang)',
+    password: 'user',
   },
 ];
 
 // Initial Realistic Seed Data for Indonesian Poultry Business
 const DEFAULT_STORE_PROFILE: StoreProfile = {
-  name: 'Berkah Unggas Sejahtera',
-  phone: '0812-3456-7890',
-  address: 'Jl. Raya Pasar Unggas No. 18, Sentra Daging Ayam Segar',
-  footerNote: 'Terima kasih telah berbelanja ayam segar & berkualitas!',
+  name: 'Ans Chicken Group',
+  phone: '0812-8648-218',
+  address: 'Pasar Kemis - Tangerang',
+  footerNote: 'Terima kasih telah berbelanja ayam segar & berkualitas di Ans Chicken Group!',
   logoUrl: '/logo_unggas.svg',
   thermalWidth: '58mm',
   bankName: 'Bank BCA',
-  bankAccountNo: '7820-1199-88',
-  bankAccountName: 'Berkah Unggas Sejahtera (H. Suryanto)',
+  bankAccountNo: '0000000001',
+  bankAccountName: 'Ans Chicken Group',
 };
 
 const DEFAULT_ITEMS: Item[] = [
@@ -679,26 +685,57 @@ export const StorageManager = {
       localStorage.clear();
       localStorage.setItem('ayampro_cleared_v3', 'true');
       localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(finalUsers));
-      localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(finalUsers[0]));
+      // Jangan set CURRENT_USER otomatis agar pengguna wajib login dengan akun yang sah
     }
+  },
+
+  getLastActivity(): number {
+    const ts = localStorage.getItem(STORAGE_KEYS.LAST_ACTIVITY);
+    if (!ts) return 0;
+    const parsed = parseInt(ts, 10);
+    return isNaN(parsed) ? 0 : parsed;
+  },
+
+  updateLastActivity() {
+    localStorage.setItem(STORAGE_KEYS.LAST_ACTIVITY, Date.now().toString());
+  },
+
+  isSessionExpired(): boolean {
+    const user = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+    if (!user) return false;
+    const lastActivity = this.getLastActivity();
+    if (!lastActivity) return false;
+    return (Date.now() - lastActivity) > SESSION_IDLE_TIMEOUT_MS;
+  },
+
+  clearSession() {
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    localStorage.removeItem(STORAGE_KEYS.LAST_ACTIVITY);
   },
 
   getCurrentUser(): AuthUser | null {
     this.checkAndClearOldData();
+    // Jika tidak aktif > 30 menit, auto-kick dengan membersihkan sesi
+    if (this.isSessionExpired()) {
+      this.clearSession();
+      return null;
+    }
     const data = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-    if (!data) return DEFAULT_USERS[0];
+    if (!data) return null; // Tidak lagi fallback otomatis ke DEFAULT_USERS[0]
     try {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      return parsed && parsed.id ? parsed : null;
     } catch {
-      return DEFAULT_USERS[0];
+      return null;
     }
   },
 
   setCurrentUser(user: AuthUser | null) {
     if (!user) {
-      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+      this.clearSession();
     } else {
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+      this.updateLastActivity();
     }
   },
 

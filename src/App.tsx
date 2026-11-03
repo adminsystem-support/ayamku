@@ -26,7 +26,7 @@ import {
   CustomerPreOrder,
   EmployeeKasbonRecord
 } from './types/index.ts';
-import { StorageManager, DEFAULT_USERS } from './utils/storage.ts';
+import { StorageManager, DEFAULT_USERS, SESSION_IDLE_TIMEOUT_MS, SESSION_WARNING_MS } from './utils/storage.ts';
 import { Sidebar } from './components/Sidebar.tsx';
 import { LoginPage } from './components/LoginPage.tsx';
 import { KasirPOS } from './components/KasirPOS.tsx';
@@ -38,7 +38,8 @@ import { OperationalManagement } from './components/OperationalManagement.tsx';
 import { FinancialReport } from './components/FinancialReport.tsx';
 import { StoreSettings } from './components/StoreSettings.tsx';
 import { PrintModal, PrintData } from './components/PrintModal.tsx';
-import { Menu, ShieldCheck, User as UserIcon, LogOut, CheckCircle2, X } from 'lucide-react';
+import { ManualBookModal } from './components/ManualBookModal.tsx';
+import { Menu, ShieldCheck, User as UserIcon, LogOut, CheckCircle2, X, Lock, Clock, AlertTriangle, BookOpen } from 'lucide-react';
 import {
   COLLECTIONS,
   subscribeCollection,
@@ -73,14 +74,17 @@ export default function App() {
   // Authentication & Navigation
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
     const saved = StorageManager.getCurrentUser();
-    if (!saved) return DEFAULT_USERS[0];
+    if (!saved) return null; // Wajib login, tidak auto-login
     const allUsers = StorageManager.getUsers();
     const latest = allUsers.find(u => u.id === saved.id);
     return latest || saved;
   });
+  const [sessionMessage, setSessionMessage] = useState<string | null>(null);
+  const [idleWarningSeconds, setIdleWarningSeconds] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('pos');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [preselectedOpnameItemId, setPreselectedOpnameItemId] = useState<string | undefined>(undefined);
+  const [isManualBookOpen, setIsManualBookOpen] = useState(false);
 
   // App State Loaded from LocalStorage & Synchronized via Realtime Firestore
   const [storeProfile, setStoreProfile] = useState<StoreProfile>(() => StorageManager.getStoreProfile());
@@ -320,19 +324,86 @@ export default function App() {
     }, 4500);
   };
 
+  // Lock Screen & Session Actions
+  const handleLockScreen = () => {
+    StorageManager.clearSession();
+    setCurrentUser(null);
+    setIdleWarningSeconds(null);
+    setSessionMessage('Layar berhasil dikunci demi keamanan kasir. Masukkan username dan password kembali untuk melanjutkan.');
+  };
+
+  const handleKeepSessionAlive = () => {
+    StorageManager.updateLastActivity();
+    setIdleWarningSeconds(null);
+    showToast('Sesi kasir diperpanjang. Selamat melanjutkan pekerjaan!');
+  };
+
   // Save current user on change
   const handleLogin = (user: AuthUser) => {
     setCurrentUser(user);
     StorageManager.setCurrentUser(user);
     syncSaveUser(user);
+    setSessionMessage(null);
+    setIdleWarningSeconds(null);
     setActiveTab('pos');
     showToast(`Selamat datang, ${user.name}!`);
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
-    StorageManager.setCurrentUser(null);
+    StorageManager.clearSession();
+    setIdleWarningSeconds(null);
+    setSessionMessage('Anda telah keluar dari akun kasir. Silakan login kembali.');
   };
+
+  // Inactivity Auto-Kick Tracker: 30 menit kick, 28 menit countdown warning
+  useEffect(() => {
+    if (!currentUser) return;
+
+    if (!StorageManager.getLastActivity()) {
+      StorageManager.updateLastActivity();
+    }
+
+    let lastThrottle = Date.now();
+    const onUserActivity = () => {
+      const now = Date.now();
+      // Throttle update aktivitas maksimal tiap 5 detik untuk efisiensi
+      if (now - lastThrottle > 5000) {
+        lastThrottle = now;
+        StorageManager.updateLastActivity();
+        if (idleWarningSeconds !== null) {
+          setIdleWarningSeconds(null);
+        }
+      }
+    };
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    events.forEach(evt => window.addEventListener(evt, onUserActivity, { passive: true }));
+
+    const timer = setInterval(() => {
+      const lastAct = StorageManager.getLastActivity();
+      if (!lastAct) return;
+      const elapsed = Date.now() - lastAct;
+
+      if (elapsed >= SESSION_IDLE_TIMEOUT_MS) {
+        // Auto-kick triggered
+        StorageManager.clearSession();
+        setCurrentUser(null);
+        setIdleWarningSeconds(null);
+        setSessionMessage('Sesi Anda telah berakhir otomatis karena tidak ada aktivitas selama 30 menit. Silakan login kembali dengan username dan password demi keamanan.');
+      } else if (elapsed >= SESSION_WARNING_MS) {
+        const remaining = Math.max(0, Math.ceil((SESSION_IDLE_TIMEOUT_MS - elapsed) / 1000));
+        setIdleWarningSeconds(remaining);
+      } else {
+        setIdleWarningSeconds(null);
+      }
+    }, 1000);
+
+    return () => {
+      events.forEach(evt => window.removeEventListener(evt, onUserActivity));
+      clearInterval(timer);
+    };
+  }, [currentUser, idleWarningSeconds]);
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -791,12 +862,64 @@ export default function App() {
         </div>
       )}
 
+      {/* IDLE WARNING MODAL (28 menit tidak aktif, 2 menit countdown sebelum kick) */}
+      {idleWarningSeconds !== null && idleWarningSeconds > 0 && currentUser && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-amber-300 max-w-md w-full p-6 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-600 shrink-0">
+                <Clock className="w-6 h-6 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-base leading-tight">Peringatan: Sesi Tidak Aktif</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Tidak ada aktivitas selama 28 menit</p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-xs text-amber-900 space-y-2">
+              <p className="leading-relaxed">
+                Demi menjaga keamanan data transaksi dan mencegah penyalahgunaan kasir oleh orang lain, sistem akan otomatis melakukan <span className="font-bold text-amber-950">Auto-Kick</span> dalam:
+              </p>
+              <div className="text-center py-2">
+                <span className="font-mono text-3xl font-black text-amber-700 tracking-wider">
+                  {idleWarningSeconds} detik
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800">
+                Klik tombol di bawah atau gerakkan kursor untuk memperpanjang sesi kerja Anda.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleLockScreen}
+                className="py-2.5 px-3 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Lock className="w-4 h-4 text-slate-500" />
+                <span>Kunci Sekarang</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleKeepSessionAlive}
+                className="py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md shadow-amber-600/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Tetap Masuk</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* LEFT SIDEBAR NAVIGATION */}
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         currentUser={currentUser}
         onLogout={handleLogout}
+        onLockScreen={handleLockScreen}
+        onOpenManualBook={() => setIsManualBookOpen(true)}
         storeName={storeProfile.name}
         logoUrl={storeProfile.logoUrl || '/logo_unggas.svg'}
         pendingOpnameCount={pendingOpnameCount}
@@ -839,8 +962,15 @@ export default function App() {
               </div>
             </div>
 
-            {/* Header Right Content (Cleaned up redundant admin/logout) */}
+            {/* Header Right Content (Tanpa tombol duplikat) */}
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-xs shadow-2xs">
+                <UserIcon className="w-3.5 h-3.5 text-slate-500" />
+                <span className="font-semibold truncate max-w-[150px]">{currentUser.name}</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold uppercase ${isAdmin ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                  {currentUser.role}
+                </span>
+              </div>
             </div>
 
           </div>
@@ -930,6 +1060,12 @@ export default function App() {
               onDeleteKasbon={handleDeleteKasbon}
               userRole={currentUser.role}
               storeName={storeProfile.name}
+              sales={sales}
+              purchases={purchases}
+              onPrintDocument={(data) => {
+                setPrintData(data);
+                setIsPrintModalOpen(true);
+              }}
             />
           )}
 
@@ -1000,6 +1136,16 @@ export default function App() {
         employees={employees}
         attendanceRecords={attendanceRecords}
       />
+
+      {/* Interactive Illustrated Manual Book Modal */}
+      {currentUser && (
+        <ManualBookModal
+          isOpen={isManualBookOpen}
+          onClose={() => setIsManualBookOpen(false)}
+          onNavigateTab={(tab) => setActiveTab(tab)}
+          userRole={currentUser.role}
+        />
+      )}
 
     </div>
   );

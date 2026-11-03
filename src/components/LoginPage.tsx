@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Lock, User, ArrowRight } from 'lucide-react';
 import { AuthUser, StoreProfile } from '../types/index.ts';
 import { StorageManager } from '../utils/storage.ts';
-import poultryBg from '../assets/images/poultry_farm_ambient_bg_1793084574533.jpg';
 
 interface LoginPageProps {
   onLogin: (user: AuthUser) => void;
@@ -39,7 +38,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, storeProfile }) =
     const userSecret = foundUser.pin || foundUser.password || '';
     if (userSecret.trim() !== '') {
       if (trimmedPass !== userSecret.trim()) {
-        setErrorMsg('Password / PIN salah.');
+        setErrorMsg('Password salah.');
         return;
       }
     }
@@ -49,16 +48,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, storeProfile }) =
 
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden">
-      {/* Elegant Ambient Gradient Background */}
+      {/* Background */}
       <div className="absolute inset-0 z-0 bg-slate-950">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-amber-600/25 via-slate-900 to-slate-950" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,_var(--tw-gradient-stops))] from-slate-800/50 via-transparent to-transparent" />
       </div>
 
-      {/* Login Card */}
+      {/* Clean Login Card */}
       <div className="relative z-10 w-full max-w-sm bg-white/95 backdrop-blur-md rounded-2xl border border-amber-200 shadow-2xl overflow-hidden p-6 sm:p-8 space-y-6">
         
-        {/* Branding */}
+        {/* Logo & Nama Usaha */}
         <div className="text-center space-y-2">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-amber-50/90 border border-amber-200/80 p-1.5 shadow-lg shadow-amber-500/15 mx-auto overflow-hidden">
             <img 
@@ -68,14 +67,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, storeProfile }) =
             />
           </div>
           <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-            {storeProfile.name || 'Berkah Unggas Sejahtera'}
+            {storeProfile.name || 'Ans Chicken Group'}
           </h1>
-          <p className="text-xs text-slate-500">
-            Silakan masuk untuk melanjutkan
-          </p>
         </div>
 
-        {/* Form */}
+        {/* Form: Username, Password, Button Login */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-700 block">
@@ -87,14 +83,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, storeProfile }) =
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                placeholder="Username"
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500 font-medium"
+                autoFocus
               />
             </div>
           </div>
 
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-700 block">
-              Password / PIN
+              Password
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -102,6 +100,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, storeProfile }) =
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-amber-500 font-medium"
               />
             </div>

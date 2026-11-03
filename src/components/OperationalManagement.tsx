@@ -15,7 +15,8 @@ import {
   Clock, 
   UserCheck, 
   CheckCircle2,
-  FileText
+  FileText,
+  Printer
 } from 'lucide-react';
 import { 
   OperationalTransaction, 
@@ -24,7 +25,9 @@ import {
   AttendanceRecord, 
   SalarySlip, 
   UserRole,
-  EmployeeKasbonRecord
+  EmployeeKasbonRecord,
+  SaleTransaction,
+  PurchaseTransaction
 } from '../types/index.ts';
 import { formatCurrency, formatNumber, formatDate, formatDateTime } from '../utils/formatters.ts';
 import { AttendanceSalary } from './AttendanceSalary.tsx';
@@ -47,6 +50,9 @@ interface OperationalManagementProps {
   onDeleteKasbon: (id: string) => void;
   userRole: UserRole;
   storeName: string;
+  sales?: SaleTransaction[];
+  purchases?: PurchaseTransaction[];
+  onPrintDocument?: (printData: any) => void;
 }
 
 export const OperationalManagement: React.FC<OperationalManagementProps> = ({
@@ -66,6 +72,9 @@ export const OperationalManagement: React.FC<OperationalManagementProps> = ({
   onDeleteKasbon,
   userRole,
   storeName,
+  sales = [],
+  purchases = [],
+  onPrintDocument,
 }) => {
   // Top Level Sub-Tab state: 'kas' vs 'absensi'
   const [activeSubTab, setActiveSubTab] = useState<'kas' | 'absensi'>('kas');
@@ -134,6 +143,61 @@ export const OperationalManagement: React.FC<OperationalManagementProps> = ({
   const dailyNetBalance = useMemo(() => {
     return dailyTotalIn - dailyTotalOut;
   }, [dailyTotalIn, dailyTotalOut]);
+
+  // Handle Cetak Bukti Transaksi Kas / Nota
+  const handlePrintTransaction = (tx: OperationalTransaction) => {
+    if (!onPrintDocument) return;
+
+    // 1. Cek apakah transaksi uang masuk/keluar berhubungan dengan Nota Penjualan (INV-...)
+    const invMatch = tx.description.match(/INV-\d{8}-\d{4}/i);
+    if (invMatch && sales && sales.length > 0) {
+      const foundSale = sales.find(s => s.invoiceNumber.toLowerCase() === invMatch[0].toLowerCase());
+      if (foundSale) {
+        // Tampilkan langsung Nota Penjualan resmi dengan watermark lunas (jika sudah lunas) & rincian riwayat cicilan
+        onPrintDocument({
+          type: 'sale',
+          data: foundSale
+        });
+        return;
+      }
+    }
+
+    // 2. Cek apakah transaksi berhubungan dengan Faktur Pembelian Supplier (PO-...)
+    const poMatch = tx.description.match(/PO-\d{8}-\d{3}/i);
+    if (poMatch && purchases && purchases.length > 0) {
+      const foundPurchase = purchases.find(p => p.invoiceNumber.toLowerCase() === poMatch[0].toLowerCase());
+      if (foundPurchase) {
+        onPrintDocument({
+          type: 'purchase',
+          data: foundPurchase
+        });
+        return;
+      }
+    }
+
+    // 3. Untuk transaksi kas operasional umum / manual (non-faktur)
+    const isIn = tx.type === 'pendapatan';
+    const dateCode = tx.date.replace(/-/g, '');
+    const cleanId = tx.id.replace(/\D/g, '').slice(-4) || '101';
+    const receiptNo = `${isIn ? 'BKM' : 'BKK'}-${dateCode}-${cleanId}`;
+
+    onPrintDocument({
+      type: 'payment_receipt',
+      data: {
+        receiptNo,
+        title: isIn ? 'BUKTI KAS MASUK (BKM)' : 'BUKTI KAS KELUAR (BKK)',
+        date: tx.date,
+        counterpartyName: isIn ? 'Penyetor / Pelanggan' : 'Penerima Kas / Pengeluaran Toko',
+        invoiceNumber: receiptNo,
+        totalInvoiceAmount: tx.amount,
+        paymentAmount: tx.amount,
+        remainingDebt: 0,
+        paymentMethod: 'Tunai',
+        notes: tx.description,
+        recordedBy: tx.recordedBy || 'Admin Usaha',
+      }
+    });
+  };
 
   return (
     <div className="space-y-5">
@@ -502,18 +566,28 @@ export const OperationalManagement: React.FC<OperationalManagementProps> = ({
                             {tx.recordedBy}
                           </td>
                           <td className="py-2.5 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (window.confirm(`Hapus pencatatan kas "${tx.description}"?`)) {
-                                  onDeleteTransaction(tx.id);
-                                }
-                              }}
-                              className="p-1 text-slate-400 hover:text-rose-600 rounded-md cursor-pointer transition-colors"
-                              title="Hapus Transaksi Kas"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handlePrintTransaction(tx)}
+                                className="p-1.5 text-slate-500 hover:text-amber-700 hover:bg-amber-100/70 rounded-lg cursor-pointer transition-colors"
+                                title="Cetak Bukti Transaksi Kas / Nota Resmi"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-amber-600" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm(`Hapus pencatatan kas "${tx.description}"?`)) {
+                                    onDeleteTransaction(tx.id);
+                                  }
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
+                                title="Hapus Transaksi Kas"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

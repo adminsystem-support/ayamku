@@ -14,7 +14,9 @@ import {
   User, 
   X,
   ChevronRight,
-  Clock
+  Clock,
+  Lock,
+  BookOpen
 } from 'lucide-react';
 import { ActiveTab, AuthUser } from '../types/index.ts';
 
@@ -23,6 +25,8 @@ interface SidebarProps {
   setActiveTab: (tab: ActiveTab) => void;
   currentUser: AuthUser;
   onLogout: () => void;
+  onLockScreen?: () => void;
+  onOpenManualBook?: () => void;
   storeName: string;
   logoUrl?: string;
   pendingOpnameCount: number;
@@ -35,6 +39,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveTab,
   currentUser,
   onLogout,
+  onLockScreen,
+  onOpenManualBook,
   storeName,
   logoUrl,
   pendingOpnameCount,
@@ -99,7 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
               <div className="overflow-hidden">
                 <h1 className="text-sm font-bold tracking-tight text-white truncate leading-tight">
-                  {storeName || 'Berkah Unggas Sejahtera'}
+                  {storeName || 'Ans Chicken Group'}
                 </h1>
               </div>
             </div>
@@ -185,6 +191,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="p-2 rounded-lg bg-slate-800/60 border border-slate-700/50 text-[10px] text-slate-400">
               ℹ️ Akun User: Akses Gaji & Laporan dikunci oleh Admin.
             </div>
+          )}
+
+          {onOpenManualBook && (
+            <button
+              type="button"
+              onClick={onOpenManualBook}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-emerald-300 bg-emerald-950/40 border border-emerald-800/40 hover:bg-emerald-900/60 hover:text-emerald-200 transition-colors cursor-pointer"
+              title="Buku Panduan & Gambar Alur Pemakaian Sistem"
+            >
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-emerald-400" />
+                <span>Buku Panduan</span>
+              </div>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-bold">Visual</span>
+            </button>
+          )}
+
+          {onLockScreen && (
+            <button
+              type="button"
+              onClick={onLockScreen}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-amber-300 bg-amber-950/40 border border-amber-800/40 hover:bg-amber-900/60 hover:text-amber-200 transition-colors cursor-pointer"
+              title="Kunci Layar Kasir / Admin Sekarang (30m Idle Security)"
+            >
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-amber-400" />
+                <span>Kunci Layar (Lock)</span>
+              </div>
+              <span className="text-[10px] text-amber-400/80 font-mono">30m Idle</span>
+            </button>
           )}
 
           <button

@@ -1,0 +1,202 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="100%" height="100%">
+  <defs>
+    <linearGradient id="appBgGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="greenSaveBtn" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <filter id="realShadow2" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- Canvas Background -->
+  <rect width="960" height="540" fill="url(#appBgGrad2)" rx="16"/>
+
+  <!-- Top System Header Banner -->
+  <rect x="25" y="20" width="910" height="60" rx="12" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+  <circle cx="58" cy="50" r="18" fill="#10b981" />
+  <text x="58" y="56" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="900" fill="#ffffff" text-anchor="middle">2</text>
+  <text x="92" y="44" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="800" fill="#ffffff">ALUR PROSES 2: REGISTRASI ITEM, DROPDOWN &amp; RIWAYAT SEMUA SUMBER</text>
+  <text x="92" y="64" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#94a3b8">Sistem: <tspan fill="#f59e0b" font-weight="bold">Ans Chicken Group</tspan> • Tampilan persis formulir input item, dropdown sugesti &amp; riwayat</text>
+
+  <!-- LEFT: FORM REGISTRASI ITEM DENGAN DROPDOWN (ItemManagement.tsx) -->
+  <g transform="translate(35, 96)">
+    <rect width="520" height="420" rx="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#realShadow2)"/>
+    
+    <!-- Subtabs Header exactly matching real app -->
+    <rect width="520" height="42" rx="14" fill="#f8fafc" />
+    <g transform="translate(14, 8)">
+      <!-- Tab 1 Active: Registrasi Item & Hitung Keuntungan -->
+      <rect width="180" height="28" rx="7" fill="#059669"/>
+      <text x="90" y="18" font-family="system-ui" font-size="9" font-weight="800" fill="#ffffff" text-anchor="middle">Registrasi Item &amp; Margin</text>
+
+      <!-- Tab 2 Inactive: Katalog Item -->
+      <rect x="188" width="90" height="28" rx="7" fill="#f1f5f9"/>
+      <text x="233" y="18" font-family="system-ui" font-size="8.5" font-weight="600" fill="#64748b" text-anchor="middle">Katalog Item</text>
+
+      <!-- Tab 3 Inactive: Riwayat Inputan -->
+      <rect x="285" width="125" height="28" rx="7" fill="#f1f5f9"/>
+      <text x="347" y="18" font-family="system-ui" font-size="8.5" font-weight="600" fill="#64748b" text-anchor="middle">Riwayat Inputan Item</text>
+    </g>
+    <line x1="0" y1="42" x2="520" y2="42" stroke="#e2e8f0"/>
+
+    <!-- Form Header Meta: Tanggal & Sumber -->
+    <g transform="translate(16, 52)">
+      <text x="0" y="10" font-family="system-ui" font-size="8.5" font-weight="700" fill="#334155">Tanggal Input:</text>
+      <rect x="0" y="15" width="120" height="26" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="8" y="32" font-family="system-ui" font-size="9" fill="#0f172a">02/11/2026</text>
+
+      <text x="135" y="10" font-family="system-ui" font-size="8.5" font-weight="700" fill="#334155">Pilih Sumber / Pemasok:</text>
+      <rect x="135" y="15" width="220" height="26" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="145" y="32" font-family="system-ui" font-size="9" font-weight="600" fill="#0f172a">PT Berkah Farm (Peternak)</text>
+      <text x="345" y="31" font-size="9" fill="#64748b">▼</text>
+    </g>
+
+    <!-- Table Header in Real App -->
+    <g transform="translate(16, 105)">
+      <rect width="488" height="24" rx="4" fill="#f1f5f9" stroke="#e2e8f0"/>
+      <text x="12" y="16" font-family="system-ui" font-size="8" font-weight="700" fill="#475569">NAMA ITEM (Ketik / Dropdown)</text>
+      <text x="210" y="16" font-family="system-ui" font-size="8" font-weight="700" fill="#475569">SATUAN</text>
+      <text x="270" y="16" font-family="system-ui" font-size="8" font-weight="700" fill="#475569">QTY/BOBOT</text>
+      <text x="350" y="16" font-family="system-ui" font-size="8" font-weight="700" fill="#475569">HARGA JUAL</text>
+      <text x="440" y="16" font-family="system-ui" font-size="8" font-weight="700" fill="#475569">SUBTOTAL</text>
+
+      <!-- Row 1 Input with Dropdown Autocomplete Activated -->
+      <g transform="translate(0, 30)">
+        <!-- Input field Nama Item -->
+        <rect x="0" y="0" width="195" height="30" rx="6" fill="#ffffff" stroke="#059669" stroke-width="1.5"/>
+        <text x="10" y="19" font-family="system-ui" font-size="9.5" font-weight="600" fill="#0f172a">Ayam Fillet Paha|</text>
+
+        <!-- Satuan -->
+        <rect x="205" y="0" width="50" height="30" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+        <text x="222" y="19" font-family="system-ui" font-size="9" font-weight="bold" fill="#0f172a">Kg</text>
+
+        <!-- Qty -->
+        <rect x="265" y="0" width="70" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+        <text x="275" y="19" font-family="system-ui" font-size="9" font-weight="bold" fill="#0f172a">50.00</text>
+
+        <!-- Harga Jual -->
+        <rect x="345" y="0" width="80" height="30" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+        <text x="355" y="19" font-family="system-ui" font-size="9" font-weight="bold" fill="#0f172a">43.700</text>
+
+        <!-- Subtotal -->
+        <text x="480" y="19" font-family="system-ui" font-size="10" font-weight="800" fill="#059669" text-anchor="end">2.185.000</text>
+
+        <!-- DROPDOWN POPUP SIMULATION (Real Suggestion Dropdown) -->
+        <g transform="translate(0, 34)">
+          <rect width="215" height="96" rx="8" fill="#ffffff" stroke="#059669" stroke-width="1.5" filter="url(#realShadow2)"/>
+          
+          <!-- Dropdown item 1 (Selected) -->
+          <rect x="2" y="2" width="211" height="30" rx="6" fill="#ecfdf5"/>
+          <text x="10" y="16" font-family="system-ui" font-size="9" font-weight="800" fill="#065f46">✓ Ayam Fillet Paha (Terdaftar)</text>
+          <text x="10" y="26" font-family="system-ui" font-size="7.5" fill="#047857">Stok: 45.5 Kg • Terakhir: 38.000</text>
+
+          <line x1="10" y1="33" x2="205" y2="33" stroke="#e2e8f0"/>
+
+          <!-- Dropdown item 2 -->
+          <text x="10" y="48" font-family="system-ui" font-size="8.5" fill="#334155">Ayam Fillet Dada (Stok: 60 Kg)</text>
+          
+          <line x1="10" y1="58" x2="205" y2="58" stroke="#e2e8f0"/>
+
+          <!-- Option if not found -->
+          <text x="10" y="74" font-family="system-ui" font-size="8.5" font-weight="bold" fill="#d97706">＋ Daftarkan Sebagai Item Baru</text>
+          <text x="10" y="86" font-family="system-ui" font-size="7.5" fill="#64748b">Ketik nama baru jika belum ada di list</text>
+        </g>
+      </g>
+    </g>
+
+    <!-- Bottom Action & Margin Calculation Box (Exact match to ItemManagement.tsx) -->
+    <g transform="translate(16, 280)">
+      <!-- Add row button -->
+      <rect width="140" height="26" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="70" y="17" font-family="system-ui" font-size="8.5" font-weight="700" fill="#0f172a" text-anchor="middle">＋ Tambah Baris Produk</text>
+
+      <!-- Margin Summary Box -->
+      <g transform="translate(155, 0)">
+        <rect width="333" height="85" rx="8" fill="#f0fdf4" stroke="#86efac" stroke-width="1.2"/>
+        <text x="12" y="18" font-family="system-ui" font-size="9" font-weight="800" fill="#166534">⚡ ESTIMASI HASIL &amp; MARGIN HPP:</text>
+        
+        <text x="12" y="38" font-family="system-ui" font-size="8.5" fill="#15803d">Total Penjualan:</text>
+        <text x="150" y="38" font-family="system-ui" font-size="9" font-weight="700" fill="#0f172a" text-anchor="end">Rp 2.185.000</text>
+
+        <text x="180" y="38" font-family="system-ui" font-size="8.5" fill="#15803d">Modal HPP:</text>
+        <text x="315" y="38" font-family="system-ui" font-size="9" font-weight="700" fill="#0f172a" text-anchor="end">Rp 1.900.000</text>
+
+        <line x1="12" y1="48" x2="320" y2="48" stroke="#bbf7d0"/>
+
+        <text x="12" y="66" font-family="system-ui" font-size="9" font-weight="800" fill="#166534">Estimasi Untung:</text>
+        <text x="150" y="66" font-family="system-ui" font-size="11" font-weight="900" fill="#047857" text-anchor="end">+Rp 285.000</text>
+
+        <text x="180" y="66" font-family="system-ui" font-size="9" font-weight="800" fill="#166534">Margin:</text>
+        <text x="315" y="66" font-family="system-ui" font-size="11" font-weight="900" fill="#059669" text-anchor="end">+15.0 %</text>
+      </g>
+
+      <!-- Save Button -->
+      <g transform="translate(155, 95)">
+        <rect width="333" height="34" rx="8" fill="url(#greenSaveBtn)"/>
+        <text x="166" y="22" font-family="system-ui" font-size="10.5" font-weight="800" fill="#ffffff" text-anchor="middle">💾 Simpan Registrasi Item &amp; Update Stok</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- RIGHT: SUBTAB RIWAYAT INPUTAN LENGKAP SEMUA SUMBER -->
+  <g transform="translate(575, 96)">
+    <rect width="350" height="420" rx="14" fill="#0f172a" stroke="#334155" stroke-width="1.5" filter="url(#realShadow2)"/>
+    <rect width="350" height="34" rx="14" fill="#1e293b"/>
+    <text x="175" y="22" font-family="system-ui" font-size="10.5" font-weight="700" fill="#38bdf8" text-anchor="middle">Subtab: Riwayat Inputan Semua Sumber</text>
+
+    <!-- Header info -->
+    <g transform="translate(14, 46)">
+      <text x="0" y="10" font-family="system-ui" font-size="8.5" fill="#cbd5e1">Riwayat lengkap dari:</text>
+      <text x="0" y="24" font-family="system-ui" font-size="8" fill="#94a3b8">Registrasi Manual • Faktur Pemasok • Potong Karkas</text>
+    </g>
+
+    <!-- Table of History Records -->
+    <g transform="translate(14, 82)">
+      <!-- Card 1 -->
+      <rect width="322" height="64" rx="8" fill="#1e293b" stroke="#334155"/>
+      <rect x="10" y="10" width="70" height="16" rx="4" fill="#065f46"/>
+      <text x="45" y="21" font-family="system-ui" font-size="7.5" font-weight="800" fill="#6ee7b7" text-anchor="middle">REG MANUAL</text>
+      <text x="88" y="22" font-family="system-ui" font-size="9.5" font-weight="800" fill="#ffffff">Ayam Fillet Paha</text>
+      <text x="10" y="42" font-family="system-ui" font-size="8" fill="#cbd5e1">Masuk: 50.00 Kg • Modal: 1.900.000</text>
+      <text x="10" y="54" font-family="system-ui" font-size="7.5" fill="#94a3b8">Oleh: Admin • Toko: Ans Chicken Group</text>
+      <text x="312" y="42" font-family="system-ui" font-size="9" font-weight="800" fill="#34d399" text-anchor="end">+Rp 285.000</text>
+
+      <!-- Card 2 -->
+      <g transform="translate(0, 72)">
+        <rect width="322" height="64" rx="8" fill="#1e293b" stroke="#334155"/>
+        <rect x="10" y="10" width="70" height="16" rx="4" fill="#1e3a8a"/>
+        <text x="45" y="21" font-family="system-ui" font-size="7.5" font-weight="800" fill="#93c5fd" text-anchor="middle">FAKTUR BELI</text>
+        <text x="88" y="22" font-family="system-ui" font-size="9.5" font-weight="800" fill="#ffffff">Ayam Broiler Hidup</text>
+        <text x="10" y="42" font-family="system-ui" font-size="8" fill="#cbd5e1">Masuk: 450.00 Kg • Dari: PT Berkah Farm</text>
+        <text x="10" y="54" font-family="system-ui" font-size="7.5" fill="#94a3b8">Faktur: FK-089 • Tempo 14 Hari</text>
+        <text x="312" y="42" font-family="system-ui" font-size="9" font-weight="800" fill="#38bdf8" text-anchor="end">Rp 9.675.000</text>
+      </g>
+
+      <!-- Card 3 -->
+      <g transform="translate(0, 144)">
+        <rect width="322" height="64" rx="8" fill="#1e293b" stroke="#334155"/>
+        <rect x="10" y="10" width="70" height="16" rx="4" fill="#78350f"/>
+        <text x="45" y="21" font-family="system-ui" font-size="7.5" font-weight="800" fill="#fde68a" text-anchor="middle">HASIL OLAH</text>
+        <text x="88" y="22" font-family="system-ui" font-size="9.5" font-weight="800" fill="#ffffff">Sayap &amp; Ceker Bersih</text>
+        <text x="10" y="42" font-family="system-ui" font-size="8" fill="#cbd5e1">Masuk: 35.00 Kg • Batch Karkas 100 Ekor</text>
+        <text x="10" y="54" font-family="system-ui" font-size="7.5" fill="#94a3b8">Petugas: Bagian Potong • 02/11/2026</text>
+        <text x="312" y="42" font-family="system-ui" font-size="9" font-weight="800" fill="#fbbf24" text-anchor="end">+Rp 175.000</text>
+      </g>
+    </g>
+
+    <!-- Transparansi audit -->
+    <g transform="translate(14, 310)">
+      <rect width="322" height="75" rx="8" fill="#020617" stroke="#334155"/>
+      <text x="15" y="22" font-family="system-ui" font-size="9" font-weight="800" fill="#38bdf8">✓ Rekam Jejak 100% Transparan</text>
+      <text x="15" y="38" font-family="system-ui" font-size="8" fill="#cbd5e1">Semua inputan dari registrasi item masuk</text>
+      <text x="15" y="52" font-family="system-ui" font-size="8" fill="#cbd5e1">ke riwayat ini secara otomatis tanpa ada</text>
+      <text x="15" y="66" font-family="system-ui" font-size="8" font-weight="bold" fill="#34d399">data yang hilang atau terlewatkan.</text>
+    </g>
+  </g>
+</svg>

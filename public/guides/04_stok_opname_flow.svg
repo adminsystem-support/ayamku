@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="100%" height="100%">
+  <defs>
+    <linearGradient id="appBgGrad4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <filter id="realShadow4" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="960" height="540" fill="url(#appBgGrad4)" rx="16"/>
+
+  <!-- Top System Header Banner -->
+  <rect x="25" y="20" width="910" height="60" rx="12" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+  <circle cx="58" cy="50" r="18" fill="#3b82f6" />
+  <text x="58" y="56" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="900" fill="#ffffff" text-anchor="middle">4</text>
+  <text x="92" y="44" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="800" fill="#ffffff">ALUR PROSES 4: STOK OPNAME &amp; PERSETUJUAN SELISIH SUSUT GUDANG</text>
+  <text x="92" y="64" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#94a3b8">Usaha: <tspan fill="#f59e0b" font-weight="bold">Ans Chicken Group</tspan> • Tampilan persis formulir hitung fisik cold storage, hitung susut es &amp; approval</text>
+
+  <!-- LEFT: FORM PENYESUAIAN STOK FISIK (StockOpname.tsx) -->
+  <g transform="translate(35, 96)">
+    <rect width="530" height="420" rx="14" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" filter="url(#realShadow4)"/>
+    
+    <!-- Subtabs in StockOpname.tsx -->
+    <rect width="530" height="40" rx="14" fill="#f8fafc"/>
+    <g transform="translate(14, 7)">
+      <rect width="180" height="26" rx="6" fill="#2563eb"/>
+      <text x="90" y="17" font-family="system-ui" font-size="9" font-weight="800" fill="#ffffff" text-anchor="middle">Form Hitung Fisik (Opname)</text>
+
+      <rect x="188" width="160" height="26" rx="6" fill="#f1f5f9"/>
+      <text x="268" y="17" font-family="system-ui" font-size="8.5" font-weight="600" fill="#64748b" text-anchor="middle">Riwayat &amp; Approval Susut</text>
+    </g>
+    <line x1="0" y1="40" x2="530" y2="40" stroke="#e2e8f0"/>
+
+    <!-- Search & Location info -->
+    <g transform="translate(14, 50)">
+      <rect width="502" height="28" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="12" y="18" font-family="system-ui" font-size="8.5" fill="#94a3b8">🔍 Cari item ayam di cold storage / freezer chiller...</text>
+    </g>
+
+    <!-- Table of Opname items -->
+    <g transform="translate(14, 88)">
+      <rect width="502" height="24" rx="4" fill="#f1f5f9" stroke="#e2e8f0"/>
+      <text x="10" y="16" font-family="system-ui" font-size="8" font-weight="bold" fill="#475569">PRODUK AYAM</text>
+      <text x="170" y="16" font-family="system-ui" font-size="8" font-weight="bold" fill="#475569">STOK BUKU</text>
+      <text x="245" y="16" font-family="system-ui" font-size="8" font-weight="bold" fill="#475569">FISIK AKTUAL</text>
+      <text x="345" y="16" font-family="system-ui" font-size="8" font-weight="bold" fill="#475569">SELISIH SUSUT</text>
+      <text x="440" y="16" font-family="system-ui" font-size="8" font-weight="bold" fill="#475569">NILAI RUPIAH</text>
+
+      <!-- Row 1: Fillet Dada -->
+      <g transform="translate(0, 30)">
+        <rect width="502" height="52" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+        <text x="10" y="20" font-family="system-ui" font-size="9" font-weight="800" fill="#0f172a">Ayam Fillet Dada</text>
+        <text x="10" y="34" font-family="system-ui" font-size="7.5" fill="#64748b">Cold Storage A • Beli: 38.000</text>
+
+        <!-- Stok Buku -->
+        <text x="170" y="22" font-family="system-ui" font-size="9.5" font-weight="bold" fill="#475569">60.00 Kg</text>
+
+        <!-- Input Fisik Nyata -->
+        <rect x="245" y="10" width="75" height="30" rx="5" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+        <text x="255" y="29" font-family="system-ui" font-size="11" font-weight="900" fill="#0f172a">58.80</text>
+        <text x="312" y="29" font-family="system-ui" font-size="8" fill="#64748b">Kg</text>
+
+        <!-- Selisih susut -->
+        <text x="345" y="22" font-family="system-ui" font-size="10" font-weight="900" fill="#ef4444">- 1.20 Kg</text>
+        <text x="345" y="34" font-family="system-ui" font-size="7.5" fill="#dc2626">(- 2.0% Susut)</text>
+
+        <!-- Nilai Rp -->
+        <text x="492" y="24" font-family="system-ui" font-size="10" font-weight="900" fill="#ef4444" text-anchor="end">- Rp 45.600</text>
+      </g>
+
+      <!-- Row 2: Ayam Broiler Hidup -->
+      <g transform="translate(0, 90)">
+        <rect width="502" height="52" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+        <text x="10" y="20" font-family="system-ui" font-size="9" font-weight="800" fill="#0f172a">Ayam Broiler Hidup</text>
+        <text x="10" y="34" font-family="system-ui" font-size="7.5" fill="#64748b">Kandang Pasar Kemis • Beli: 21.500</text>
+
+        <text x="170" y="22" font-family="system-ui" font-size="9.5" font-weight="bold" fill="#475569">450.00 Kg</text>
+
+        <rect x="245" y="10" width="75" height="30" rx="5" fill="#ffffff" stroke="#cbd5e1"/>
+        <text x="255" y="29" font-family="system-ui" font-size="11" font-weight="900" fill="#0f172a">448.50</text>
+        <text x="312" y="29" font-family="system-ui" font-size="8" fill="#64748b">Kg</text>
+
+        <text x="345" y="22" font-family="system-ui" font-size="10" font-weight="900" fill="#ef4444">- 1.50 Kg</text>
+        <text x="345" y="34" font-family="system-ui" font-size="7.5" fill="#dc2626">(- 0.3% Susut)</text>
+
+        <text x="492" y="24" font-family="system-ui" font-size="10" font-weight="900" fill="#ef4444" text-anchor="end">- Rp 32.250</text>
+      </g>
+    </g>
+
+    <!-- Notes & Submission -->
+    <g transform="translate(14, 250)">
+      <text x="0" y="12" font-family="system-ui" font-size="8.5" font-weight="bold" fill="#334155">Alasan Penyesuaian (Catatan Petugas):</text>
+      <rect x="0" y="18" width="502" height="30" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="10" y="37" font-family="system-ui" font-size="9" fill="#0f172a">Penyusutan normal lelehan es pendingin &amp; sisa lemak potong.</text>
+
+      <!-- Submit CTA -->
+      <g transform="translate(0, 60)">
+        <rect width="502" height="36" rx="8" fill="#2563eb"/>
+        <text x="251" y="23" font-family="system-ui" font-size="10.5" font-weight="800" fill="#ffffff" text-anchor="middle">Ajukan Penyesuaian Stok Opname ➔</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Flow Connector -->
+  <g transform="translate(575, 290)">
+    <line x1="0" y1="0" x2="30" y2="0" stroke="#3b82f6" stroke-width="3" stroke-linecap="round"/>
+    <polygon points="30,-5 40,0 30,5" fill="#3b82f6" />
+  </g>
+
+  <!-- RIGHT: APPROVAL ADMIN & ADJUSTMENT RESULT -->
+  <g transform="translate(620, 96)">
+    <rect width="305" height="420" rx="14" fill="#0f172a" stroke="#334155" stroke-width="1.5" filter="url(#realShadow4)"/>
+    <rect width="305" height="36" rx="14" fill="#1e293b"/>
+    <text x="152" y="23" font-family="system-ui" font-size="10.5" font-weight="800" fill="#93c5fd" text-anchor="middle">Otorisasi &amp; Approval Owner/Admin</text>
+
+    <!-- Pending card in Real App -->
+    <g transform="translate(15, 52)">
+      <rect width="275" height="150" rx="10" fill="#1e293b" stroke="#eab308" stroke-width="1.2"/>
+      <rect x="12" y="12" width="70" height="18" rx="4" fill="#713f12"/>
+      <text x="47" y="24" font-family="system-ui" font-size="8" font-weight="900" fill="#fde047" text-anchor="middle">⏳ PENDING</text>
+      <text x="90" y="25" font-family="system-ui" font-size="8.5" fill="#cbd5e1">02/11/2026 11:30</text>
+
+      <text x="12" y="48" font-family="system-ui" font-size="10" font-weight="800" fill="#ffffff">Ayam Fillet Dada (Cold Storage)</text>
+      <text x="12" y="64" font-family="system-ui" font-size="8.5" fill="#cbd5e1">Stok Tercatat: 60 Kg ➔ Fisik: 58.80 Kg</text>
+      <text x="12" y="78" font-family="system-ui" font-size="8.5" font-weight="bold" fill="#f87171">Selisih Susut: -1.20 Kg (- Rp 45.600)</text>
+      <text x="12" y="94" font-family="system-ui" font-size="8" fill="#94a3b8">Petugas: Petugas Gudang • Toko: Ans Chicken</text>
+
+      <!-- Action buttons -->
+      <g transform="translate(12, 108)">
+        <rect width="120" height="30" rx="6" fill="#059669"/>
+        <text x="60" y="20" font-family="system-ui" font-size="9" font-weight="800" fill="#ffffff" text-anchor="middle">✓ Setujui (Acc)</text>
+
+        <rect x="130" width="120" height="30" rx="6" fill="#dc2626"/>
+        <text x="190" y="20" font-family="system-ui" font-size="9" font-weight="800" fill="#ffffff" text-anchor="middle">✕ Tolak</text>
+      </g>
+    </g>
+
+    <!-- Approved State Box -->
+    <g transform="translate(15, 215)">
+      <rect width="275" height="110" rx="10" fill="#064e3b" stroke="#10b981"/>
+      <circle cx="30" cy="30" r="14" fill="#10b981"/>
+      <text x="30" y="36" font-size="14" text-anchor="middle">✓</text>
+      <text x="52" y="26" font-family="system-ui" font-size="11" font-weight="900" fill="#ffffff">STOK BERHASIL DISESUAIKAN</text>
+      <text x="52" y="40" font-family="system-ui" font-size="8.5" fill="#a7f3d0">Stok Baru: 58.80 Kg (Aktif di Kasir POS)</text>
+
+      <line x1="12" y1="55" x2="263" y2="55" stroke="#047857"/>
+
+      <text x="12" y="74" font-family="system-ui" font-size="8" fill="#e2e8f0">• Kasir menjual stok ayam yang nyata</text>
+      <text x="12" y="88" font-family="system-ui" font-size="8" fill="#e2e8f0">• Kerugian susut Rp 45.600 masuk pembukuan</text>
+      <text x="12" y="100" font-family="system-ui" font-size="8" font-weight="bold" fill="#6ee7b7">Ans Chicken Group (Pasar Kemis)</text>
+    </g>
+
+    <text x="152" y="390" font-family="system-ui" font-size="8" fill="#94a3b8" text-anchor="middle">Mencegah kebocoran stok antara gudang &amp; kasir</text>
+  </g>
+</svg>

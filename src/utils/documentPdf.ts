@@ -137,6 +137,7 @@ export function createDocumentPdf(
   
   if (data.type === 'sale') {
     const sale = data.data;
+    const isLunas = sale.paymentStatus === 'Lunas' || sale.amountPaid >= sale.grandTotal || (sale.remainingDebt ?? 0) <= 0;
     const fileName = `Nota_Penjualan_${sale.invoiceNumber}.pdf`;
     const doc = new jsPDF({
       orientation: 'portrait',
@@ -184,24 +185,16 @@ export function createDocumentPdf(
       doc.text(store.address || 'Alamat Toko', startX, 22);
       doc.text(`Telp/WA: ${store.phone || '-'}`, startX, 26.5);
 
-      // Top Right Badge & Invoice No
-      doc.setFillColor(236, 253, 245); // emerald-50
-      doc.setDrawColor(167, 243, 208); // emerald-200
-      doc.roundedRect(142, 12, 54, 5.5, 1, 1, 'DF');
+      // Top Right Invoice No
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7.5);
-      doc.setTextColor(6, 95, 70); // emerald-800
-      doc.text('NOTA PENJUALAN ELEKTRONIK', 169, 15.8, { align: 'center' });
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
+      doc.setFontSize(12);
       doc.setTextColor(15, 23, 42);
-      doc.text(sale.invoiceNumber, 196, 22.5, { align: 'right' });
+      doc.text(sale.invoiceNumber, 196, 20, { align: 'right' });
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(100, 116, 139);
-      doc.text(`Tanggal: ${formatDateTime(sale.date)}`, 196, 27, { align: 'right' });
+      doc.text(`Tanggal: ${formatDateTime(sale.date)}`, 196, 26, { align: 'right' });
 
       // Horizontal separator line
       doc.setDrawColor(226, 232, 240);
@@ -232,17 +225,8 @@ export function createDocumentPdf(
       doc.setTextColor(100, 116, 139);
       doc.text(`Tipe Pelanggan: ${sale.customerType || 'Pelanggan Usaha'}`, 30, 46);
 
-      // Status Badge
-      const isLunas = sale.amountPaid >= sale.grandTotal;
-      if (isLunas) {
-        doc.setFillColor(220, 252, 231); // emerald-100
-        doc.setDrawColor(187, 247, 208); // emerald-200
-        doc.roundedRect(152, 37.5, 40, 6, 3, 3, 'DF');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
-        doc.setTextColor(22, 101, 52); // emerald-800
-        doc.text('Status: Lunas', 172, 41.7, { align: 'center' });
-      } else {
+      // Status Badge (Hapus status lunas di kanan atas karena sudah ada watermark)
+      if (!isLunas) {
         doc.setFillColor(255, 228, 230); // rose-100
         doc.setDrawColor(254, 205, 211); // rose-200
         doc.roundedRect(138, 37.5, 54, 6, 3, 3, 'DF');
@@ -256,19 +240,17 @@ export function createDocumentPdf(
       doc.setDrawColor(241, 245, 249);
       doc.line(18, 49, 192, 49);
 
-      // 4 Info Grid Cards
-      const cardW = 42.5;
+      // 2 Info Grid Cards (Tujuan WA & Kasir Dihapus)
+      const cardW = 85;
       const cardH = 12;
       const cardY = 52;
       const infoList = [
         { label: 'DITUJUKAN KEPADA:', val: sale.customerName },
-        { label: 'NO. WHATSAPP PELANGGAN:', val: sale.customerPhone || '-' },
-        { label: 'METODE PEMBAYARAN:', val: sale.paymentMethod },
-        { label: 'KASIR / PETUGAS:', val: sale.createdBy }
+        { label: 'METODE PEMBAYARAN:', val: sale.paymentMethod }
       ];
 
       infoList.forEach((info, i) => {
-        const cX = 18 + i * (cardW + 2.7);
+        const cX = 18 + i * (cardW + 4);
         doc.setFillColor(248, 250, 252); // slate-50
         doc.setDrawColor(226, 232, 240); // slate-200
         doc.roundedRect(cX, cardY, cardW, cardH, 1.5, 1.5, 'DF');
@@ -276,12 +258,12 @@ export function createDocumentPdf(
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(6.5);
         doc.setTextColor(100, 116, 139);
-        doc.text(info.label, cX + 2.5, cardY + 4);
+        doc.text(info.label, cX + 3.5, cardY + 4);
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
         doc.setTextColor(15, 23, 42);
-        doc.text(info.val, cX + 2.5, cardY + 9);
+        doc.text(info.val, cX + 3.5, cardY + 9);
       });
 
       // 3. Rincian Barang Table Section
@@ -316,7 +298,10 @@ export function createDocumentPdf(
         head: [['No', 'Jumlah', 'Nama Item', 'Harga Satuan', 'Subtotal']],
         body: tableRows,
         foot: [
-          ['Total Qty', totalQtyText, '', '', `Total jenis item: ${sale.items.length} macam`]
+          [
+            { content: 'Total Qty:', colSpan: 2, styles: { halign: 'left', fontStyle: 'bold' } },
+            { content: totalQtyText, colSpan: 3, styles: { halign: 'left', fontStyle: 'bold' } }
+          ]
         ],
         theme: 'grid',
         headStyles: {
@@ -343,9 +328,9 @@ export function createDocumentPdf(
         },
         columnStyles: {
           0: { cellWidth: 12, halign: 'center' },
-          1: { cellWidth: 28, halign: 'right' },
+          1: { cellWidth: 35, halign: 'right' },
           2: { cellWidth: 'auto', halign: 'left' },
-          3: { cellWidth: 35, halign: 'right' },
+          3: { cellWidth: 32, halign: 'right' },
           4: { cellWidth: 35, halign: 'right' }
         },
         margin: { left: 14, right: 14 }
@@ -408,11 +393,110 @@ export function createDocumentPdf(
       });
 
       const finalCalcY = (doc as any).lastAutoTable?.finalY || 180;
+
+      // 5. Riwayat Pembayaran Table Section
+      const payments = sale.customerDebtPayments && sale.customerDebtPayments.length > 0
+        ? sale.customerDebtPayments.map((p, idx) => [
+            idx + 1,
+            formatDateTime(p.date),
+            formatCurrency(p.amount),
+            p.paymentMethod || 'Tunai',
+            p.notes || (idx === 0 ? 'DP' : 'Cicilan'),
+            p.remainingAfter !== undefined ? formatCurrency(p.remainingAfter) : '-'
+          ])
+        : [
+            [
+              1,
+              formatDateTime(sale.date),
+              formatCurrency(sale.amountPaid),
+              sale.paymentMethod,
+              isLunas ? 'Pembayaran Lunas Saat Transaksi' : 'Uang Muka (DP) Transaksi',
+              formatCurrency(Math.max(0, sale.grandTotal - sale.amountPaid))
+            ]
+          ];
+
+      const historyStartY = finalCalcY + 6;
+      doc.setFillColor(241, 245, 249);
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(14, historyStartY, 182, 7, 1.5, 1.5, 'DF');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(15, 23, 42);
+      doc.text(`RIWAYAT PEMBAYARAN & PELUNASAN NOTA [${isLunas ? 'SUDAH LUNAS' : 'BELUM LUNAS'}]`, 18, historyStartY + 4.8);
+
+      autoTable(doc, {
+        startY: historyStartY + 7,
+        head: [['No', 'Waktu Bayar', 'Nominal Bayar', 'Metode', 'Keterangan', 'Sisa Tagihan']],
+        body: payments,
+        foot: [
+          [
+            { content: 'Total Terbayar:', colSpan: 2, styles: { halign: 'left', fontStyle: 'bold' } },
+            { content: formatCurrency(sale.amountPaid), colSpan: 2, styles: { halign: 'right', fontStyle: 'bold', textColor: [6, 95, 70] } },
+            { content: isLunas ? 'STATUS: LUNAS (Rp 0)' : `SISA: ${formatCurrency(sale.grandTotal - sale.amountPaid)}`, colSpan: 2, styles: { halign: 'right', fontStyle: 'bold', textColor: isLunas ? [6, 95, 70] : [190, 18, 60] } }
+          ]
+        ],
+        theme: 'grid',
+        headStyles: {
+          fillColor: [248, 250, 252],
+          textColor: [15, 23, 42],
+          fontStyle: 'bold',
+          fontSize: 7.5,
+          lineWidth: 0.1,
+          lineColor: [226, 232, 240]
+        },
+        bodyStyles: {
+          fontSize: 7.5,
+          textColor: [15, 23, 42],
+          lineWidth: 0.1,
+          lineColor: [226, 232, 240]
+        },
+        footStyles: {
+          fillColor: [248, 250, 252],
+          textColor: [15, 23, 42],
+          fontStyle: 'bold',
+          fontSize: 8,
+          lineWidth: 0.15,
+          lineColor: [203, 213, 225]
+        },
+        columnStyles: {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 35, halign: 'left' },
+          2: { cellWidth: 30, halign: 'right' },
+          3: { cellWidth: 22, halign: 'center' },
+          4: { cellWidth: 'auto', halign: 'left' },
+          5: { cellWidth: 30, halign: 'right' }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      const finalHistY = (doc as any).lastAutoTable?.finalY || 210;
       if (sale.notes) {
         doc.setFont('helvetica', 'italic');
         doc.setFontSize(8);
         doc.setTextColor(100, 116, 139);
-        doc.text(`Catatan: ${sale.notes}`, 14, finalCalcY + 6);
+        doc.text(`Catatan: ${sale.notes}`, 14, finalHistY + 6);
+      }
+
+      // WATERMARK LUNAS VECTOR PADA DOKUMEN A4
+      if (isLunas) {
+        const totalPages = doc.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+          doc.setPage(i);
+          doc.saveGraphicsState();
+          try {
+            const gState = new (doc as any).GState({ opacity: 0.16 });
+            doc.setGState(gState);
+          } catch {
+            // fallback gracefully
+          }
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(56);
+          doc.setTextColor(16, 185, 129); // emerald-500
+          doc.text('L U N A S', 105, 145, { align: 'center', angle: 30 });
+          doc.setFontSize(13);
+          doc.text('SUDAH DIBAYAR LUNAS', 105, 158, { align: 'center', angle: 30 });
+          doc.restoreGraphicsState();
+        }
       }
     } else {
       // Thermal 80mm format
@@ -430,10 +514,9 @@ export function createDocumentPdf(
       doc.setFont('courier', 'normal');
       doc.text(`Tgl: ${formatDateTime(sale.date)}`, 6, 32);
       doc.text(`Pelanggan: ${sale.customerName}`, 6, 36);
-      doc.text(`Kasir: ${sale.createdBy}`, 6, 40);
-      doc.text('----------------------------------------', 40, 44, { align: 'center' });
+      doc.text('----------------------------------------', 40, 40, { align: 'center' });
 
-      let curY = 48;
+      let curY = 44;
       sale.items.forEach(item => {
         doc.text(`${item.itemName}`, 6, curY);
         curY += 4;
@@ -462,7 +545,31 @@ export function createDocumentPdf(
         doc.text(formatCurrency(sale.remainingDebt || 0), 74, curY, { align: 'right' });
         curY += 4;
       }
+
+      if (isLunas) {
+        curY += 2;
+        doc.setFont('courier', 'bold');
+        doc.setTextColor(16, 185, 129);
+        doc.text('*** L U N A S ***', 40, curY, { align: 'center' });
+        doc.setFontSize(7);
+        curY += 3.5;
+        doc.text('SUDAH DIBAYAR LUNAS (SISA Rp 0)', 40, curY, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        curY += 3;
+      } else {
+        curY += 2;
+        doc.setFont('courier', 'bold');
+        doc.setTextColor(225, 29, 72);
+        doc.text('*** BELUM LUNAS ***', 40, curY, { align: 'center' });
+        doc.setFontSize(7);
+        curY += 3.5;
+        doc.text(`SISA TAGIHAN: ${formatCurrency(sale.grandTotal - sale.amountPaid)}`, 40, curY, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        curY += 3;
+      }
+
       curY += 4;
+      doc.setFont('courier', 'normal');
       doc.text('Terima Kasih', 40, curY, { align: 'center' });
     }
 

@@ -1,0 +1,171 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" width="100%" height="100%">
+  <defs>
+    <linearGradient id="appBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617" />
+      <stop offset="50%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="amberBtn" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d97706" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <filter id="realShadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000000" flood-opacity="0.45" />
+    </filter>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="960" height="540" fill="url(#appBgGrad)" rx="16"/>
+
+  <!-- Top System Header Banner -->
+  <rect x="25" y="20" width="910" height="60" rx="12" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+  <circle cx="58" cy="50" r="18" fill="#d97706" />
+  <text x="58" y="56" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="900" fill="#ffffff" text-anchor="middle">1</text>
+  <text x="92" y="44" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="800" fill="#ffffff">ALUR PROSES 1: HALAMAN LOGIN BERSIH &amp; KUNCI LAYAR (30 MENIT IDLE)</text>
+  <text x="92" y="64" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#94a3b8">Nama Usaha: <tspan fill="#f59e0b" font-weight="bold">Ans Chicken Group</tspan> • Tampilan identik persis dengan antarmuka sistem nyata</text>
+
+  <!-- LEFT: REAL LOGIN PAGE MOCKUP (EXACT MATCH TO LoginPage.tsx) -->
+  <g transform="translate(35, 96)">
+    <!-- Browser window frame -->
+    <rect width="320" height="420" rx="14" fill="#020617" stroke="#334155" stroke-width="1.5" filter="url(#realShadow)"/>
+    <rect width="320" height="28" rx="14" fill="#0f172a"/>
+    <circle cx="18" cy="14" r="4" fill="#ef4444"/>
+    <circle cx="30" cy="14" r="4" fill="#f59e0b"/>
+    <circle cx="42" cy="14" r="4" fill="#10b981"/>
+    <text x="160" y="18" font-family="system-ui" font-size="9.5" fill="#94a3b8" text-anchor="middle">https://ans-chicken-group.app/login</text>
+
+    <!-- Center Card (Exact white card with amber border from LoginPage.tsx) -->
+    <g transform="translate(25, 45)">
+      <rect width="270" height="350" rx="16" fill="#ffffff" stroke="#fde68a" stroke-width="1.5" filter="url(#realShadow)"/>
+      
+      <!-- Rooster Logo Box -->
+      <g transform="translate(107, 20)">
+        <rect width="56" height="56" rx="14" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.2"/>
+        <text x="28" y="36" font-size="26" text-anchor="middle">🐓</text>
+      </g>
+
+      <!-- Store Name Exact Match -->
+      <text x="135" y="98" font-family="system-ui, sans-serif" font-size="15" font-weight="900" fill="#0f172a" text-anchor="middle">Ans Chicken Group</text>
+      <text x="135" y="112" font-family="system-ui, sans-serif" font-size="9" fill="#64748b" text-anchor="middle">Pasar Kemis - Tangerang</text>
+
+      <!-- Form Inputs (Username) -->
+      <g transform="translate(20, 130)">
+        <text x="0" y="0" font-family="system-ui" font-size="10.5" font-weight="700" fill="#334155">Username</text>
+        <rect x="0" y="8" width="230" height="34" rx="10" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.2"/>
+        <text x="12" y="29" font-size="12">👤</text>
+        <text x="32" y="30" font-family="system-ui" font-size="11" font-weight="600" fill="#0f172a">admin</text>
+      </g>
+
+      <!-- Form Inputs (Password) -->
+      <g transform="translate(20, 195)">
+        <text x="0" y="0" font-family="system-ui" font-size="10.5" font-weight="700" fill="#334155">Password</text>
+        <rect x="0" y="8" width="230" height="34" rx="10" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.2"/>
+        <text x="12" y="29" font-size="12">🔒</text>
+        <text x="32" y="31" font-family="system-ui" font-size="13" font-weight="900" fill="#0f172a">••••••••</text>
+      </g>
+
+      <!-- Login Button -->
+      <g transform="translate(20, 260)">
+        <rect width="230" height="38" rx="10" fill="url(#amberBtn)"/>
+        <text x="105" y="24" font-family="system-ui" font-size="12" font-weight="800" fill="#ffffff" text-anchor="middle">Masuk ke Sistem</text>
+        <text x="180" y="24" font-family="system-ui" font-size="12" font-weight="800" fill="#ffffff">➔</text>
+      </g>
+
+      <!-- Clean Badge Note -->
+      <text x="135" y="325" font-family="system-ui" font-size="8.5" fill="#64748b" text-anchor="middle">✓ Tampilan bersih tanpa tombol demo</text>
+    </g>
+  </g>
+
+  <!-- Flow Arrow -->
+  <g transform="translate(370, 290)">
+    <line x1="0" y1="0" x2="30" y2="0" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/>
+    <polygon points="30,-5 40,0 30,5" fill="#f59e0b" />
+  </g>
+
+  <!-- CENTER: SESI KERJA AKTIF & TOMBOL KUNCI LAYAR (Topbar & Sidebar Asli) -->
+  <g transform="translate(425, 96)">
+    <rect width="275" height="420" rx="14" fill="#0f172a" stroke="#334155" stroke-width="1.5" filter="url(#realShadow)"/>
+    <rect width="275" height="28" rx="14" fill="#1e293b"/>
+    <text x="137" y="18" font-family="system-ui" font-size="10" font-weight="700" fill="#93c5fd" text-anchor="middle">Header Bar &amp; Kunci Layar Nyata</text>
+
+    <!-- Topbar simulation matching App.tsx -->
+    <g transform="translate(12, 40)">
+      <rect width="251" height="54" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+      <rect x="8" y="10" width="34" height="34" rx="8" fill="#fffbeb" stroke="#fde68a"/>
+      <text x="25" y="32" font-size="17" text-anchor="middle">🐓</text>
+      <text x="48" y="25" font-family="system-ui" font-size="10" font-weight="800" fill="#0f172a">Nota Penjualan</text>
+      <text x="48" y="38" font-family="system-ui" font-size="8.5" fill="#64748b">Ans Chicken Group</text>
+
+      <!-- User badge & Kunci Layar button -->
+      <rect x="155" y="14" width="88" height="26" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+      <text x="162" y="30" font-size="10">🔒</text>
+      <text x="176" y="30" font-family="system-ui" font-size="8.5" font-weight="700" fill="#0f172a">Kunci Layar</text>
+    </g>
+
+    <!-- Callout Box for Kunci Layar Button -->
+    <rect x="12" y="108" width="251" height="85" rx="10" fill="#451a03" stroke="#f59e0b" stroke-width="1.2"/>
+    <text x="22" y="128" font-family="system-ui" font-size="10" font-weight="800" fill="#fef3c7">⚡ Tombol Kunci Layar Manual</text>
+    <text x="22" y="146" font-family="system-ui" font-size="8.5" fill="#fde68a">• Tekan saat meninggalkan meja kasir</text>
+    <text x="22" y="160" font-family="system-ui" font-size="8.5" fill="#fde68a">• Tersedia di Header Atas &amp; Bawah Menu</text>
+    <text x="22" y="176" font-family="system-ui" font-size="8.5" font-weight="bold" fill="#34d399">✓ Keranjang nota tidak akan terhapus!</text>
+
+    <!-- Sidebar Bottom Simulation -->
+    <g transform="translate(12, 205)">
+      <rect width="251" height="95" rx="10" fill="#020617" stroke="#334155"/>
+      <text x="15" y="22" font-family="system-ui" font-size="9" font-weight="700" fill="#94a3b8">Bagian Bawah Sidebar Menu:</text>
+      
+      <!-- Button Kunci Layar in Sidebar -->
+      <rect x="12" y="30" width="227" height="28" rx="6" fill="#78350f" stroke="#d97706"/>
+      <text x="22" y="48" font-size="11">🔒</text>
+      <text x="40" y="48" font-family="system-ui" font-size="9" font-weight="700" fill="#fef3c7">Kunci Layar (Lock)</text>
+      <text x="225" y="48" font-family="monospace" font-size="8.5" fill="#fde68a" text-anchor="end">30m Idle</text>
+
+      <!-- Button Logout -->
+      <rect x="12" y="62" width="227" height="24" rx="6" fill="#1e293b"/>
+      <text x="22" y="78" font-size="10">🚪</text>
+      <text x="40" y="78" font-family="system-ui" font-size="8.5" fill="#cbd5e1">Ganti Akun / Logout</text>
+    </g>
+
+    <text x="137" y="335" font-family="system-ui" font-size="9" fill="#94a3b8" text-anchor="middle">Mereset otomatis jika ada ketikan/mouse</text>
+  </g>
+
+  <!-- Flow Arrow -->
+  <g transform="translate(712, 290)">
+    <line x1="0" y1="0" x2="30" y2="0" stroke="#ef4444" stroke-width="3" stroke-linecap="round"/>
+    <polygon points="30,-5 40,0 30,5" fill="#ef4444" />
+  </g>
+
+  <!-- RIGHT: AUTO-KICK 30 MENIT (Peringatan & Unlock) -->
+  <g transform="translate(755, 96)">
+    <rect width="180" height="420" rx="14" fill="#020617" stroke="#ef4444" stroke-width="1.5" filter="url(#realShadow)"/>
+    <rect width="180" height="28" rx="14" fill="#450a0a"/>
+    <text x="90" y="18" font-family="system-ui" font-size="9.5" font-weight="700" fill="#fca5a5" text-anchor="middle">Auto-Kick 30 Menit</text>
+
+    <!-- Lock Icon -->
+    <circle cx="90" cy="72" r="26" fill="#450a0a" stroke="#ef4444" stroke-width="2"/>
+    <text x="90" y="82" font-size="24" text-anchor="middle">🔒</text>
+
+    <text x="90" y="120" font-family="system-ui" font-size="11" font-weight="900" fill="#f87171" text-anchor="middle">SESI BERAKHIR</text>
+    <text x="90" y="136" font-family="system-ui" font-size="8.5" fill="#cbd5e1" text-anchor="middle">Auto-Kick 30 Menit Aktif</text>
+
+    <!-- Info message -->
+    <rect x="12" y="152" width="156" height="85" rx="8" fill="#1e293b" stroke="#334155"/>
+    <text x="18" y="172" font-family="system-ui" font-size="8" fill="#cbd5e1">Sesi Anda telah ditutup</text>
+    <text x="18" y="186" font-family="system-ui" font-size="8" fill="#cbd5e1">otomatis karena tidak ada</text>
+    <text x="18" y="200" font-family="system-ui" font-size="8" fill="#cbd5e1">aktivitas selama 30 menit.</text>
+    <text x="18" y="222" font-family="system-ui" font-size="8" font-weight="700" fill="#fca5a5">Demi keamanan kasir.</text>
+
+    <!-- Re-entry -->
+    <g transform="translate(12, 255)">
+      <text x="0" y="10" font-family="system-ui" font-size="8.5" font-weight="600" fill="#cbd5e1">Ketik Password Ulang:</text>
+      <rect x="0" y="16" width="156" height="28" rx="6" fill="#1e293b" stroke="#ef4444"/>
+      <text x="10" y="34" font-family="system-ui" font-size="11" fill="#ffffff">••••••••</text>
+      
+      <rect x="0" y="52" width="156" height="30" rx="6" fill="#dc2626"/>
+      <text x="78" y="71" font-family="system-ui" font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle">Buka Kunci ➔</text>
+    </g>
+
+    <text x="90" y="380" font-family="system-ui" font-size="8" fill="#94a3b8" text-anchor="middle">Ans Chicken Group</text>
+    <text x="90" y="395" font-family="system-ui" font-size="7.5" fill="#64748b" text-anchor="middle">Aman &amp; Terpercaya</text>
+  </g>
+</svg>
