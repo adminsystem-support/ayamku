@@ -21,16 +21,20 @@ export type DocumentPrintData =
       type: 'payment_receipt'; 
       data: {
         receiptNo: string;
-        title: string;
+        title?: string;
         date: string;
         counterpartyName: string;
         invoiceNumber: string;
-        totalInvoiceAmount: number;
-        paymentAmount: number;
+        totalInvoiceAmount?: number;
+        paymentAmount?: number;
+        amount?: number;
+        grandTotal?: number;
         remainingDebt: number;
         paymentMethod: 'Tunai' | 'Transfer';
         notes?: string;
         recordedBy: string;
+        receiptType?: 'BKM' | 'BKK';
+        counterpartyType?: string;
       }
     };
 
@@ -830,12 +834,24 @@ export function createDocumentPdf(
 
   // Payment receipt
   const r = data.data;
+  const payAmount = (r.paymentAmount !== undefined && r.paymentAmount !== null)
+    ? r.paymentAmount
+    : ((r.amount !== undefined && r.amount !== null) ? r.amount : 0);
+  const invAmount = (r.totalInvoiceAmount !== undefined && r.totalInvoiceAmount !== null)
+    ? r.totalInvoiceAmount
+    : ((r.grandTotal !== undefined && r.grandTotal !== null) ? r.grandTotal : 0);
+  const isBKK = r.receiptNo?.startsWith('BKK') || r.receiptType === 'BKK';
+  const defaultTitle = isBKK 
+    ? (r.remainingDebt === 0 ? 'BUKTI PELUNASAN KAS KELUAR (BKK)' : 'BUKTI PEMBAYARAN CICILAN KAS KELUAR (BKK)')
+    : (r.remainingDebt === 0 ? 'BUKTI PELUNASAN KAS MASUK (BKM)' : 'BUKTI PENERIMAAN CICILAN KAS MASUK (BKM)');
+  const receiptTitle = r.title || defaultTitle;
+
   const fileName = `Kuitansi_${r.receiptNo}.pdf`;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.text(store.name, 14, 22);
-  doc.text('KUITANSI PEMBAYARAN', 196, 22, { align: 'right' });
+  doc.text(receiptTitle || 'KUITANSI PEMBAYARAN', 196, 22, { align: 'right' });
   doc.setFontSize(10);
   doc.text(`No: ${r.receiptNo}`, 196, 28, { align: 'right' });
   doc.text(`Penerima / Pembayar: ${r.counterpartyName}`, 14, 32);
@@ -844,8 +860,8 @@ export function createDocumentPdf(
     startY: 42,
     head: [['Deskripsi', 'Keterangan', 'Nominal']],
     body: [
-      ['No. Faktur Rujukan', r.invoiceNumber, formatCurrency(r.totalInvoiceAmount)],
-      ['Pembayaran Diterima', `Metode: ${r.paymentMethod}`, formatCurrency(r.paymentAmount)],
+      ['No. Faktur Rujukan', r.invoiceNumber, invAmount > 0 ? formatCurrency(invAmount) : '-'],
+      ['Pembayaran Diterima', `Metode: ${r.paymentMethod}`, formatCurrency(payAmount)],
       ['Sisa Tagihan Setelah Ini', '-', formatCurrency(r.remainingDebt)]
     ],
     theme: 'grid',

@@ -47,16 +47,20 @@ export type PrintData =
       type: 'payment_receipt'; 
       data: {
         receiptNo: string;
-        title: string;
+        title?: string;
         date: string;
         counterpartyName: string;
         invoiceNumber: string;
-        totalInvoiceAmount: number;
-        paymentAmount: number;
+        totalInvoiceAmount?: number;
+        paymentAmount?: number;
+        amount?: number;
+        grandTotal?: number;
         remainingDebt: number;
         paymentMethod: 'Tunai' | 'Transfer';
         notes?: string;
         recordedBy: string;
+        receiptType?: 'BKM' | 'BKK';
+        counterpartyType?: string;
       }
     };
 
@@ -1454,8 +1458,21 @@ export const PrintModal: React.FC<PrintModalProps> = ({
             })()}
 
             {/* 4. PAYMENT RECEIPT TEMPLATE (BUKTI KAS MASUK / KAS KELUAR - NOTA PENERIMAAN / PELUNASAN) */}
-            {printData.type === 'payment_receipt' && (
-              printFormat === 'a4' ? (
+            {printData.type === 'payment_receipt' && (() => {
+              const r = printData.data;
+              const payAmount = (r.paymentAmount !== undefined && r.paymentAmount !== null)
+                ? r.paymentAmount
+                : ((r.amount !== undefined && r.amount !== null) ? r.amount : 0);
+              const invAmount = (r.totalInvoiceAmount !== undefined && r.totalInvoiceAmount !== null)
+                ? r.totalInvoiceAmount
+                : ((r.grandTotal !== undefined && r.grandTotal !== null) ? r.grandTotal : 0);
+              const isBKK = r.receiptNo?.startsWith('BKK') || r.receiptType === 'BKK';
+              const defaultTitle = isBKK 
+                ? (r.remainingDebt === 0 ? 'BUKTI PELUNASAN KAS KELUAR (BKK)' : 'BUKTI PEMBAYARAN CICILAN KAS KELUAR (BKK)')
+                : (r.remainingDebt === 0 ? 'BUKTI PELUNASAN KAS MASUK (BKM)' : 'BUKTI PENERIMAAN CICILAN KAS MASUK (BKM)');
+              const receiptTitle = r.title || defaultTitle;
+
+              return printFormat === 'a4' ? (
                 // A4 Payment Receipt / Kwitansi
                 <div className="space-y-6">
                   {/* Header with Store Logo */}
@@ -1472,10 +1489,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </div>
                     <div className="text-right">
                       <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        {printData.data.title}
+                        {receiptTitle}
                       </span>
-                      <h2 className="text-base font-bold font-mono text-slate-900 mt-1.5">{printData.data.receiptNo}</h2>
-                      <p className="text-xs text-slate-500 mt-0.5">Tanggal: {formatDateTime(printData.data.date)}</p>
+                      <h2 className="text-base font-bold font-mono text-slate-900 mt-1.5">{r.receiptNo}</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">Tanggal: {formatDateTime(r.date)}</p>
                     </div>
                   </div>
 
@@ -1485,32 +1502,34 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       <tbody className="divide-y divide-slate-200">
                         <tr className="bg-slate-50">
                           <td className="py-2.5 px-3.5 text-slate-600 font-medium border-r border-slate-200 w-1/2">Pihak Terkait / Customer / Supplier</td>
-                          <td className="py-2.5 px-3.5 text-sm font-bold text-slate-900">{printData.data.counterpartyName}</td>
+                          <td className="py-2.5 px-3.5 text-sm font-bold text-slate-900">{r.counterpartyName}</td>
                         </tr>
                         <tr>
                           <td className="py-2.5 px-3.5 text-slate-600 font-medium border-r border-slate-200">Referensi Dokumen Utama</td>
                           <td className="py-2.5 px-3.5 text-sm font-mono font-bold text-amber-700">
-                            {printData.data.invoiceNumber}
-                            <span className="text-[11px] text-slate-500 font-normal ml-2">(Nilai Faktur: {formatCurrency(printData.data.totalInvoiceAmount)})</span>
+                            {r.invoiceNumber}
+                            {invAmount > 0 && (
+                              <span className="text-[11px] text-slate-500 font-normal ml-2">(Nilai Faktur: {formatCurrency(invAmount)})</span>
+                            )}
                           </td>
                         </tr>
                         <tr className="bg-emerald-50/70 font-bold">
                           <td className="py-2.5 px-3.5 text-slate-800 border-r border-emerald-200">Nominal Pembayaran / Diterima</td>
-                          <td className="py-2.5 px-3.5 font-mono font-bold text-emerald-800 text-base">{formatCurrency(printData.data.paymentAmount)}</td>
+                          <td className="py-2.5 px-3.5 font-mono font-bold text-emerald-800 text-base">{formatCurrency(payAmount)}</td>
                         </tr>
                         <tr>
                           <td className="py-2.5 px-3.5 text-slate-600 font-medium border-r border-slate-200">Metode Pembayaran</td>
-                          <td className="py-2.5 px-3.5 font-bold text-slate-800">{printData.data.paymentMethod}</td>
+                          <td className="py-2.5 px-3.5 font-bold text-slate-800">{r.paymentMethod}</td>
                         </tr>
-                        {printData.data.notes && (
+                        {r.notes && (
                           <tr>
                             <td className="py-2.5 px-3.5 text-slate-600 font-medium border-r border-slate-200">Catatan / Keterangan</td>
-                            <td className="py-2.5 px-3.5 font-medium text-slate-800 italic">{printData.data.notes}</td>
+                            <td className="py-2.5 px-3.5 font-medium text-slate-800 italic">{r.notes}</td>
                           </tr>
                         )}
                         <tr className="bg-rose-50/70 font-bold text-rose-800">
                           <td className="py-2.5 px-3.5 border-r border-rose-200">Sisa Hutang / Piutang Setelah Pembayaran Ini</td>
-                          <td className="py-2.5 px-3.5 font-mono text-base">{formatCurrency(printData.data.remainingDebt)}</td>
+                          <td className="py-2.5 px-3.5 font-mono text-base">{formatCurrency(r.remainingDebt)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -1522,12 +1541,12 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       <div>
                         <p>Diterima / Penyetor,</p>
                         <div className="h-16"></div>
-                        <p className="font-medium text-slate-800">( {printData.data.counterpartyName} )</p>
+                        <p className="font-medium text-slate-800">( {r.counterpartyName} )</p>
                       </div>
                       <div>
                         <p>Petugas / Admin Usaha,</p>
                         <div className="h-16"></div>
-                        <p className="font-medium text-slate-800">( {printData.data.recordedBy || 'Admin Usaha'} )</p>
+                        <p className="font-medium text-slate-800">( {r.recordedBy || 'Admin Usaha'} )</p>
                       </div>
                     </div>
                   </div>
@@ -1542,36 +1561,42 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   <div className="text-[10px] leading-tight text-slate-700">{storeProfile.address}</div>
                   <div className="border-b border-dashed border-slate-400 my-2"></div>
 
-                  <div className="font-bold uppercase tracking-wider text-[11px] text-slate-900">{printData.data.title}</div>
-                  <div className="font-mono font-bold text-slate-800">{printData.data.receiptNo}</div>
-                  <div className="text-slate-500">{formatDateTime(printData.data.date)}</div>
+                  <div className="font-bold uppercase tracking-wider text-[11px] text-slate-900">{receiptTitle}</div>
+                  <div className="font-mono font-bold text-slate-800">{r.receiptNo}</div>
+                  <div className="text-slate-500">{formatDateTime(r.date)}</div>
 
                   <div className="border-b border-dashed border-slate-400 my-2"></div>
 
                   <div className="text-left space-y-1">
                     <div className="flex justify-between">
                       <span>Pihak:</span>
-                      <span className="font-bold truncate max-w-[140px]">{printData.data.counterpartyName}</span>
+                      <span className="font-bold truncate max-w-[140px]">{r.counterpartyName}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Ref Faktur:</span>
-                      <span className="font-mono font-bold">{printData.data.invoiceNumber}</span>
+                      <span className="font-mono font-bold">{r.invoiceNumber}</span>
                     </div>
+                    {invAmount > 0 && (
+                      <div className="flex justify-between text-slate-500">
+                        <span>Total Faktur:</span>
+                        <span className="font-mono">{formatCurrency(invAmount)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between border-t border-slate-200 pt-1 font-bold text-xs">
-                      <span>BAYAR:</span>
-                      <span className="font-mono">{formatCurrency(printData.data.paymentAmount)}</span>
+                      <span>BAYAR / TERIMA:</span>
+                      <span className="font-mono">{formatCurrency(payAmount)}</span>
                     </div>
                     <div className="flex justify-between text-rose-700 font-bold border-t border-dashed border-slate-300 pt-1">
                       <span>SISA HUTANG:</span>
-                      <span className="font-mono">{formatCurrency(printData.data.remainingDebt)}</span>
+                      <span className="font-mono">{formatCurrency(r.remainingDebt)}</span>
                     </div>
                   </div>
 
                   <div className="border-b border-dashed border-slate-400 my-2"></div>
-                  <div className="text-slate-600 italic">{printData.data.notes || 'Bukti Pembayaran / Pelunasan Sah'}</div>
+                  <div className="text-slate-600 italic">{r.notes || 'Bukti Pembayaran / Pelunasan Sah'}</div>
                 </div>
-              )
-            )}
+              );
+            })()}
 
           </div>
         </div>
