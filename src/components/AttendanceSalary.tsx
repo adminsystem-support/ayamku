@@ -113,7 +113,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
     const dd = parts[2];
     const monthNames: Record<string, string> = {
       '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'Mei', '06': 'Jun',
-      '07': 'Jul', '08': 'Agu', '09': 'Sep', '10': 'Okt', '11': 'Nop', '12': 'Des'
+      '07': 'Jul', '08': 'Agu', '09': 'Sep', '10': 'Okt', '11': 'Nov', '12': 'Des'
     };
     return `${dd}/${monthNames[mm] || mm}/${yyyy}`;
   };
@@ -667,6 +667,9 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                     onChange={(e) => setSlipDate(e.target.value)}
                     className="p-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
                   />
+                  <span className="text-xs font-bold text-amber-900 bg-amber-100/90 px-3 py-1.5 rounded-lg border border-amber-300 font-mono">
+                    {getDayNameID(slipDate)}, {formatDateDDNopYYYY(slipDate)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -689,12 +692,12 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
           <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-white/60 shadow-md overflow-hidden">
             <div className="p-3.5 border-b border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Tabel Input Slip Gaji Karyawan ({getDayNameID(slipDate).toUpperCase()}, {formatDateDDNopYYYY(slipDate)})
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+                  SLIP GAJI KARYAWAN
                 </h3>
-                <p className="text-[11px] text-slate-500">
-                  Isi Gaji Pokok, Tambahan, dan Potongan Kasbon untuk menerbitkan slip gaji karyawan
-                </p>
+                <span className="text-xs font-bold text-amber-900 font-mono block mt-0.5">
+                  {getDayNameID(slipDate)}, {formatDateDDNopYYYY(slipDate)}
+                </span>
               </div>
               <div className="text-xs text-slate-600 font-medium">
                 Total Karyawan Aktif: <strong className="text-slate-900">{filteredActiveEmployees.length} orang</strong>
@@ -707,10 +710,10 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-100/80 text-slate-700 font-bold">
                     <th className="py-2.5 px-3">Nama Karyawan</th>
-                    <th className="py-2.5 px-3 text-right">Gaji Pokok / Harian</th>
-                    <th className="py-2.5 px-3 text-right">Tambahan (Bonus/Lembur)</th>
-                    <th className="py-2.5 px-3 text-right">Kasbon (Potongan Kasbon)</th>
-                    <th className="py-2.5 px-3 text-right">Total (Gaji + Tambahan - Kasbon)</th>
+                    <th className="py-2.5 px-3 text-right">Gaji</th>
+                    <th className="py-2.5 px-3 text-right">Tambahan</th>
+                    <th className="py-2.5 px-3 text-right">Kasbon</th>
+                    <th className="py-2.5 px-3 text-right">Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -874,7 +877,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-[10px] font-semibold text-slate-600 block">Gaji Pokok (Rp):</label>
+                        <label className="text-[10px] font-semibold text-slate-600 block">Gaji:</label>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -893,7 +896,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                       </div>
 
                       <div>
-                        <label className="text-[10px] font-semibold text-slate-600 block">Tambahan (Rp):</label>
+                        <label className="text-[10px] font-semibold text-slate-600 block">Tambahan:</label>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -915,7 +918,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
 
                     <div>
                       <div className="flex justify-between items-center mb-1">
-                        <label className="text-[10px] font-semibold text-rose-700 block">Potongan Kasbon (Rp):</label>
+                        <label className="text-[10px] font-semibold text-rose-700 block">Kasbon:</label>
                         {activeKasbon > 0 && (
                           <button
                             type="button"
@@ -952,7 +955,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
 
                     <div className="flex justify-between items-center pt-2 border-t border-slate-100">
                       <div>
-                        <span className="text-[10px] text-slate-400 block uppercase font-medium">Total Gaji Bersih:</span>
+                        <span className="text-[10px] text-slate-400 block uppercase font-medium">Total:</span>
                         <span className="font-mono font-bold text-emerald-700 text-base">{formatCurrency(totalNet)}</span>
                       </div>
                     </div>
@@ -966,13 +969,10 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
           <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
             <div>
               <span className="text-[10px] text-slate-400 block uppercase font-medium">
-                Total Gaji Bersih Dibayar ({getDayNameID(slipDate).toUpperCase()}, {formatDateDDNopYYYY(slipDate)}):
+                TOTAL GAJI BERSIH DIBAYAR:
               </span>
-              <span className="text-2xl font-bold font-mono text-amber-400">
+              <span className="text-2xl font-bold font-mono text-amber-400 block">
                 {formatCurrency(batchSummary.totalNet)}
-              </span>
-              <span className="text-[10px] text-slate-400 block mt-0.5">
-                Gaji Pokok: {formatCurrency(batchSummary.totalWage)} | Tambahan: +{formatCurrency(batchSummary.totalAddition)} | Potongan Kasbon: -{formatCurrency(batchSummary.totalKasbon)}
               </span>
             </div>
 
