@@ -219,6 +219,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
       ? sale.customerDepositBalance 
       : (cust?.depositBalance || newSavings);
 
+    const isFullyLunas = (
+      (sale.paymentStatus === 'Lunas' || noteRemainingDebt === 0) &&
+      !hasHutang &&
+      previousDebt === 0 &&
+      totalKeseluruhan === 0 &&
+      totalAllDebt === 0
+    );
+
     return {
       customerPhone,
       customerAddress,
@@ -236,6 +244,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
       totalAllDebt,
       overpayment,
       depositBalance,
+      isFullyLunas,
     };
   }, [printData, customers, sales]);
 
@@ -693,7 +702,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 // A4 Sale Invoice styled like Salary Slip
                 <div className="space-y-5 relative">
                   {/* WATERMARK LUNAS RESMI PADA SEMUA PREVIEW, PRINT & DOWNLOAD PDF */}
-                  {((printData.data.paymentStatus === 'Lunas') || (printData.data.amountPaid >= printData.data.grandTotal) || ((printData.data.remainingDebt ?? 0) <= 0)) && (
+                  {Boolean(saleCustomerInfo?.isFullyLunas) && (
                     <div 
                       className="absolute inset-0 pointer-events-none flex items-center justify-center z-20 select-none overflow-hidden" 
                       aria-hidden="true"
@@ -1061,7 +1070,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   </div>
 
                   {/* BADGE LUNAS ATAU BELUM LUNAS DI NOTA THERMAL */}
-                  {((printData.data.paymentStatus === 'Lunas') || (printData.data.amountPaid >= printData.data.grandTotal) || ((printData.data.remainingDebt ?? 0) <= 0)) ? (
+                  {saleCustomerInfo?.isFullyLunas ? (
                     <div className="my-2 border-2 border-dashed border-emerald-700 bg-emerald-50/70 py-1.5 px-2 text-center rounded">
                       <div className="font-extrabold text-xs tracking-widest text-emerald-800">*** L U N A S ***</div>
                       <div className="text-[9px] text-emerald-700 font-semibold">SUDAH DIBAYAR LUNAS</div>

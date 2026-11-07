@@ -141,7 +141,17 @@ export function createDocumentPdf(
   
   if (data.type === 'sale') {
     const sale = data.data;
-    const isLunas = sale.paymentStatus === 'Lunas' || sale.amountPaid >= sale.grandTotal || (sale.remainingDebt ?? 0) <= 0;
+    const pdfPreviousDebt = sale.previousDebt !== undefined ? sale.previousDebt : 0;
+    const pdfRemainingDebt = sale.remainingDebt !== undefined ? sale.remainingDebt : Math.max(0, (sale.grandTotal || 0) - (sale.amountPaid || 0));
+    const pdfTotalOverall = sale.totalOverall !== undefined ? sale.totalOverall : 0;
+    const pdfTotalCustomerDebt = sale.totalCustomerDebt !== undefined ? sale.totalCustomerDebt : 0;
+
+    const isLunas = (
+      (sale.paymentStatus === 'Lunas' || pdfRemainingDebt === 0) &&
+      pdfPreviousDebt === 0 &&
+      pdfTotalOverall === 0 &&
+      pdfTotalCustomerDebt === 0
+    );
     const fileName = `Nota_Penjualan_${sale.invoiceNumber}.pdf`;
     const doc = new jsPDF({
       orientation: 'portrait',
