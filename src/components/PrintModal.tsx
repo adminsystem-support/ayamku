@@ -677,19 +677,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                               Sisa Hutang Nota: {formatCurrency(saleCustomerInfo.noteRemainingDebt)}
                             </span>
                           )}
-                          {saleCustomerInfo.otherNotesDebt > 0 && (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                              Total Hutang: {formatCurrency(saleCustomerInfo.totalAllDebt)}
-                            </span>
-                          )}
                           {(saleCustomerInfo.overpayment > 0 || saleCustomerInfo.depositBalance > 0) && (
                             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
                               Kelebihan Bayar: {formatCurrency(saleCustomerInfo.overpayment > 0 ? saleCustomerInfo.overpayment : saleCustomerInfo.depositBalance)}
                             </span>
                           )}
-                          {saleCustomerInfo.noteRemainingDebt === 0 && saleCustomerInfo.totalAllDebt === 0 && (
+                          {saleCustomerInfo.noteRemainingDebt === 0 && (
                             <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              Status: Lunas Penuh
+                              Status: Lunas
                             </span>
                           )}
                         </div>
@@ -831,118 +826,20 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                             <td className="py-3 px-3.5 text-slate-900 font-bold border-r border-slate-300">Total Penjualan (Grand Total):</td>
                             <td className="py-3 px-3.5 text-right font-mono text-emerald-800 text-sm sm:text-base font-bold">{formatCurrency(printData.data.grandTotal)}</td>
                           </tr>
+                          {saleCustomerInfo && saleCustomerInfo.otherNotesDebt > 0 && (
+                            <tr className="bg-rose-50 border-t border-rose-200 text-rose-950 font-extrabold">
+                              <td className="py-3 px-3.5 text-rose-900 font-bold border-r border-rose-200">
+                                Total Penjualan + Total Hutang:
+                              </td>
+                              <td className="py-3 px-3.5 text-right font-mono text-rose-800 text-sm sm:text-base font-bold">
+                                {formatCurrency(printData.data.grandTotal + saleCustomerInfo.otherNotesDebt)}
+                              </td>
+                            </tr>
+                          )}
                         </tfoot>
                       </table>
                     </div>
                   </div>
-
-                  {/* Riwayat Pembayaran & Pelunasan Cicilan (Menampilkan riwayat pelunasan jika lunas atau bertahap) */}
-                  {((printData.data.customerDebtPayments && printData.data.customerDebtPayments.length > 0) || printData.data.amountPaid > 0) && (
-                    <div className="bg-white border border-slate-300 rounded-xl overflow-hidden shadow-2xs text-xs">
-                      <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <History className="w-4 h-4 text-amber-600" />
-                          <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
-                            RIWAYAT PEMBAYARAN & PELUNASAN NOTA
-                          </h4>
-                        </div>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                          ((printData.data.paymentStatus === 'Lunas') || (printData.data.amountPaid >= printData.data.grandTotal) || ((printData.data.remainingDebt ?? 0) <= 0))
-                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                            : 'bg-amber-100 text-amber-800 border-amber-300'
-                        }`}>
-                          {((printData.data.paymentStatus === 'Lunas') || (printData.data.amountPaid >= printData.data.grandTotal) || ((printData.data.remainingDebt ?? 0) <= 0))
-                            ? '✓ SUDAH LUNAS'
-                            : '⏳ BELUM LUNAS / CICILAN'}
-                        </span>
-                      </div>
-
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs border-collapse">
-                          <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-[11px]">
-                            <tr>
-                              <th className="py-2 px-3 border-r border-slate-200 text-center w-8">No</th>
-                              <th className="py-2 px-3 border-r border-slate-200 whitespace-nowrap">Waktu Bayar</th>
-                              <th className="py-2 px-3 text-right border-r border-slate-200 whitespace-nowrap">Nominal Dibayar</th>
-                              <th className="py-2 px-3 border-r border-slate-200 whitespace-nowrap">Metode</th>
-                              <th className="py-2 px-3 border-r border-slate-200">Keterangan / Status</th>
-                              <th className="py-2 px-3 text-right whitespace-nowrap">Sisa Tagihan</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 font-medium">
-                            {printData.data.customerDebtPayments && printData.data.customerDebtPayments.length > 0 ? (
-                              printData.data.customerDebtPayments.map((pay, pIdx) => (
-                                <tr key={pay.id || pIdx} className="hover:bg-slate-50/50">
-                                  <td className="py-2 px-3 text-slate-400 font-mono text-center border-r border-slate-100">{pIdx + 1}</td>
-                                  <td className="py-2 px-3 text-slate-700 whitespace-nowrap border-r border-slate-100">
-                                    {formatDateTime(pay.date)}
-                                  </td>
-                                  <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700 whitespace-nowrap border-r border-slate-100">
-                                    {formatCurrency(pay.amount)}
-                                  </td>
-                                  <td className="py-2 px-3 text-slate-600 font-semibold border-r border-slate-100 whitespace-nowrap">
-                                    {pay.paymentMethod || 'Tunai'}
-                                  </td>
-                                  <td className="py-2 px-3 text-slate-800 border-r border-slate-100">
-                                    {pay.notes || (pIdx === 0 ? 'Uang Muka (DP)' : 'Pembayaran Cicilan')}
-                                    {pay.receiptNo && (
-                                      <span className="text-[10px] text-slate-500 font-mono ml-1.5">({pay.receiptNo})</span>
-                                    )}
-                                  </td>
-                                  <td className="py-2 px-3 text-right font-mono font-semibold whitespace-nowrap text-slate-700">
-                                    {pay.remainingAfter !== undefined ? formatCurrency(pay.remainingAfter) : '-'}
-                                  </td>
-                                </tr>
-                              ))
-                            ) : (
-                              <tr className="hover:bg-slate-50/50">
-                                <td className="py-2 px-3 text-slate-400 font-mono text-center border-r border-slate-100">1</td>
-                                <td className="py-2 px-3 text-slate-700 whitespace-nowrap border-r border-slate-100">
-                                  {formatDateTime(printData.data.date)}
-                                </td>
-                                <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700 whitespace-nowrap border-r border-slate-100">
-                                  {formatCurrency(printData.data.amountPaid)}
-                                </td>
-                                <td className="py-2 px-3 text-slate-600 font-semibold border-r border-slate-100 whitespace-nowrap">
-                                  {printData.data.paymentMethod}
-                                </td>
-                                <td className="py-2 px-3 text-slate-800 border-r border-slate-100">
-                                  {((printData.data.paymentStatus === 'Lunas') || (printData.data.amountPaid >= printData.data.grandTotal))
-                                    ? 'Pembayaran Lunas Saat Transaksi'
-                                    : 'Uang Muka (DP) Transaksi'}
-                                </td>
-                                <td className="py-2 px-3 text-right font-mono font-semibold whitespace-nowrap text-slate-700">
-                                  {formatCurrency(Math.max(0, printData.data.grandTotal - printData.data.amountPaid))}
-                                </td>
-                              </tr>
-                            )}
-                          </tbody>
-                          <tfoot className="bg-slate-50 font-bold border-t border-slate-200 text-slate-800 text-xs">
-                            <tr>
-                              <td colSpan={2} className="py-2 px-3 text-left border-r border-slate-200">Total Akumulasi Terbayar:</td>
-                              <td className="py-2 px-3 text-right font-mono text-emerald-800 font-bold border-r border-slate-200">
-                                {formatCurrency(printData.data.amountPaid)}
-                              </td>
-                              <td colSpan={2} className="py-2 px-3 text-right border-r border-slate-200 text-[11px] text-slate-600">
-                                {((printData.data.paymentStatus === 'Lunas') || (printData.data.amountPaid >= printData.data.grandTotal) || ((printData.data.remainingDebt ?? 0) <= 0))
-                                  ? 'Status Akhir Nota:'
-                                  : 'Sisa Belum Lunas:'}
-                              </td>
-                              <td className={`py-2 px-3 text-right font-mono font-bold ${
-                                ((printData.data.paymentStatus === 'Lunas') || (printData.data.amountPaid >= printData.data.grandTotal) || ((printData.data.remainingDebt ?? 0) <= 0))
-                                  ? 'text-emerald-700'
-                                  : 'text-rose-700'
-                              }`}>
-                                {((printData.data.paymentStatus === 'Lunas') || (printData.data.amountPaid >= printData.data.grandTotal) || ((printData.data.remainingDebt ?? 0) <= 0))
-                                  ? 'LUNAS (Rp 0)'
-                                  : formatCurrency(printData.data.grandTotal - printData.data.amountPaid)}
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                    </div>
-                  )}
 
                   {printData.data.notes && (
                     <p className="text-xs text-slate-500 italic">Catatan: {printData.data.notes}</p>
@@ -1029,6 +926,12 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       <span>TOTAL:</span>
                       <span>{formatCurrency(printData.data.grandTotal)}</span>
                     </div>
+                    {saleCustomerInfo && saleCustomerInfo.otherNotesDebt > 0 && (
+                      <div className="flex justify-between font-bold text-xs pt-0.5 text-rose-800">
+                        <span>TOTAL + HUTANG:</span>
+                        <span>{formatCurrency(printData.data.grandTotal + saleCustomerInfo.otherNotesDebt)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between pt-0.5">
                       <span>Bayar ({printData.data.paymentMethod}):</span>
                       <span>{formatCurrency(printData.data.amountPaid)}</span>
@@ -1048,8 +951,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     )}
                     {saleCustomerInfo && saleCustomerInfo.otherNotesDebt > 0 && (
                       <div className="flex justify-between text-rose-700 font-bold border-t border-dashed border-rose-300 pt-0.5">
-                        <span>Total Sisa Hutang:</span>
-                        <span>{formatCurrency(saleCustomerInfo.totalAllDebt)}</span>
+                        <span>Sisa Hutang Sebelumnya:</span>
+                        <span>{formatCurrency(saleCustomerInfo.otherNotesDebt)}</span>
                       </div>
                     )}
                     {saleCustomerInfo && (saleCustomerInfo.overpayment > 0 || saleCustomerInfo.depositBalance > 0) && (
@@ -1060,34 +963,11 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     )}
                   </div>
 
-                  {/* Riwayat Pembayaran & Cicilan di Struk Thermal */}
-                  <div className="border-t border-dashed border-slate-300 pt-1.5 text-left text-[10px] space-y-1">
-                    <div className="font-bold text-slate-800 uppercase tracking-tight flex justify-between">
-                      <span>RIWAYAT PEMBAYARAN:</span>
-                      <span className="font-mono">{printData.data.customerDebtPayments && printData.data.customerDebtPayments.length > 0 ? `${printData.data.customerDebtPayments.length}x` : '1x'}</span>
-                    </div>
-                    {printData.data.customerDebtPayments && printData.data.customerDebtPayments.length > 0 ? (
-                      printData.data.customerDebtPayments.map((pay, pIdx) => (
-                        <div key={pay.id || pIdx} className="flex justify-between text-slate-600 text-[9.5px]">
-                          <span className="truncate max-w-[170px]">
-                            {pIdx + 1}. {formatDate(pay.date.substring(0, 10))} ({pay.notes || (pIdx === 0 ? 'DP' : 'Cicilan')}):
-                          </span>
-                          <span className="font-bold font-mono text-slate-900">{formatCurrency(pay.amount)}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="flex justify-between text-slate-600 text-[9.5px]">
-                        <span>1. {formatDate(printData.data.date.substring(0, 10))} ({((printData.data.paymentStatus === 'Lunas') || (printData.data.amountPaid >= printData.data.grandTotal)) ? 'Bayar Penuh' : 'DP'}):</span>
-                        <span className="font-bold font-mono text-slate-900">{formatCurrency(printData.data.amountPaid)}</span>
-                      </div>
-                    )}
-                  </div>
-
                   {/* BADGE LUNAS ATAU BELUM LUNAS DI NOTA THERMAL */}
                   {((printData.data.paymentStatus === 'Lunas') || (printData.data.amountPaid >= printData.data.grandTotal) || ((printData.data.remainingDebt ?? 0) <= 0)) ? (
                     <div className="my-2 border-2 border-dashed border-emerald-700 bg-emerald-50/70 py-1.5 px-2 text-center rounded">
                       <div className="font-extrabold text-xs tracking-widest text-emerald-800">*** L U N A S ***</div>
-                      <div className="text-[9px] text-emerald-700 font-semibold">SUDAH DIBAYAR LUNAS (SISA Rp 0)</div>
+                      <div className="text-[9px] text-emerald-700 font-semibold">SUDAH DIBAYAR LUNAS</div>
                     </div>
                   ) : (
                     <div className="my-2 border-2 border-dashed border-rose-600 bg-rose-50/70 py-1.5 px-2 text-center rounded">

@@ -380,12 +380,20 @@ export function createDocumentPdf(
         summaryBody.push(['Uang Kembalian:', formatCurrency(sale.change)]);
       }
 
+      const summaryFoot: any[] = [
+        ['Total Penjualan (Grand Total):', formatCurrency(sale.grandTotal)]
+      ];
+      if (sale.totalCustomerDebt !== undefined && sale.totalCustomerDebt > Math.max(0, sale.grandTotal - sale.amountPaid)) {
+        const previousDebt = sale.totalCustomerDebt - Math.max(0, sale.grandTotal - sale.amountPaid);
+        if (previousDebt > 0) {
+          summaryFoot.push(['Total Penjualan + Total Hutang:', formatCurrency(sale.grandTotal + previousDebt)]);
+        }
+      }
+
       autoTable(doc, {
         startY: calcY + 7,
         body: summaryBody,
-        foot: [
-          ['Total Penjualan (Grand Total):', formatCurrency(sale.grandTotal)]
-        ],
+        foot: summaryFoot,
         theme: 'grid',
         bodyStyles: {
           fontSize: 8,
@@ -410,87 +418,11 @@ export function createDocumentPdf(
 
       const finalCalcY = (doc as any).lastAutoTable?.finalY || 180;
 
-      // 5. Riwayat Pembayaran Table Section
-      const payments = sale.customerDebtPayments && sale.customerDebtPayments.length > 0
-        ? sale.customerDebtPayments.map((p, idx) => [
-            idx + 1,
-            formatDateTime(p.date),
-            formatCurrency(p.amount),
-            p.paymentMethod || 'Tunai',
-            p.notes || (idx === 0 ? 'DP' : 'Cicilan'),
-            p.remainingAfter !== undefined ? formatCurrency(p.remainingAfter) : '-'
-          ])
-        : [
-            [
-              1,
-              formatDateTime(sale.date),
-              formatCurrency(sale.amountPaid),
-              sale.paymentMethod,
-              isLunas ? 'Pembayaran Lunas Saat Transaksi' : 'Uang Muka (DP) Transaksi',
-              formatCurrency(Math.max(0, sale.grandTotal - sale.amountPaid))
-            ]
-          ];
-
-      const historyStartY = finalCalcY + 6;
-      doc.setFillColor(241, 245, 249);
-      doc.setDrawColor(203, 213, 225);
-      doc.roundedRect(14, historyStartY, 182, 7, 1.5, 1.5, 'DF');
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(15, 23, 42);
-      doc.text(`RIWAYAT PEMBAYARAN & PELUNASAN NOTA [${isLunas ? 'SUDAH LUNAS' : 'BELUM LUNAS'}]`, 18, historyStartY + 4.8);
-
-      autoTable(doc, {
-        startY: historyStartY + 7,
-        head: [['No', 'Waktu Bayar', 'Nominal Bayar', 'Metode', 'Keterangan', 'Sisa Tagihan']],
-        body: payments,
-        foot: [
-          [
-            { content: 'Total Terbayar:', colSpan: 2, styles: { halign: 'left', fontStyle: 'bold' } },
-            { content: formatCurrency(sale.amountPaid), colSpan: 2, styles: { halign: 'right', fontStyle: 'bold', textColor: [6, 95, 70] } },
-            { content: isLunas ? 'STATUS: LUNAS (Rp 0)' : `SISA: ${formatCurrency(sale.grandTotal - sale.amountPaid)}`, colSpan: 2, styles: { halign: 'right', fontStyle: 'bold', textColor: isLunas ? [6, 95, 70] : [190, 18, 60] } }
-          ]
-        ],
-        theme: 'grid',
-        headStyles: {
-          fillColor: [248, 250, 252],
-          textColor: [15, 23, 42],
-          fontStyle: 'bold',
-          fontSize: 7.5,
-          lineWidth: 0.1,
-          lineColor: [226, 232, 240]
-        },
-        bodyStyles: {
-          fontSize: 7.5,
-          textColor: [15, 23, 42],
-          lineWidth: 0.1,
-          lineColor: [226, 232, 240]
-        },
-        footStyles: {
-          fillColor: [248, 250, 252],
-          textColor: [15, 23, 42],
-          fontStyle: 'bold',
-          fontSize: 8,
-          lineWidth: 0.15,
-          lineColor: [203, 213, 225]
-        },
-        columnStyles: {
-          0: { cellWidth: 10, halign: 'center' },
-          1: { cellWidth: 35, halign: 'left' },
-          2: { cellWidth: 30, halign: 'right' },
-          3: { cellWidth: 22, halign: 'center' },
-          4: { cellWidth: 'auto', halign: 'left' },
-          5: { cellWidth: 30, halign: 'right' }
-        },
-        margin: { left: 14, right: 14 }
-      });
-
-      const finalHistY = (doc as any).lastAutoTable?.finalY || 210;
       if (sale.notes) {
         doc.setFont('helvetica', 'italic');
         doc.setFontSize(8);
         doc.setTextColor(100, 116, 139);
-        doc.text(`Catatan: ${sale.notes}`, 14, finalHistY + 6);
+        doc.text(`Catatan: ${sale.notes}`, 14, finalCalcY + 6);
       }
 
       // WATERMARK LUNAS VECTOR PADA DOKUMEN A4
@@ -562,6 +494,20 @@ export function createDocumentPdf(
         curY += 4;
       }
 
+      if (sale.totalCustomerDebt !== undefined && sale.totalCustomerDebt > Math.max(0, sale.grandTotal - sale.amountPaid)) {
+        const prevDebt = sale.totalCustomerDebt - Math.max(0, sale.grandTotal - sale.amountPaid);
+        if (prevDebt > 0) {
+          doc.text('Sisa Hutang Lama:', 6, curY);
+          doc.text(formatCurrency(prevDebt), 74, curY, { align: 'right' });
+          curY += 4;
+          doc.setFont('courier', 'bold');
+          doc.text('TOTAL + HUTANG:', 6, curY);
+          doc.text(formatCurrency(sale.grandTotal + prevDebt), 74, curY, { align: 'right' });
+          curY += 5;
+          doc.setFont('courier', 'normal');
+        }
+      }
+
       if (isLunas) {
         curY += 2;
         doc.setFont('courier', 'bold');
@@ -569,7 +515,7 @@ export function createDocumentPdf(
         doc.text('*** L U N A S ***', 40, curY, { align: 'center' });
         doc.setFontSize(7);
         curY += 3.5;
-        doc.text('SUDAH DIBAYAR LUNAS (SISA Rp 0)', 40, curY, { align: 'center' });
+        doc.text('SUDAH DIBAYAR LUNAS', 40, curY, { align: 'center' });
         doc.setTextColor(0, 0, 0);
         curY += 3;
       } else {

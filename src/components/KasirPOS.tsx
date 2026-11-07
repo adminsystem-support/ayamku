@@ -950,6 +950,19 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
                       <span>Total Penjualan:</span>
                       <span className="font-mono tabular-nums text-amber-700">{formatCurrency(grandTotal)}</span>
                     </div>
+
+                    {customerPreviousDebt > 0 && (
+                      <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl space-y-1 text-xs">
+                        <div className="flex justify-between text-rose-700">
+                          <span className="font-medium">Total Hutang Sebelumnya:</span>
+                          <span className="font-mono font-bold">{formatCurrency(customerPreviousDebt)}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-900 font-extrabold text-xs pt-1 border-t border-rose-200/70">
+                          <span>Total Penjualan + Total Hutang:</span>
+                          <span className="font-mono text-rose-800 text-sm font-bold">{formatCurrency(grandTotal + customerPreviousDebt)}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Insufficient Stock Warning Banner inside cart summary */}
@@ -1348,15 +1361,21 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
 
               {/* Status Hutang & Kelebihan Bayar Sebelumnya */}
               {(customerPreviousDebt > 0 || customerExistingDeposit > 0) && (
-                <div className="mt-2.5 pt-2 border-t border-amber-200/80 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                <div className="mt-2.5 pt-2 border-t border-amber-200/80 space-y-2 text-left">
                   {customerPreviousDebt > 0 && (
-                    <div className="bg-white/90 p-2 rounded-lg border border-rose-200 text-[11px]">
-                      <span className="text-rose-700 font-semibold block">Sisa Hutang Lama:</span>
-                      <span className="font-mono font-bold text-rose-800">{formatCurrency(customerPreviousDebt)}</span>
+                    <div className="bg-rose-50/90 p-2.5 rounded-lg border border-rose-200 text-xs">
+                      <div className="flex justify-between items-center text-rose-700">
+                        <span className="font-semibold">Sisa Hutang Lama Pelanggan:</span>
+                        <span className="font-mono font-bold">{formatCurrency(customerPreviousDebt)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-900 font-extrabold text-xs pt-1.5 mt-1 border-t border-rose-200/80">
+                        <span>Total Penjualan + Total Hutang:</span>
+                        <span className="font-mono text-rose-800 text-sm font-bold">{formatCurrency(grandTotal + customerPreviousDebt)}</span>
+                      </div>
                     </div>
                   )}
                   {customerExistingDeposit > 0 && (
-                    <div className="bg-white/90 p-2 rounded-lg border border-emerald-200 text-[11px]">
+                    <div className="bg-emerald-50/90 p-2 rounded-lg border border-emerald-200 text-[11px] flex justify-between items-center">
                       <span className="text-emerald-700 font-semibold block">Kelebihan Bayar (Deposit):</span>
                       <span className="font-mono font-bold text-emerald-800">{formatCurrency(customerExistingDeposit)}</span>
                     </div>
