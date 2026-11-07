@@ -103,6 +103,21 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
     return days[d.getDay()] || '';
   };
 
+  // Helper: Format Date DD/Nop/YYYY
+  const formatDateDDNopYYYY = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    const yyyy = parts[0];
+    const mm = parts[1];
+    const dd = parts[2];
+    const monthNames: Record<string, string> = {
+      '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'Mei', '06': 'Jun',
+      '07': 'Jul', '08': 'Agu', '09': 'Sep', '10': 'Okt', '11': 'Nop', '12': 'Des'
+    };
+    return `${dd}/${monthNames[mm] || mm}/${yyyy}`;
+  };
+
   // Helper to calculate active outstanding kasbon balance for an employee
   const getEmployeeOutstandingKasbon = (empId: string): number => {
     const list = kasbonRecords.filter(k => k.employeeId === empId);
@@ -644,7 +659,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                 <Calendar className="w-5 h-5" />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-800 block">Pilih Tanggal & Hari Slip Gaji:</label>
+                <label className="text-xs font-bold text-slate-800 block">Pilih Tanggal Slip Gaji:</label>
                 <div className="flex items-center gap-2 mt-0.5">
                   <input
                     type="date"
@@ -652,9 +667,6 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                     onChange={(e) => setSlipDate(e.target.value)}
                     className="p-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 font-bold focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
                   />
-                  <span className="text-xs font-extrabold text-amber-900 bg-amber-100/90 px-3 py-1.5 rounded-lg border border-amber-300">
-                    {getDayNameID(slipDate)}, {formatDate(slipDate)}
-                  </span>
                 </div>
               </div>
             </div>
@@ -678,7 +690,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
             <div className="p-3.5 border-b border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Tabel Input Slip Gaji Karyawan ({getDayNameID(slipDate)}, {formatDate(slipDate)})
+                  Tabel Input Slip Gaji Karyawan ({getDayNameID(slipDate).toUpperCase()}, {formatDateDDNopYYYY(slipDate)})
                 </h3>
                 <p className="text-[11px] text-slate-500">
                   Isi Gaji Pokok, Tambahan, dan Potongan Kasbon untuk menerbitkan slip gaji karyawan
@@ -699,7 +711,6 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                     <th className="py-2.5 px-3 text-right">Tambahan (Bonus/Lembur)</th>
                     <th className="py-2.5 px-3 text-right">Kasbon (Potongan Kasbon)</th>
                     <th className="py-2.5 px-3 text-right">Total (Gaji + Tambahan - Kasbon)</th>
-                    <th className="py-2.5 px-3 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -822,25 +833,13 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                         <td className="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-700 text-sm">
                           {formatCurrency(totalNet)}
                         </td>
-
-                        {/* 6. Aksi */}
-                        <td className="py-2.5 px-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleSaveSingleSlip(emp)}
-                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer inline-flex items-center gap-1 transition-colors"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>Simpan Slip</span>
-                          </button>
-                        </td>
                       </tr>
                     );
                   })}
 
                   {filteredActiveEmployees.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
                         Tidak ada karyawan aktif yang cocok dengan pencarian.
                       </td>
                     </tr>
@@ -956,14 +955,6 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                         <span className="text-[10px] text-slate-400 block uppercase font-medium">Total Gaji Bersih:</span>
                         <span className="font-mono font-bold text-emerald-700 text-base">{formatCurrency(totalNet)}</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleSaveSingleSlip(emp)}
-                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer flex items-center gap-1"
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Simpan Slip</span>
-                      </button>
                     </div>
                   </div>
                 );
@@ -975,7 +966,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
           <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
             <div>
               <span className="text-[10px] text-slate-400 block uppercase font-medium">
-                Total Gaji Bersih Dibayar ({getDayNameID(slipDate)}, {formatDate(slipDate)}):
+                Total Gaji Bersih Dibayar ({getDayNameID(slipDate).toUpperCase()}, {formatDateDDNopYYYY(slipDate)}):
               </span>
               <span className="text-2xl font-bold font-mono text-amber-400">
                 {formatCurrency(batchSummary.totalNet)}
