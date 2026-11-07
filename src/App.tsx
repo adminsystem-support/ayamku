@@ -1038,6 +1038,10 @@ export default function App() {
               onSavePreOrder={handleSavePreOrder}
               onDeletePreOrder={handleDeletePreOrder}
               onGoToItemRegistration={() => setActiveTab('produk')}
+              onPrintDocument={(data) => {
+                setPrintData(data);
+                setIsPrintModalOpen(true);
+              }}
             />
           )}
 

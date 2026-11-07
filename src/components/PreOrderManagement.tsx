@@ -20,7 +20,8 @@ import {
   Calendar,
   Layers,
   History,
-  Loader2
+  Loader2,
+  Printer
 } from 'lucide-react';
 import { 
   CustomerPreOrder, 
@@ -52,6 +53,7 @@ interface PreOrderManagementProps {
   onProcessPreOrderToSale: (order: CustomerPreOrder) => void;
   onGoToItemRegistration?: () => void;
   onSaveCustomer?: (customer: Customer) => void;
+  onPrintDocument?: (printData: any) => void;
 }
 
 export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
@@ -65,6 +67,7 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
   onProcessPreOrderToSale,
   onGoToItemRegistration,
   onSaveCustomer,
+  onPrintDocument,
 }) => {
   // View mode tab: 'matrix' (spreadheet grid) or 'history' (completed orders)
   const [activeTab, setActiveTab] = useState<'matrix' | 'history'>('matrix');
@@ -459,6 +462,24 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
             </button>
           </div>
 
+          {onPrintDocument && (
+            <button
+              type="button"
+              onClick={() => onPrintDocument({
+                type: 'preorder_rekap',
+                data: {
+                  preorders: activePreOrders.length > 0 ? activePreOrders : preorders,
+                  items
+                }
+              })}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+              title="Cetak rekap total kebutuhan potong ayam & rincian pesanan semua customer (Tanpa harga)"
+            >
+              <Printer className="w-4 h-4 text-amber-400" />
+              <span>Cetak Rekap PO Keseluruhan</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => handleOpenCreateModal()}
@@ -610,6 +631,18 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
                       {/* Action Cell */}
                       <td className="py-2.5 px-3 text-center">
                         <div className="flex items-center justify-center gap-1.5">
+                          {onPrintDocument && (
+                            <button
+                              type="button"
+                              onClick={() => onPrintDocument({ type: 'preorder_single', data: po })}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                              title="Cetak Dokumen PO Customer ini (Tanpa harga)"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-amber-700" />
+                              <span>Cetak PO</span>
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => onProcessPreOrderToSale(po)}
@@ -773,6 +806,18 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
                     <span className="text-slate-400 text-[10px] block">Total Nota:</span>
                     <span className="font-bold text-slate-900 text-sm">{formatCurrency(po.grandTotal)}</span>
                   </div>
+
+                  {onPrintDocument && (
+                    <button
+                      type="button"
+                      onClick={() => onPrintDocument({ type: 'preorder_single', data: po })}
+                      className="px-3 py-2 text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-xl font-bold cursor-pointer flex items-center gap-1.5 border border-amber-200"
+                      title="Cetak ulang dokumen PO ini (Tanpa harga)"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Cetak PO</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"

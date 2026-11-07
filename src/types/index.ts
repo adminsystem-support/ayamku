@@ -331,6 +331,7 @@ export interface PreOrderItem {
   quantity: number;
   sellPrice: number;
   subtotal: number;
+  notes?: string;
 }
 
 export interface CustomerPreOrder {
@@ -342,6 +343,7 @@ export interface CustomerPreOrder {
   customerId: string;
   customerName: string;
   customerPhone?: string;
+  customerAddress?: string;
   customerType: CustomerType;
   items: PreOrderItem[];
   subtotal: number;

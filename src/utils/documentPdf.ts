@@ -4,7 +4,9 @@ import {
   SaleTransaction, 
   PurchaseTransaction, 
   SalarySlip, 
-  StoreProfile 
+  StoreProfile,
+  CustomerPreOrder,
+  Item
 } from '../types/index.ts';
 import { 
   formatCurrency, 
@@ -17,6 +19,14 @@ export type DocumentPrintData =
   | { type: 'sale'; data: SaleTransaction }
   | { type: 'purchase'; data: PurchaseTransaction }
   | { type: 'salary'; data: SalarySlip }
+  | { type: 'preorder_single'; data: CustomerPreOrder }
+  | { 
+      type: 'preorder_rekap'; 
+      data: {
+        preorders: CustomerPreOrder[];
+        items: Item[];
+      };
+    }
   | { 
       type: 'payment_receipt'; 
       data: {
@@ -87,6 +97,51 @@ export function generateWhatsAppMessage(
       `Status     : [${s.paymentStatus.toUpperCase()}]\n` +
       `----------------------------------------\n` +
       `*Dokumen PDF Resmi:* Slip_Gaji_${s.slipNumber}.pdf\n` +
+      `_${store.name}_`
+    );
+  }
+
+  if (data.type === 'preorder_single') {
+    const po = data.data;
+    const itemLines = po.items.map(i => `• ${i.itemName}: ${formatNumber(i.quantity)} ${i.unit}`).join('\n');
+    return (
+      `*PRE-ORDER PELANGGAN - ${storeName}*\n` +
+      `No. PO     : ${po.poNumber}\n` +
+      `Pelanggan  : ${po.customerName}\n` +
+      `No. WA     : ${po.customerPhone || '-'}\n` +
+      `Tgl Ambil  : ${formatDate(po.pickupDate)} ${po.pickupTime ? `(Jam ${po.pickupTime})` : ''}\n` +
+      `Status     : ${po.status}\n` +
+      `----------------------------------------\n` +
+      `*RINCIAN ITEM PESANAN:*\n` +
+      `${itemLines}\n` +
+      `----------------------------------------\n` +
+      (po.notes ? `Catatan: ${po.notes}\n----------------------------------------\n` : '') +
+      `_${store.name}_`
+    );
+  }
+
+  if (data.type === 'preorder_rekap') {
+    const { preorders, items } = data.data;
+    const itemDemands: Record<string, number> = {};
+    preorders.forEach(po => {
+      po.items.forEach(i => {
+        itemDemands[i.itemId] = (itemDemands[i.itemId] || 0) + i.quantity;
+      });
+    });
+
+    const summaryItems = items.map(it => {
+      const totalQty = itemDemands[it.id] || 0;
+      return `• *${it.name}*: ${formatNumber(totalQty)} ${it.unit}`;
+    }).join('\n');
+
+    return (
+      `*REKAP KESELURUHAN PRE-ORDER - ${storeName}*\n` +
+      `Waktu Dicetak: ${formatDateTime(new Date().toISOString())}\n` +
+      `Total PO     : ${preorders.length} Pelanggan\n` +
+      `----------------------------------------\n` +
+      `*TOTAL KEBUTUHAN ITEM PESANAN:*\n` +
+      `${summaryItems}\n` +
+      `----------------------------------------\n` +
       `_${store.name}_`
     );
   }
@@ -883,43 +938,112 @@ export function createDocumentPdf(
     return { doc, fileName };
   }
 
-  // Payment receipt
-  const r = data.data;
-  const payAmount = (r.paymentAmount !== undefined && r.paymentAmount !== null)
-    ? r.paymentAmount
-    : ((r.amount !== undefined && r.amount !== null) ? r.amount : 0);
-  const invAmount = (r.totalInvoiceAmount !== undefined && r.totalInvoiceAmount !== null)
-    ? r.totalInvoiceAmount
-    : ((r.grandTotal !== undefined && r.grandTotal !== null) ? r.grandTotal : 0);
-  const isBKK = r.receiptNo?.startsWith('BKK') || r.receiptType === 'BKK';
-  const defaultTitle = isBKK 
-    ? (r.remainingDebt === 0 ? 'BUKTI PELUNASAN KAS KELUAR (BKK)' : 'BUKTI PEMBAYARAN CICILAN KAS KELUAR (BKK)')
-    : (r.remainingDebt === 0 ? 'BUKTI PELUNASAN KAS MASUK (BKM)' : 'BUKTI PENERIMAAN CICILAN KAS MASUK (BKM)');
-  const receiptTitle = r.title || defaultTitle;
+  if (data.type === 'preorder_single') {
+    const po = data.data;
+    const fileName = `PreOrder_${po.poNumber}.pdf`;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: isA4 ? 'a4' : [80, 200] });
 
-  const fileName = `Kuitansi_${r.receiptNo}.pdf`;
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text(store.name, 14, 22);
-  doc.text(receiptTitle || 'KUITANSI PEMBAYARAN', 196, 22, { align: 'right' });
-  doc.setFontSize(10);
-  doc.text(`No: ${r.receiptNo}`, 196, 28, { align: 'right' });
-  doc.text(`Penerima / Pembayar: ${r.counterpartyName}`, 14, 32);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text(store.name, 14, 20);
+    doc.setFontSize(12);
+    doc.setTextColor(217, 119, 6);
+    doc.text('PRE-ORDER PELANGGAN', 196, 20, { align: 'right' });
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`No. PO: ${po.poNumber}`, 196, 26, { align: 'right' });
+    doc.text(`Tgl Pesan: ${formatDate(po.orderDate)}`, 196, 31, { align: 'right' });
 
-  autoTable(doc, {
-    startY: 42,
-    head: [['Deskripsi', 'Keterangan', 'Nominal']],
-    body: [
-      ['No. Faktur Rujukan', r.invoiceNumber, invAmount > 0 ? formatCurrency(invAmount) : '-'],
-      ['Pembayaran Diterima', `Metode: ${r.paymentMethod}`, formatCurrency(payAmount)],
-      ['Sisa Tagihan Setelah Ini', '-', formatCurrency(r.remainingDebt)]
-    ],
-    theme: 'grid',
-    margin: { left: 14, right: 14 }
-  });
+    doc.setTextColor(15, 23, 42);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`Pelanggan: ${po.customerName}`, 14, 30);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(`No. WA: ${po.customerPhone || '-'} | Alamat: ${po.customerAddress || '-'}`, 14, 35);
+    doc.text(`Rencana Ambil: ${formatDate(po.pickupDate)} ${po.pickupTime ? `(Jam ${po.pickupTime})` : ''} | Status: ${po.status}`, 14, 40);
 
-  return { doc, fileName };
+    const tableRows = po.items.map((item, idx) => [
+      idx + 1,
+      item.itemName,
+      `${formatNumber(item.quantity)} ${item.unit}`,
+      item.notes || '-'
+    ]);
+
+    autoTable(doc, {
+      startY: 45,
+      head: [['No', 'Nama Item', 'Jumlah / Qty', 'Catatan Item']],
+      body: tableRows,
+      theme: 'grid',
+      headStyles: { fillColor: [245, 158, 11], textColor: [255, 255, 255] },
+      margin: { left: 14, right: 14 }
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY || 100;
+    if (po.notes) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(8.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Catatan PO: ${po.notes}`, 14, finalY + 8);
+    }
+
+    return { doc, fileName };
+  }
+
+  if (data.type === 'preorder_rekap') {
+    const { preorders, items } = data.data;
+    const itemDemands: Record<string, number> = {};
+    preorders.forEach(po => {
+      po.items.forEach(i => {
+        itemDemands[i.itemId] = (itemDemands[i.itemId] || 0) + i.quantity;
+      });
+    });
+
+    const result = createPreOrderMatrixPdf(preorders, items, itemDemands, store);
+    return { doc: result.doc, fileName: result.fileName };
+  }
+
+  if (data.type === 'payment_receipt') {
+    const r = data.data;
+    const payAmount = (r.paymentAmount !== undefined && r.paymentAmount !== null)
+      ? r.paymentAmount
+      : ((r.amount !== undefined && r.amount !== null) ? r.amount : 0);
+    const invAmount = (r.totalInvoiceAmount !== undefined && r.totalInvoiceAmount !== null)
+      ? r.totalInvoiceAmount
+      : ((r.grandTotal !== undefined && r.grandTotal !== null) ? r.grandTotal : 0);
+    const isBKK = r.receiptNo?.startsWith('BKK') || r.receiptType === 'BKK';
+    const defaultTitle = isBKK 
+      ? (r.remainingDebt === 0 ? 'BUKTI PELUNASAN KAS KELUAR (BKK)' : 'BUKTI PEMBAYARAN CICILAN KAS KELUAR (BKK)')
+      : (r.remainingDebt === 0 ? 'BUKTI PELUNASAN KAS MASUK (BKM)' : 'BUKTI PENERIMAAN CICILAN KAS MASUK (BKM)');
+    const receiptTitle = r.title || defaultTitle;
+
+    const fileName = `Kuitansi_${r.receiptNo}.pdf`;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text(store.name, 14, 22);
+    doc.text(receiptTitle || 'KUITANSI PEMBAYARAN', 196, 22, { align: 'right' });
+    doc.setFontSize(10);
+    doc.text(`No: ${r.receiptNo}`, 196, 28, { align: 'right' });
+    doc.text(`Penerima / Pembayar: ${r.counterpartyName}`, 14, 32);
+
+    autoTable(doc, {
+      startY: 42,
+      head: [['Deskripsi', 'Keterangan', 'Nominal']],
+      body: [
+        ['No. Faktur Rujukan', r.invoiceNumber, invAmount > 0 ? formatCurrency(invAmount) : '-'],
+        ['Pembayaran Diterima', `Metode: ${r.paymentMethod}`, formatCurrency(payAmount)],
+        ['Sisa Tagihan Setelah Ini', '-', formatCurrency(r.remainingDebt)]
+      ],
+      theme: 'grid',
+      margin: { left: 14, right: 14 }
+    });
+
+    return { doc, fileName };
+  }
+
+  const doc = new jsPDF();
+  return { doc, fileName: 'document.pdf' };
 }
 
 /**

@@ -54,6 +54,7 @@ interface KasirPOSProps {
   onSavePreOrder?: (order: CustomerPreOrder) => void;
   onDeletePreOrder?: (id: string) => void;
   onGoToItemRegistration?: () => void;
+  onPrintDocument?: (printData: any) => void;
 }
 
 export const KasirPOS: React.FC<KasirPOSProps> = ({
@@ -70,6 +71,7 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
   onSavePreOrder,
   onDeletePreOrder,
   onGoToItemRegistration,
+  onPrintDocument,
 }) => {
   const [activeCategory, setActiveCategory] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1390,6 +1392,7 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
           onProcessPreOrderToSale={handleProcessPreOrderToSale}
           onGoToItemRegistration={onGoToItemRegistration}
           onSaveCustomer={onSaveCustomer}
+          onPrintDocument={onPrintDocument}
         />
       ) : (
         /* RECENT SALES LIST VIEW WITH DAILY FILTER & PAGINATION */

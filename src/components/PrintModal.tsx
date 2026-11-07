@@ -35,7 +35,9 @@ import {
   Customer,
   Supplier,
   Employee,
-  AttendanceRecord
+  AttendanceRecord,
+  CustomerPreOrder,
+  Item
 } from '../types/index.ts';
 import { formatCurrency, formatNumber, formatDate, formatDateTime, generateWhatsAppSalaryMessage } from '../utils/formatters.ts';
 import { createDocumentPdf, formatWhatsAppPhone, generateWhatsAppMessage, getStoreLogoDataUrl } from '../utils/documentPdf.ts';
@@ -44,6 +46,14 @@ export type PrintData =
   | { type: 'sale'; data: SaleTransaction }
   | { type: 'purchase'; data: PurchaseTransaction }
   | { type: 'salary'; data: SalarySlip }
+  | { type: 'preorder_single'; data: CustomerPreOrder }
+  | { 
+      type: 'preorder_rekap'; 
+      data: {
+        preorders: CustomerPreOrder[];
+        items: Item[];
+      };
+    }
   | { 
       type: 'payment_receipt'; 
       data: {
@@ -1780,6 +1790,387 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
                   <div className="border-b border-dashed border-slate-400 my-2"></div>
                   <div className="text-slate-600 italic">{r.notes || 'Bukti Pembayaran / Pelunasan Sah'}</div>
+                </div>
+              );
+            })()}
+
+            {/* 5. PRE-ORDER INDIVIDUAL PER CUSTOMER TEMPLATE (NO PRICES!) */}
+            {printData.type === 'preorder_single' && (() => {
+              const po = printData.data;
+              const totalQty = po.items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
+              const primaryUnit = po.items[0]?.unit || 'Kg';
+
+              return printFormat === 'a4' ? (
+                <div className="space-y-6">
+                  {/* Header */}
+                  <div className="flex justify-between items-start border-b border-slate-300 pb-4">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white flex items-center justify-center p-1.5 shrink-0 shadow-xs">
+                        <img src={storeProfile.logoUrl || '/logo_unggas.svg'} alt="Logo" className="max-w-full max-h-full object-contain" />
+                      </div>
+                      <div>
+                        <h1 className="text-lg font-bold text-slate-900 tracking-tight">{storeProfile.name}</h1>
+                        <p className="text-xs text-slate-600 mt-0.5 max-w-sm">{storeProfile.address}</p>
+                        <p className="text-xs text-slate-600 mt-0.5">Telp/WA: {storeProfile.phone}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        DOKUMEN PRE-ORDER (PO)
+                      </span>
+                      <h2 className="text-sm font-bold font-mono text-slate-900 mt-1">{po.poNumber}</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Tgl Pesan: {formatDateTime(po.orderDate)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Info Card */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs text-xs">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase">NAMA PELANGGAN:</span>
+                        <span className="font-bold text-slate-900 mt-0.5 block text-sm">{po.customerName}</span>
+                      </div>
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase">NO. HP / WHATSAPP:</span>
+                        <span className="font-semibold text-emerald-700 mt-0.5 block">{po.customerPhone || '-'}</span>
+                      </div>
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase">RENCANA PENGAMBILAN:</span>
+                        <span className="font-bold text-amber-900 mt-0.5 block">{formatDate(po.pickupDate)} • Jam {po.pickupTime || '06:00'}</span>
+                      </div>
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase">STATUS PESANAN:</span>
+                        <span className={`font-bold mt-0.5 block ${po.status === 'Selesai' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          [{po.status.toUpperCase()}]
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Items Table (NO PRICES) */}
+                  <div className="border border-slate-300 rounded-xl overflow-hidden bg-white text-xs shadow-2xs">
+                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
+                      <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
+                        RINCIAN ITEM PESANAN PRE-ORDER ({po.items.length} ITEM)
+                      </h4>
+                    </div>
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-300">
+                        <tr>
+                          <th className="py-2.5 px-3 border-r border-slate-300 w-12 text-center">No</th>
+                          <th className="py-2.5 px-3 border-r border-slate-300">Nama Barang / Potongan Ayam</th>
+                          <th className="py-2.5 px-3 border-r border-slate-300 text-center w-36">Jumlah Pesanan</th>
+                          <th className="py-2.5 px-3">Catatan Item</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 font-medium">
+                        {po.items.map((item, idx) => (
+                          <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                            <td className="py-2.5 px-3 border-r border-slate-200 text-center text-slate-500">{idx + 1}</td>
+                            <td className="py-2.5 px-3 border-r border-slate-200 font-bold text-slate-900">{item.itemName}</td>
+                            <td className="py-2.5 px-3 border-r border-slate-200 text-center font-mono font-bold text-slate-900 text-sm">
+                              {formatNumber(item.quantity)} {item.unit}
+                            </td>
+                            <td className="py-2.5 px-3 text-slate-600 italic">{item.notes || '-'}</td>
+                          </tr>
+                        ))}
+                        {po.items.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="py-6 text-center text-slate-400">Belum ada item rincian pesanan.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                      <tfoot className="bg-amber-50 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                        <tr>
+                          <td colSpan={2} className="py-3 px-3.5 text-right font-bold border-r border-slate-300">TOTAL JUMLAH KESELURUHAN ITEM PESANAN:</td>
+                          <td className="py-3 px-3.5 text-center font-mono text-amber-900 text-sm font-extrabold border-r border-slate-300">
+                            {formatNumber(totalQty)} {primaryUnit}
+                          </td>
+                          <td className="py-3 px-3.5 text-slate-500 font-normal italic">
+                            {po.notes ? `Catatan Nota: ${po.notes}` : '-'}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  {/* Signatures */}
+                  <div className="pt-6 border-t border-slate-200">
+                    <div className="grid grid-cols-2 text-center text-xs text-slate-600">
+                      <div>
+                        <p className="font-semibold text-slate-700">Pelanggan Pemesan,</p>
+                        <div className="h-14"></div>
+                        <p className="font-bold text-slate-900">( {po.customerName} )</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-700">Petugas / Admin Usaha,</p>
+                        <div className="h-14"></div>
+                        <p className="font-bold text-slate-900">( {po.createdBy || 'Admin Usaha'} )</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Thermal format for single PO (No prices) */
+                <div className="text-center space-y-2 text-[10px]">
+                  <div className="flex justify-center mb-1">
+                    <img src={storeProfile.logoUrl || '/logo_unggas.svg'} alt="Logo" className="w-10 h-10 object-contain" />
+                  </div>
+                  <div className="font-bold text-sm tracking-tight">{storeProfile.name}</div>
+                  <div className="text-[10px] leading-tight text-slate-700">{storeProfile.address}</div>
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  <div className="font-bold uppercase tracking-wider text-[11px] text-slate-900">DOKUMEN PRE-ORDER (PO)</div>
+                  <div className="font-mono font-bold text-slate-800">{po.poNumber}</div>
+                  <div className="text-slate-500">{formatDateTime(po.orderDate)}</div>
+
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  <div className="text-left space-y-1">
+                    <div className="flex justify-between">
+                      <span>Pelanggan:</span>
+                      <span className="font-bold truncate max-w-[140px]">{po.customerName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Pengambilan:</span>
+                      <span className="font-bold">{formatDate(po.pickupDate)} ({po.pickupTime || '06:00'})</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Status:</span>
+                      <span className="font-bold text-amber-800">[{po.status}]</span>
+                    </div>
+                  </div>
+
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  <div className="text-left space-y-1">
+                    <div className="font-bold border-b border-slate-200 pb-1">ITEM PESANAN (TANPA HARGA):</div>
+                    {po.items.map((it, idx) => (
+                      <div key={idx} className="flex justify-between py-0.5">
+                        <span className="font-bold">{it.itemName}</span>
+                        <span className="font-mono font-bold">{formatNumber(it.quantity)} {it.unit}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+                  <div className="flex justify-between font-bold text-xs">
+                    <span>TOTAL QTY:</span>
+                    <span className="font-mono">{formatNumber(totalQty)} {primaryUnit}</span>
+                  </div>
+
+                  {po.notes && (
+                    <div className="text-slate-600 italic mt-2 text-left">Catatan: {po.notes}</div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* 6. REKAP PRE-ORDER KESELURUHAN SEMUA CUSTOMER TEMPLATE (NO PRICES!) */}
+            {printData.type === 'preorder_rekap' && (() => {
+              const { preorders: poList, items: itemList } = printData.data;
+
+              // Calculate demand totals per item across all preorders in the list
+              const demandMap: Record<string, { name: string; unit: string; totalQty: number }> = {};
+              itemList.forEach(it => {
+                demandMap[it.id] = { name: it.name, unit: it.unit, totalQty: 0 };
+              });
+
+              poList.forEach(po => {
+                po.items.forEach(pi => {
+                  if (pi.itemId && demandMap[pi.itemId]) {
+                    demandMap[pi.itemId].totalQty += (Number(pi.quantity) || 0);
+                  } else {
+                    const found = itemList.find(i => i.name.toLowerCase() === pi.itemName.toLowerCase());
+                    if (found && demandMap[found.id]) {
+                      demandMap[found.id].totalQty += (Number(pi.quantity) || 0);
+                    }
+                  }
+                });
+              });
+
+              const activeDemands = Object.values(demandMap).filter(d => d.totalQty > 0);
+              const grandTotalQty = activeDemands.reduce((sum, d) => sum + d.totalQty, 0);
+
+              return printFormat === 'a4' ? (
+                <div className="space-y-6">
+                  {/* Header */}
+                  <div className="flex justify-between items-start border-b border-slate-300 pb-4">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white flex items-center justify-center p-1.5 shrink-0 shadow-xs">
+                        <img src={storeProfile.logoUrl || '/logo_unggas.svg'} alt="Logo" className="max-w-full max-h-full object-contain" />
+                      </div>
+                      <div>
+                        <h1 className="text-lg font-bold text-slate-900 tracking-tight">{storeProfile.name}</h1>
+                        <p className="text-xs text-slate-600 mt-0.5 max-w-sm">{storeProfile.address}</p>
+                        <p className="text-xs text-slate-600 mt-0.5">Telp/WA: {storeProfile.phone}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        REKAP PRE-ORDER KESELURUHAN
+                      </span>
+                      <h2 className="text-sm font-bold font-mono text-slate-900 mt-1">REKAP-PO-{new Date().toISOString().substring(0, 10).replace(/-/g, '')}</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Cetak: {formatDateTime(new Date().toISOString())}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* SECTION 1: RINGKASAN TOTAL KEBUTUHAN ITEM */}
+                  <div className="border border-slate-300 rounded-xl overflow-hidden bg-white text-xs shadow-2xs">
+                    <div className="bg-slate-900 text-white px-3.5 py-2.5 flex items-center justify-between">
+                      <h4 className="font-bold text-xs uppercase tracking-wide text-amber-300">
+                        1. REKAPITULASI TOTAL KEBUTUHAN POTONG AYAM / ITEM ({activeDemands.length} ITEM)
+                      </h4>
+                      <span className="text-[11px] font-mono text-slate-300">Total {poList.length} Pelanggan</span>
+                    </div>
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
+                        <tr>
+                          <th className="py-2.5 px-3 border-r border-slate-300 w-12 text-center">No</th>
+                          <th className="py-2.5 px-3 border-r border-slate-300">Nama Item / Jenis Potongan Ayam</th>
+                          <th className="py-2.5 px-3 text-center w-40">Total Kebutuhan Jumlah</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 font-medium">
+                        {activeDemands.map((d, idx) => (
+                          <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                            <td className="py-2.5 px-3 border-r border-slate-200 text-center text-slate-500">{idx + 1}</td>
+                            <td className="py-2.5 px-3 border-r border-slate-200 font-bold text-slate-900">{d.name}</td>
+                            <td className="py-2.5 px-3 text-center font-mono font-extrabold text-amber-900 text-sm bg-amber-50/50">
+                              {formatNumber(d.totalQty)} {d.unit}
+                            </td>
+                          </tr>
+                        ))}
+                        {activeDemands.length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="py-6 text-center text-slate-400">Belum ada item kebutuhan pesanan.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                      <tfoot className="bg-slate-900 text-white font-bold border-t-2 border-slate-700 text-xs">
+                        <tr>
+                          <td colSpan={2} className="py-3 px-3.5 text-right font-bold text-amber-300">TOTAL AKUMULASI KESELURUHAN ITEM PESANAN:</td>
+                          <td className="py-3 px-3.5 text-center font-mono text-amber-400 text-sm font-extrabold">
+                            {formatNumber(grandTotalQty)} Qty
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+
+                  {/* SECTION 2: RINCIAN PESANAN PER PELANGGAN */}
+                  <div className="border border-slate-300 rounded-xl overflow-hidden bg-white text-xs shadow-2xs">
+                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
+                      <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
+                        2. RINCIAN PESANAN PER PELANGGAN ({poList.length} PELANGGAN)
+                      </h4>
+                    </div>
+                    <table className="w-full text-left border-collapse">
+                      <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-300">
+                        <tr>
+                          <th className="py-2.5 px-3 border-r border-slate-300 w-10 text-center">No</th>
+                          <th className="py-2.5 px-3 border-r border-slate-300 w-36">No. PO & Status</th>
+                          <th className="py-2.5 px-3 border-r border-slate-300 w-44">Nama Pelanggan & HP</th>
+                          <th className="py-2.5 px-3 border-r border-slate-300">Rincian Item Pesanan (Tanpa Harga)</th>
+                          <th className="py-2.5 px-3 w-36">Jam Ambil & Catatan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 font-medium">
+                        {poList.map((po, idx) => {
+                          const itemsSummary = po.items.length > 0 
+                            ? po.items.map(i => `${i.itemName} (${formatNumber(i.quantity)} ${i.unit})`).join(', ')
+                            : '- Belum ada item';
+
+                          return (
+                            <tr key={po.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                              <td className="py-2.5 px-3 border-r border-slate-200 text-center text-slate-500">{idx + 1}</td>
+                              <td className="py-2.5 px-3 border-r border-slate-200 font-mono">
+                                <span className="font-bold text-slate-900 block">{po.poNumber}</span>
+                                <span className={`text-[10px] font-bold ${po.status === 'Selesai' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                  [{po.status.toUpperCase()}]
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 border-r border-slate-200">
+                                <span className="font-bold text-slate-900 block">{po.customerName}</span>
+                                <span className="text-[10px] text-slate-500">{po.customerPhone || '-'}</span>
+                              </td>
+                              <td className="py-2.5 px-3 border-r border-slate-200 font-bold text-slate-800 leading-relaxed">
+                                {itemsSummary}
+                              </td>
+                              <td className="py-2.5 px-3 text-slate-700">
+                                <span className="font-bold text-amber-900 block">{po.pickupTime || '06:00'}</span>
+                                <span className="text-[10px] text-slate-500 italic block">{po.notes || '-'}</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {poList.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="py-6 text-center text-slate-400">Belum ada data pre-order.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Signatures */}
+                  <div className="pt-6 border-t border-slate-200">
+                    <div className="grid grid-cols-2 text-center text-xs text-slate-600">
+                      <div>
+                        <p className="font-semibold text-slate-700">Penanggung Jawab Gudang / Pemotongan,</p>
+                        <div className="h-14"></div>
+                        <p className="font-bold text-slate-900">( .................................... )</p>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-700">Petugas / Admin Usaha,</p>
+                        <div className="h-14"></div>
+                        <p className="font-bold text-slate-900">( Admin Usaha )</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Thermal format for Rekap PO (No prices) */
+                <div className="text-center space-y-2 text-[10px]">
+                  <div className="flex justify-center mb-1">
+                    <img src={storeProfile.logoUrl || '/logo_unggas.svg'} alt="Logo" className="w-10 h-10 object-contain" />
+                  </div>
+                  <div className="font-bold text-sm tracking-tight">{storeProfile.name}</div>
+                  <div className="text-[10px] leading-tight text-slate-700">{storeProfile.address}</div>
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  <div className="font-bold uppercase tracking-wider text-[11px] text-slate-900">REKAP PRE-ORDER KESELURUHAN</div>
+                  <div className="text-slate-500">{formatDateTime(new Date().toISOString())}</div>
+
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  <div className="text-left space-y-1">
+                    <div className="font-bold border-b border-slate-200 pb-1">TOTAL KEBUTUHAN ITEM:</div>
+                    {activeDemands.map((d, idx) => (
+                      <div key={idx} className="flex justify-between py-0.5">
+                        <span className="font-bold">{d.name}</span>
+                        <span className="font-mono font-bold">{formatNumber(d.totalQty)} {d.unit}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  <div className="text-left space-y-1.5">
+                    <div className="font-bold border-b border-slate-200 pb-1">RINCIAN PER CUSTOMER ({poList.length}):</div>
+                    {poList.map((po, idx) => (
+                      <div key={idx} className="border-b border-slate-100 pb-1">
+                        <div className="font-bold text-slate-900">{idx + 1}. {po.customerName} ({po.poNumber})</div>
+                        <div className="text-slate-700 pl-3">
+                          {po.items.map(i => `${i.itemName} ${formatNumber(i.quantity)}${i.unit}`).join(', ')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               );
             })()}
