@@ -445,6 +445,23 @@ export default function App() {
     StorageManager.saveSales(updatedSales);
     syncSaveSale(newSale);
 
+    // Update customer deposit balance if there is an overpayment recorded
+    if (newSale.overpaymentAmount && newSale.overpaymentAmount > 0 && newSale.customerId) {
+      const updatedCustomers = customers.map(c => {
+        if (c.id === newSale.customerId || c.name.toLowerCase() === newSale.customerName.toLowerCase()) {
+          const updatedCust = {
+            ...c,
+            depositBalance: (c.depositBalance || 0) + (newSale.overpaymentAmount || 0),
+          };
+          syncSaveCustomer(updatedCust);
+          return updatedCust;
+        }
+        return c;
+      });
+      setCustomers(updatedCustomers);
+      StorageManager.saveCustomers(updatedCustomers);
+    }
+
     showToast(`Penjualan ${newSale.invoiceNumber} berhasil disimpan & tersinkronisasi!`);
     
     // Auto-record operational transaction
@@ -1135,6 +1152,7 @@ export default function App() {
         suppliers={suppliers}
         employees={employees}
         attendanceRecords={attendanceRecords}
+        sales={sales}
       />
 
       {/* Interactive Illustrated Manual Book Modal */}

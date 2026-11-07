@@ -22,7 +22,8 @@ import {
   Copy,
   Mail,
   Send,
-  History
+  History,
+  Image as ImageIcon
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -73,6 +74,7 @@ interface PrintModalProps {
   suppliers?: Supplier[];
   employees?: Employee[];
   attendanceRecords?: AttendanceRecord[];
+  sales?: SaleTransaction[];
 }
 
 export const PrintModal: React.FC<PrintModalProps> = ({
@@ -84,11 +86,13 @@ export const PrintModal: React.FC<PrintModalProps> = ({
   suppliers = [],
   employees = [],
   attendanceRecords = [],
+  sales = [],
 }) => {
   const [printFormat, setPrintFormat] = useState<'a4' | 'thermal'>('thermal');
   const [thermalSize, setThermalSize] = useState<'58mm' | '80mm'>(storeProfile.thermalWidth || '58mm');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [waGuideAlert, setWaGuideAlert] = useState<{ show: boolean; fileName: string; phone?: string } | null>(null);
+  const [isGeneratingJpg, setIsGeneratingJpg] = useState(false);
+  const [waGuideAlert, setWaGuideAlert] = useState<{ show: boolean; fileName: string; phone?: string; format?: 'PDF' | 'JPG' } | null>(null);
   const [recipientPhone, setRecipientPhone] = useState<string>('');
   const [showShareMenuModal, setShowShareMenuModal] = useState(false);
   const [copiedNotice, setCopiedNotice] = useState(false);
@@ -128,6 +132,43 @@ export const PrintModal: React.FC<PrintModalProps> = ({
     }
     setRecipientPhone(detectedPhone || '');
   }, [printData, isOpen, customers, suppliers, employees]);
+
+  // Customer debt and deposit calculations for sale invoice
+  const saleCustomerInfo = React.useMemo(() => {
+    if (printData?.type !== 'sale') return null;
+    const sale = printData.data;
+    const cust = customers.find(c => c.id === sale.customerId || c.name.toLowerCase() === sale.customerName?.toLowerCase());
+    
+    // Sisa piutang pada nota ini
+    const noteRemainingDebt = Math.max(0, (sale.grandTotal || 0) - (sale.amountPaid || 0));
+
+    // Sisa piutang nota-nota lainnya dari customer ini
+    const otherNotesDebt = sales
+      ? sales
+          .filter(s => s.id !== sale.id && (s.customerId === sale.customerId || s.customerName.toLowerCase() === sale.customerName.toLowerCase()))
+          .reduce((sum, s) => {
+            const rem = s.remainingDebt !== undefined ? s.remainingDebt : Math.max(0, s.grandTotal - (s.amountPaid || 0));
+            return sum + rem;
+          }, 0)
+      : 0;
+
+    const totalAllDebt = sale.totalCustomerDebt !== undefined 
+      ? sale.totalCustomerDebt 
+      : (otherNotesDebt + noteRemainingDebt);
+
+    const overpayment = sale.overpaymentAmount || 0;
+    const depositBalance = sale.customerDepositBalance !== undefined 
+      ? sale.customerDepositBalance 
+      : (cust?.depositBalance || 0);
+
+    return {
+      noteRemainingDebt,
+      otherNotesDebt,
+      totalAllDebt,
+      overpayment,
+      depositBalance,
+    };
+  }, [printData, customers, sales]);
 
   if (!isOpen || !printData) return null;
 
@@ -328,7 +369,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
       // 2. Direct WhatsApp Web/App redirect with auto-downloaded PDF
       downloadBlobAsFile(res.blob, res.fileName);
-      setWaGuideAlert({ show: true, fileName: res.fileName, phone: recipientPhone });
+      setWaGuideAlert({ show: true, fileName: res.fileName, phone: recipientPhone, format: 'PDF' });
 
       const waText = res.summaryText ? encodeURIComponent(res.summaryText) : '';
       const waUrl = cleanPhone 
@@ -341,6 +382,110 @@ export const PrintModal: React.FC<PrintModalProps> = ({
       setShowShareMenuModal(true);
     } finally {
       setIsGeneratingPdf(false);
+    }
+  };
+
+  const generateJpgBlob = async (): Promise<{ blob: Blob; fileName: string; summaryText: string } | null> => {
+    let baseName = `Dokumen_${Date.now()}`;
+    if (printData.type === 'sale') baseName = `Nota_Penjualan_${printData.data.invoiceNumber}`;
+    else if (printData.type === 'purchase') baseName = `Faktur_Pembelian_${printData.data.invoiceNumber}`;
+    else if (printData.type === 'salary') baseName = `Slip_Gaji_${printData.data.slipNumber}`;
+    else if (printData.type === 'payment_receipt') baseName = `Kuitansi_${printData.data.receiptNo}`;
+
+    const fileName = `${baseName}.jpg`;
+    const summaryText = generateWhatsAppMessage(printData, storeProfile, recipientPhone);
+    const logoDataUrl = await getStoreLogoDataUrl(storeProfile.logoUrl || '/logo_unggas.svg');
+
+    const el = document.getElementById('printable-document');
+    if (!el) return null;
+
+    try {
+      const canvas = await html2canvas(el, {
+        scale: 2.5,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        onclone: (clonedDoc) => {
+          if (logoDataUrl) {
+            const imgs = clonedDoc.querySelectorAll('img');
+            imgs.forEach((img) => {
+              img.crossOrigin = 'anonymous';
+              img.src = logoDataUrl;
+            });
+          }
+        },
+      });
+
+      return new Promise((resolve) => {
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve({ blob, fileName, summaryText });
+            } else {
+              resolve(null);
+            }
+          },
+          'image/jpeg',
+          0.95
+        );
+      });
+    } catch (err) {
+      console.error('Error generating JPG:', err);
+      return null;
+    }
+  };
+
+  const handleDownloadJpg = async () => {
+    setIsGeneratingJpg(true);
+    try {
+      const res = await generateJpgBlob();
+      if (!res) return;
+      downloadBlobAsFile(res.blob, res.fileName);
+    } catch (e) {
+      console.error('Error downloading JPG:', e);
+    } finally {
+      setIsGeneratingJpg(false);
+    }
+  };
+
+  const handleUniversalShareJpg = async () => {
+    setIsGeneratingJpg(true);
+    const cleanPhone = formatWhatsAppPhone(recipientPhone);
+    try {
+      const res = await generateJpgBlob();
+      if (!res) return;
+
+      const file = new File([res.blob], res.fileName, { type: 'image/jpeg' });
+
+      // 1. Try Native OS Share Sheet with JPG image (Android / iOS)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: res.fileName,
+          });
+          return;
+        } catch (err: any) {
+          if (err?.name === 'AbortError') return;
+        }
+      }
+
+      // 2. Direct WhatsApp Web/App redirect with auto-downloaded JPG image
+      downloadBlobAsFile(res.blob, res.fileName);
+      setWaGuideAlert({ show: true, fileName: res.fileName, phone: recipientPhone, format: 'JPG' });
+
+      const waText = res.summaryText ? encodeURIComponent(res.summaryText) : '';
+      const waUrl = cleanPhone 
+        ? (waText ? `https://wa.me/${cleanPhone}?text=${waText}` : `https://wa.me/${cleanPhone}`)
+        : (waText ? `https://wa.me/?text=${waText}` : `https://wa.me/`);
+
+      window.open(waUrl, '_blank');
+    } catch (e) {
+      console.error('Error in universal share JPG:', e);
+      setShowShareMenuModal(true);
+    } finally {
+      setIsGeneratingJpg(false);
     }
   };
 
@@ -439,7 +584,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <div className="font-bold text-emerald-900 text-xs">
-                    Dokumen Nota PDF "{waGuideAlert.fileName}" Siap Dikirim!
+                    {waGuideAlert.format === 'JPG' ? 'Gambar Nota (JPG)' : 'Dokumen Nota (PDF)'} "{waGuideAlert.fileName}" Siap Dikirim!
                   </div>
                   <p className="text-[11px] text-emerald-800 leading-relaxed">
                     {waGuideAlert.phone ? (
@@ -447,7 +592,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     ) : (
                       <>WhatsApp telah dibuka. </>
                     )}
-                    File PDF resmi berdesain seragam dengan tampilan cetak sudah otomatis terunduh. Silakan lampirkan file PDF tersebut melalui ikon klip/dokumen di WhatsApp.
+                    File {waGuideAlert.format === 'JPG' ? 'gambar JPG' : 'PDF resmi'} berdesain seragam dengan tampilan cetak sudah otomatis terunduh. Silakan lampirkan file tersebut melalui ikon klip/galeri di WhatsApp.
                   </p>
                 </div>
               </div>
@@ -525,10 +670,29 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                           <p className="text-[11px] font-medium text-slate-500">Tipe Pelanggan: {printData.data.customerType || 'Pelanggan Usaha'}</p>
                         </div>
                       </div>
-                      {printData.data.amountPaid < printData.data.grandTotal && (
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                          Status: Hutang (Sisa {formatCurrency(printData.data.grandTotal - printData.data.amountPaid)})
-                        </span>
+                      {saleCustomerInfo && (
+                        <div className="flex flex-wrap items-center gap-1.5 justify-end">
+                          {saleCustomerInfo.noteRemainingDebt > 0 && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                              Sisa Hutang Nota: {formatCurrency(saleCustomerInfo.noteRemainingDebt)}
+                            </span>
+                          )}
+                          {saleCustomerInfo.otherNotesDebt > 0 && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                              Total Hutang: {formatCurrency(saleCustomerInfo.totalAllDebt)}
+                            </span>
+                          )}
+                          {(saleCustomerInfo.overpayment > 0 || saleCustomerInfo.depositBalance > 0) && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              Kelebihan Bayar: {formatCurrency(saleCustomerInfo.overpayment > 0 ? saleCustomerInfo.overpayment : saleCustomerInfo.depositBalance)}
+                            </span>
+                          )}
+                          {saleCustomerInfo.noteRemainingDebt === 0 && saleCustomerInfo.totalAllDebt === 0 && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              Status: Lunas Penuh
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -630,12 +794,32 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                             <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">Nominal Dibayar Customer:</td>
                             <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-900">{formatCurrency(printData.data.amountPaid)}</td>
                           </tr>
-                          {printData.data.amountPaid < printData.data.grandTotal ? (
+                          {/* Sisa Hutang Nota Ini */}
+                          {printData.data.amountPaid < printData.data.grandTotal && (
                             <tr className="bg-rose-50/70 text-rose-900 font-semibold">
-                              <td className="py-2.5 px-3.5 border-r border-rose-200">Total Sisa Hutang (Piutang Usaha):</td>
+                              <td className="py-2.5 px-3.5 border-r border-rose-200">Sisa Hutang Nota Ini:</td>
                               <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-700">{formatCurrency(printData.data.grandTotal - printData.data.amountPaid)}</td>
                             </tr>
-                          ) : (
+                          )}
+
+                          {/* Total Sisa Hutang Pelanggan (jika ada sisa hutang nota lain) */}
+                          {saleCustomerInfo && saleCustomerInfo.otherNotesDebt > 0 && (
+                            <tr className="bg-rose-100/60 text-rose-950 font-bold">
+                              <td className="py-2.5 px-3.5 border-r border-rose-200">Total Sisa Hutang Pelanggan:</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-800">{formatCurrency(saleCustomerInfo.totalAllDebt)}</td>
+                            </tr>
+                          )}
+
+                          {/* Kelebihan Bayar / Deposit */}
+                          {saleCustomerInfo && (saleCustomerInfo.overpayment > 0 || saleCustomerInfo.depositBalance > 0) && (
+                            <tr className="bg-emerald-50/80 text-emerald-950 font-bold">
+                              <td className="py-2.5 px-3.5 border-r border-emerald-200">Kelebihan Bayar (Saldo Deposit):</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-700">+{formatCurrency(saleCustomerInfo.overpayment > 0 ? saleCustomerInfo.overpayment : saleCustomerInfo.depositBalance)}</td>
+                            </tr>
+                          )}
+
+                          {/* Uang Kembalian */}
+                          {printData.data.change > 0 && (
                             <tr className="bg-slate-50/70 text-slate-900">
                               <td className="py-2.5 px-3.5 border-r border-slate-200">Uang Kembalian:</td>
                               <td className="py-2.5 px-3.5 text-right font-mono font-semibold">{formatCurrency(printData.data.change)}</td>
@@ -851,13 +1035,27 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </div>
                     {printData.data.amountPaid < printData.data.grandTotal ? (
                       <div className="flex justify-between text-rose-600 font-bold">
-                        <span>Total Hutang:</span>
+                        <span>Sisa Hutang Nota:</span>
                         <span>{formatCurrency(printData.data.grandTotal - printData.data.amountPaid)}</span>
                       </div>
                     ) : (
-                      <div className="flex justify-between">
-                        <span>Kembali:</span>
-                        <span>{formatCurrency(printData.data.change)}</span>
+                      printData.data.change > 0 && (
+                        <div className="flex justify-between">
+                          <span>Kembali Tunai:</span>
+                          <span>{formatCurrency(printData.data.change)}</span>
+                        </div>
+                      )
+                    )}
+                    {saleCustomerInfo && saleCustomerInfo.otherNotesDebt > 0 && (
+                      <div className="flex justify-between text-rose-700 font-bold border-t border-dashed border-rose-300 pt-0.5">
+                        <span>Total Sisa Hutang:</span>
+                        <span>{formatCurrency(saleCustomerInfo.totalAllDebt)}</span>
+                      </div>
+                    )}
+                    {saleCustomerInfo && (saleCustomerInfo.overpayment > 0 || saleCustomerInfo.depositBalance > 0) && (
+                      <div className="flex justify-between text-emerald-700 font-bold border-t border-dashed border-emerald-300 pt-0.5">
+                        <span>Kelebihan Bayar:</span>
+                        <span>+{formatCurrency(saleCustomerInfo.overpayment > 0 ? saleCustomerInfo.overpayment : saleCustomerInfo.depositBalance)}</span>
                       </div>
                     )}
                   </div>
@@ -1630,50 +1828,78 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 w-full md:w-auto">
-            {/* Kirim WA (Format PDF Resmi via Native Share / WhatsApp Direct) */}
+            {/* Kirim WA (Format JPG Gambar) */}
             <button
               type="button"
-              disabled={isGeneratingPdf}
+              disabled={isGeneratingPdf || isGeneratingJpg}
+              onClick={handleUniversalShareJpg}
+              className="flex-1 sm:flex-none px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+              title="Kirim dokumen nota dalam format Gambar JPG via WhatsApp"
+            >
+              {isGeneratingJpg ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ImageIcon className="w-4 h-4" />
+              )}
+              <span>{isGeneratingJpg ? 'Membuat JPG...' : 'Kirim WA (JPG)'}</span>
+            </button>
+
+            {/* Kirim WA (Format PDF Resmi) */}
+            <button
+              type="button"
+              disabled={isGeneratingPdf || isGeneratingJpg}
               onClick={handleUniversalSharePdf}
-              className="flex-1 sm:flex-none px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
-              title="Kirim dokumen nota dalam bentuk PDF resmi via WhatsApp atau Share"
+              className="flex-1 sm:flex-none px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+              title="Kirim dokumen nota dalam format PDF via WhatsApp"
             >
               {isGeneratingPdf ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <MessageSquare className="w-4 h-4" />
               )}
-              <span>{isGeneratingPdf ? 'Membuat PDF...' : 'Kirim WA'}</span>
+              <span>{isGeneratingPdf ? 'Membuat PDF...' : 'Kirim WA (PDF)'}</span>
+            </button>
+
+            {/* Download JPG Button */}
+            <button
+              type="button"
+              disabled={isGeneratingPdf || isGeneratingJpg}
+              onClick={handleDownloadJpg}
+              className="px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+              title="Unduh gambar nota format JPG"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Unduh JPG</span>
             </button>
 
             {/* Download PDF Button */}
             <button
               type="button"
-              disabled={isGeneratingPdf}
+              disabled={isGeneratingPdf || isGeneratingJpg}
               onClick={handleDownloadPdf}
-              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+              className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
               title="Unduh file dokumen format PDF ke memori perangkat"
             >
-              <Download className="w-3.5 h-3.5" />
+              <FileText className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Unduh PDF</span>
             </button>
 
             {/* Print Button */}
             <button
               type="button"
-              disabled={isGeneratingPdf}
+              disabled={isGeneratingPdf || isGeneratingJpg}
               onClick={handlePrint}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
             >
               {isGeneratingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-              <span>{isGeneratingPdf ? 'Mencetak...' : 'Cetak'}</span>
+              <span>Cetak</span>
             </button>
 
             {/* Close Button */}
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 border border-slate-300 text-slate-700 hover:bg-slate-200/70 rounded-xl text-xs font-semibold cursor-pointer"
+              className="px-3 py-2 border border-slate-300 text-slate-700 hover:bg-slate-200/70 rounded-xl text-xs font-semibold cursor-pointer"
             >
               Tutup
             </button>
@@ -1689,7 +1915,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2 text-slate-900 font-bold text-xs">
                 <Share2 className="w-4 h-4 text-amber-600" />
-                <span>Pilih Aplikasi / Metode Berbagi Dokumen</span>
+                <span>Pilih Format & Metode Berbagi Dokumen</span>
               </div>
               <button
                 type="button"
@@ -1701,28 +1927,83 @@ export const PrintModal: React.FC<PrintModalProps> = ({
             </div>
 
             <div className="space-y-2 text-xs">
-              {/* Option 1: WhatsApp Direct */}
+              {/* Option 1: WhatsApp Image JPG */}
               <button
                 type="button"
                 onClick={() => {
                   setShowShareMenuModal(false);
-                  handleSharePdfWhatsApp();
+                  handleUniversalShareJpg();
                 }}
                 className="w-full p-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-950 font-semibold rounded-xl border border-emerald-300 flex items-center justify-between transition-all cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
-                  <Send className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <ImageIcon className="w-4 h-4 text-emerald-600 shrink-0" />
                   <div className="text-left">
-                    <div className="font-bold">Kirim Chat WhatsApp</div>
-                    <div className="text-[10px] text-emerald-800">
-                      {recipientPhone ? `Ke nomor +${formatWhatsAppPhone(recipientPhone)}` : 'Buka WhatsApp Messenger'}
-                    </div>
+                    <div className="font-bold">Kirim Gambar (JPG) ke WhatsApp</div>
+                    <div className="text-[10px] text-emerald-800">Format gambar langsung terlihat di chat WA</div>
                   </div>
                 </div>
-                <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold">Buka</span>
+                <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full font-bold">JPG</span>
               </button>
 
-              {/* Option 2: Email Client */}
+              {/* Option 2: WhatsApp PDF */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowShareMenuModal(false);
+                  handleUniversalSharePdf();
+                }}
+                className="w-full p-3 bg-teal-50 hover:bg-teal-100 text-teal-950 font-semibold rounded-xl border border-teal-300 flex items-center justify-between transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Send className="w-4 h-4 text-teal-600 shrink-0" />
+                  <div className="text-left">
+                    <div className="font-bold">Kirim Dokumen (PDF) ke WhatsApp</div>
+                    <div className="text-[10px] text-teal-800">Format file dokumen resmi (.pdf)</div>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-teal-600 text-white px-2 py-0.5 rounded-full font-bold">PDF</span>
+              </button>
+
+              {/* Option 3: Download JPG */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowShareMenuModal(false);
+                  handleDownloadJpg();
+                }}
+                className="w-full p-3 bg-slate-100 hover:bg-slate-200 text-slate-900 font-semibold rounded-xl border border-slate-300 flex items-center justify-between transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Download className="w-4 h-4 text-slate-700 shrink-0" />
+                  <div className="text-left">
+                    <div className="font-bold">Unduh Gambar (JPG)</div>
+                    <div className="text-[10px] text-slate-600">Simpan gambar nota berkualitas tinggi ke galeri</div>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-slate-700 text-white px-2 py-0.5 rounded-full font-bold">JPG</span>
+              </button>
+
+              {/* Option 4: Download PDF */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowShareMenuModal(false);
+                  handleDownloadPdf();
+                }}
+                className="w-full p-3 bg-slate-100 hover:bg-slate-200 text-slate-900 font-semibold rounded-xl border border-slate-300 flex items-center justify-between transition-all cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <FileText className="w-4 h-4 text-slate-700 shrink-0" />
+                  <div className="text-left">
+                    <div className="font-bold">Unduh Dokumen (PDF)</div>
+                    <div className="text-[10px] text-slate-600">Simpan file .pdf resmi ke folder Download</div>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-slate-800 text-white px-2 py-0.5 rounded-full font-bold">PDF</span>
+              </button>
+
+              {/* Option 5: Email Client */}
               <button
                 type="button"
                 onClick={() => {
@@ -1741,7 +2022,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <span className="text-[10px] bg-sky-600 text-white px-2 py-0.5 rounded-full font-bold">Email</span>
               </button>
 
-              {/* Option 3: Copy Text */}
+              {/* Option 6: Copy Text */}
               <button
                 type="button"
                 onClick={handleCopySummaryText}
@@ -1750,32 +2031,13 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <div className="flex items-center gap-2.5">
                   {copiedNotice ? <Check className="w-4 h-4 text-emerald-600 shrink-0" /> : <Copy className="w-4 h-4 text-amber-600 shrink-0" />}
                   <div className="text-left">
-                    <div className="font-bold">{copiedNotice ? 'Teks Berhasil Disalin!' : 'Salin Teks Ringkasan Nota'}</div>
+                    <div className="font-bold">{copiedNotice ? 'Teks Berhasil Disalin!' : 'Salin Teks Ringkasan'}</div>
                     <div className="text-[10px] text-amber-800">Paste di mana saja (Telegram, SMS, Catatan)</div>
                   </div>
                 </div>
                 <span className="text-[10px] bg-amber-600 text-white px-2 py-0.5 rounded-full font-bold">
                   {copiedNotice ? 'Tersalin' : 'Copy'}
                 </span>
-              </button>
-
-              {/* Option 4: Download PDF */}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowShareMenuModal(false);
-                  handleDownloadPdf();
-                }}
-                className="w-full p-3 bg-slate-100 hover:bg-slate-200 text-slate-900 font-semibold rounded-xl border border-slate-300 flex items-center justify-between transition-all cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Download className="w-4 h-4 text-slate-700 shrink-0" />
-                  <div className="text-left">
-                    <div className="font-bold">Unduh File Dokumen PDF</div>
-                    <div className="text-[10px] text-slate-600">Simpan file .pdf resmi ke folder Download</div>
-                  </div>
-                </div>
-                <span className="text-[10px] bg-slate-800 text-white px-2 py-0.5 rounded-full font-bold">PDF</span>
               </button>
             </div>
           </div>

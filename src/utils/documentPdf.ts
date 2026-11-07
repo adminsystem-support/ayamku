@@ -363,8 +363,20 @@ export function createDocumentPdf(
       summaryBody.push(['Nominal Dibayar Customer:', formatCurrency(sale.amountPaid)]);
 
       if (sale.amountPaid < sale.grandTotal) {
-        summaryBody.push(['Total Sisa Hutang (Piutang Usaha):', formatCurrency(sale.grandTotal - sale.amountPaid)]);
-      } else {
+        summaryBody.push(['Sisa Hutang Nota Ini:', formatCurrency(sale.grandTotal - sale.amountPaid)]);
+      }
+
+      if (sale.totalCustomerDebt !== undefined && sale.totalCustomerDebt > (sale.grandTotal - sale.amountPaid)) {
+        summaryBody.push(['Total Sisa Hutang Pelanggan:', formatCurrency(sale.totalCustomerDebt)]);
+      }
+
+      if (sale.overpaymentAmount && sale.overpaymentAmount > 0) {
+        summaryBody.push(['Kelebihan Bayar (Saldo Deposit):', `+${formatCurrency(sale.overpaymentAmount)}`]);
+      } else if (sale.customerDepositBalance && sale.customerDepositBalance > 0) {
+        summaryBody.push(['Saldo Deposit Pelanggan:', formatCurrency(sale.customerDepositBalance)]);
+      }
+
+      if (sale.change > 0) {
         summaryBody.push(['Uang Kembalian:', formatCurrency(sale.change)]);
       }
 

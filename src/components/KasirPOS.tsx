@@ -75,7 +75,9 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<SaleItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('cust-5'); // Default: Pelanggan Umum
-  const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [discountType, setDiscountType] = useState<'percent' | 'nominal'>('percent');
+  const [discountValue, setDiscountValue] = useState<number>(0);
+  const [overpaymentMode, setOverpaymentMode] = useState<'kembalian' | 'deposit'>('kembalian');
   
   // Payment states matching Pembelian
   const [paymentMethod, setPaymentMethod] = useState<'Tunai' | 'Transfer'>('Tunai');
@@ -136,7 +138,8 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
       onSaveCustomer(newCustomer);
     }
     setSelectedCustomerId(newId);
-    setDiscountPercent(quickCustDiscount);
+    setDiscountType('percent');
+    setDiscountValue(quickCustDiscount);
     setShowQuickCustomerModal(false);
   };
 
@@ -149,9 +152,10 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
     setSelectedCustomerId(customerId);
     const cust = customers.find(c => c.id === customerId);
     if (cust && cust.defaultDiscountPercent > 0) {
-      setDiscountPercent(cust.defaultDiscountPercent);
+      setDiscountType('percent');
+      setDiscountValue(cust.defaultDiscountPercent);
     } else {
-      setDiscountPercent(0);
+      setDiscountValue(0);
     }
   };
 
@@ -166,6 +170,22 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
       code: 'GEN'
     };
   }, [customers, selectedCustomerId]);
+
+  // Customer outstanding previous debt
+  const customerPreviousDebt = useMemo(() => {
+    if (!selectedCustomer || selectedCustomer.id === 'cust-5' || selectedCustomer.name === 'Pelanggan Umum') return 0;
+    return recentSales
+      .filter(s => (s.customerId === selectedCustomer.id || s.customerName.toLowerCase() === selectedCustomer.name.toLowerCase()))
+      .reduce((sum, s) => {
+        const remaining = s.remainingDebt !== undefined ? s.remainingDebt : Math.max(0, s.grandTotal - (s.amountPaid || 0));
+        return sum + remaining;
+      }, 0);
+  }, [recentSales, selectedCustomer]);
+
+  // Customer deposit / overpayment balance
+  const customerExistingDeposit = useMemo(() => {
+    return selectedCustomer.depositBalance || 0;
+  }, [selectedCustomer]);
 
   // Filter items
   const filteredItems = useMemo(() => {
@@ -183,8 +203,11 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
   }, [cart]);
 
   const discountAmount = useMemo(() => {
-    return (cartSubtotal * discountPercent) / 100;
-  }, [cartSubtotal, discountPercent]);
+    if (discountType === 'percent') {
+      return (cartSubtotal * discountValue) / 100;
+    }
+    return Math.min(cartSubtotal, discountValue);
+  }, [cartSubtotal, discountType, discountValue]);
 
   const grandTotal = useMemo(() => {
     return Math.max(0, cartSubtotal - discountAmount);
@@ -285,11 +308,32 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
     setCart((prev) =>
       prev.map((item) => {
         if (item.itemId === itemId) {
-          const subtotal = newQty * item.sellPrice;
-          const costSubtotal = newQty * item.baseCost;
+          const subtotal = Number((newQty * item.sellPrice).toFixed(2));
+          const costSubtotal = Number((newQty * item.baseCost).toFixed(2));
           return {
             ...item,
             quantity: newQty,
+            subtotal,
+            costSubtotal,
+            itemProfit: subtotal - costSubtotal,
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  // Cashier direct price override
+  const updateSellPrice = (itemId: string, newPrice: number) => {
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.itemId === itemId) {
+          const validPrice = Math.max(0, newPrice);
+          const subtotal = Number((item.quantity * validPrice).toFixed(2));
+          const costSubtotal = Number((item.quantity * item.baseCost).toFixed(2));
+          return {
+            ...item,
+            sellPrice: validPrice,
             subtotal,
             costSubtotal,
             itemProfit: subtotal - costSubtotal,
@@ -357,6 +401,7 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
     setPaymentStatus('Lunas');
     setPaymentMethod('Tunai');
     setAmountPaidInput(grandTotal);
+    setOverpaymentMode('kembalian');
     setShowCheckoutModal(true);
   };
 
@@ -375,6 +420,17 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
       return;
     }
 
+    let recordedOverpayment = 0;
+    let finalChange = change;
+    if (paymentStatus === 'Lunas' && paymentMethod === 'Tunai' && amountPaidInput > grandTotal) {
+      if (overpaymentMode === 'deposit') {
+        recordedOverpayment = amountPaidInput - grandTotal;
+        finalChange = 0;
+      }
+    }
+
+    const totalCustomerDebtAfterSale = customerPreviousDebt + remainingReceivable;
+
     const sale: SaleTransaction = {
       id: `sal-${Date.now()}`,
       invoiceNumber: generateInvoiceCode('INV'),
@@ -386,6 +442,8 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
       items: [...cart],
       subtotal: cartSubtotal,
       discount: discountAmount,
+      discountType,
+      discountValue,
       grandTotal,
       totalCostHPP,
       grossProfit,
@@ -393,7 +451,10 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
       paymentStatus,
       amountPaid: actualAmountPaid,
       remainingDebt: remainingReceivable,
-      change,
+      totalCustomerDebt: totalCustomerDebtAfterSale,
+      overpaymentAmount: recordedOverpayment,
+      customerDepositBalance: (customerExistingDeposit || 0) + recordedOverpayment,
+      change: finalChange,
       customerDebtPayments: actualAmountPaid > 0 && paymentStatus !== 'Lunas' ? [
         {
           id: `dp-sale-${Date.now()}`,
@@ -448,8 +509,13 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
     });
 
     setCart(mappedCart);
-    setSelectedCustomerId(po.customerId);
-    setDiscountPercent(po.discount > 0 && po.subtotal > 0 ? Number(((po.discount / po.subtotal) * 100).toFixed(1)) : 0);
+    if (po.discount > 0) {
+      setDiscountType('nominal');
+      setDiscountValue(po.discount);
+    } else {
+      setDiscountType('percent');
+      setDiscountValue(0);
+    }
     setNotes(po.notes ? `[Rujukan ${po.poNumber}] ${po.notes}` : `[Rujukan ${po.poNumber}]`);
     
     if (po.downPayment > 0) {
@@ -758,13 +824,23 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
                           <span className="text-[10px] text-slate-500 pr-2">{item.unit}</span>
                         </div>
 
-                        {/* Selling price per unit input */}
+                        {/* Selling price per unit input - editable by cashier */}
                         <div className="text-right">
                           <div className="text-xs font-bold text-slate-900 font-mono tabular-nums">
                             {formatCurrency(item.subtotal)}
                           </div>
-                          <div className="text-[10px] text-slate-500">
-                            @{formatNumber(item.sellPrice)}
+                          <div className="flex items-center justify-end gap-1 mt-0.5">
+                            <span className="text-[10px] text-slate-400">@Rp</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="500"
+                              value={item.sellPrice}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => updateSellPrice(item.itemId, Math.max(0, parseFloat(e.target.value) || 0))}
+                              className="w-20 px-1 py-0.5 text-right font-mono text-[11px] font-bold text-amber-900 bg-amber-50/70 hover:bg-amber-100/80 focus:bg-white border border-amber-300 focus:border-amber-500 rounded focus:outline-hidden transition-colors"
+                              title="Kasir dapat mengubah harga jual satuan untuk item ini"
+                            />
                           </div>
                         </div>
                       </div>
@@ -801,19 +877,71 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
                         <span>Diskon:</span>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={discountPercent === 0 ? '' : discountPercent}
-                          onFocus={(e) => e.target.select()}
-                          placeholder="0"
-                          onChange={(e) => setDiscountPercent(Math.max(0, parseFloat(e.target.value) || 0))}
-                          className="w-12 px-1 py-0.5 text-xs bg-white/90 border border-slate-200 rounded-sm text-center font-mono"
-                        />
-                        <span>%</span>
+                        <div className="inline-flex rounded-md border border-slate-200 bg-slate-100 p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDiscountType('percent');
+                              setDiscountValue(0);
+                            }}
+                            className={`px-1.5 py-0.5 text-[10px] font-bold rounded cursor-pointer transition-all ${
+                              discountType === 'percent'
+                                ? 'bg-amber-600 text-white shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                            title="Diskon Persentase (%)"
+                          >
+                            %
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDiscountType('nominal');
+                              setDiscountValue(0);
+                            }}
+                            className={`px-1.5 py-0.5 text-[10px] font-bold rounded cursor-pointer transition-all ${
+                              discountType === 'nominal'
+                                ? 'bg-amber-600 text-white shadow-2xs'
+                                : 'text-slate-600 hover:text-slate-900'
+                            }`}
+                            title="Diskon Nominal Rupiah (Rp)"
+                          >
+                            Rp
+                          </button>
+                        </div>
+                        {discountType === 'percent' ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={discountValue === 0 ? '' : discountValue}
+                              onFocus={(e) => e.target.select()}
+                              placeholder="0"
+                              onChange={(e) => setDiscountValue(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                              className="w-12 px-1 py-0.5 text-xs bg-white/90 border border-slate-200 rounded text-center font-mono focus:border-amber-500 focus:outline-hidden"
+                            />
+                            <span>%</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-slate-500">Rp</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={discountValue === 0 ? '' : discountValue.toLocaleString('id-ID')}
+                              onFocus={(e) => e.target.select()}
+                              placeholder="0"
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(/\./g, '').replace(',', '.');
+                                setDiscountValue(raw === '' ? 0 : Math.min(cartSubtotal, parseFloat(raw) || 0));
+                              }}
+                              className="w-20 px-1 py-0.5 text-xs bg-white/90 border border-slate-200 rounded text-right font-mono focus:border-amber-500 focus:outline-hidden"
+                            />
+                          </div>
+                        )}
                       </div>
-                      <span className="font-mono tabular-nums text-emerald-600">
+                      <span className="font-mono tabular-nums text-emerald-600 font-bold">
                         -{formatCurrency(discountAmount)}
                       </span>
                     </div>
@@ -1215,8 +1343,26 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
                 {formatCurrency(grandTotal)}
               </div>
               <div className="text-[11px] text-amber-700 mt-1">
-                Pelanggan: <span className="font-semibold">{selectedCustomer.name}</span>
+                Pelanggan: <span className="font-semibold">{selectedCustomer.name}</span> ({selectedCustomer.type})
               </div>
+
+              {/* Status Hutang & Kelebihan Bayar Sebelumnya */}
+              {(customerPreviousDebt > 0 || customerExistingDeposit > 0) && (
+                <div className="mt-2.5 pt-2 border-t border-amber-200/80 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                  {customerPreviousDebt > 0 && (
+                    <div className="bg-white/90 p-2 rounded-lg border border-rose-200 text-[11px]">
+                      <span className="text-rose-700 font-semibold block">Sisa Hutang Lama:</span>
+                      <span className="font-mono font-bold text-rose-800">{formatCurrency(customerPreviousDebt)}</span>
+                    </div>
+                  )}
+                  {customerExistingDeposit > 0 && (
+                    <div className="bg-white/90 p-2 rounded-lg border border-emerald-200 text-[11px]">
+                      <span className="text-emerald-700 font-semibold block">Kelebihan Bayar (Deposit):</span>
+                      <span className="font-mono font-bold text-emerald-800">{formatCurrency(customerExistingDeposit)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Status Pembayaran (Lunas vs Sebagian saja) */}
@@ -1392,11 +1538,49 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
                   </button>
                 </div>
 
-                {/* Kembalian */}
+                {/* Kembalian & Penanganan Kelebihan Bayar */}
+                {amountPaidInput > grandTotal && (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg space-y-2 mt-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-semibold text-amber-900">Selisih Uang Masuk Lebih:</span>
+                      <span className="font-bold font-mono text-amber-800">
+                        {formatCurrency(amountPaidInput - grandTotal)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setOverpaymentMode('kembalian')}
+                        className={`py-1.5 px-2 rounded-md text-[11px] font-semibold border transition-all cursor-pointer ${
+                          overpaymentMode === 'kembalian'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        💵 Berikan Kembalian
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOverpaymentMode('deposit')}
+                        className={`py-1.5 px-2 rounded-md text-[11px] font-semibold border transition-all cursor-pointer ${
+                          overpaymentMode === 'deposit'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        📥 Simpan Kelebihan Bayar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Display Final Change or Overpayment Summary */}
                 <div className="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-200 rounded-lg mt-2">
-                  <span className="text-xs font-semibold text-slate-600">Kembalian:</span>
-                  <span className="text-sm font-bold font-mono text-emerald-600">
-                    {formatCurrency(change)}
+                  <span className="text-xs font-semibold text-slate-600">
+                    {overpaymentMode === 'deposit' && amountPaidInput > grandTotal ? 'Kelebihan Bayar (Masuk Saldo):' : 'Kembalian Tunai:'}
+                  </span>
+                  <span className={`text-sm font-bold font-mono ${overpaymentMode === 'deposit' && amountPaidInput > grandTotal ? 'text-amber-700' : 'text-emerald-600'}`}>
+                    {overpaymentMode === 'deposit' && amountPaidInput > grandTotal ? formatCurrency(amountPaidInput - grandTotal) : formatCurrency(change)}
                   </span>
                 </div>
               </div>

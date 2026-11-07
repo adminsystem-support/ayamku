@@ -46,6 +46,7 @@ export interface Customer {
   address: string;
   type: CustomerType;
   defaultDiscountPercent: number;
+  depositBalance?: number; // Saldo kelebihan bayar / titipan uang muka pelanggan
   notes?: string;
 }
 
@@ -131,13 +132,18 @@ export interface SaleTransaction {
   items: SaleItem[];
   subtotal: number;
   discount: number;
+  discountType?: 'percent' | 'nominal';
+  discountValue?: number;
   grandTotal: number;
   totalCostHPP: number;
   grossProfit: number;
   paymentMethod: 'Tunai' | 'Transfer';
   paymentStatus?: SalePaymentStatus;
   amountPaid: number;
-  remainingDebt?: number; // Sisa piutang dari pelanggan
+  remainingDebt?: number; // Sisa piutang dari pelanggan pada nota ini
+  totalCustomerDebt?: number; // Akumulasi total sisa hutang pelanggan (nota ini + nota sebelumnya)
+  overpaymentAmount?: number; // Nominal kelebihan bayar yang dicatat sebagai saldo lebih
+  customerDepositBalance?: number; // Saldo deposit pelanggan
   change: number;
   customerDebtPayments?: DebtPayment[];
   notes?: string;
