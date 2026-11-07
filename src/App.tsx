@@ -467,9 +467,11 @@ export default function App() {
     }
 
     // Update customer deposit / tabungan balance
-    if (newSale.customerId) {
+    if (newSale.customerId || newSale.customerName) {
       const updatedCustomers = customers.map(c => {
-        if (c.id === newSale.customerId || c.name.toLowerCase() === newSale.customerName.toLowerCase()) {
+        const matchesId = Boolean(newSale.customerId && c.id === newSale.customerId);
+        const matchesName = Boolean(newSale.customerName && c.name.toLowerCase().trim() === newSale.customerName.toLowerCase().trim());
+        if (matchesId || matchesName) {
           const finalDeposit = newSale.customerDepositBalance !== undefined
             ? Math.max(0, newSale.customerDepositBalance)
             : ((c.depositBalance || 0) + (newSale.overpaymentAmount || 0));

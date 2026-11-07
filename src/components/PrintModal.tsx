@@ -1837,36 +1837,12 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               <span>{isGeneratingPdf ? 'Membuat PDF...' : 'Kirim WA (PDF)'}</span>
             </button>
 
-            {/* Download JPG Button */}
-            <button
-              type="button"
-              disabled={isGeneratingPdf || isGeneratingJpg}
-              onClick={handleDownloadJpg}
-              className="px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
-              title="Unduh gambar nota format JPG"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Unduh JPG</span>
-            </button>
-
-            {/* Download PDF Button */}
-            <button
-              type="button"
-              disabled={isGeneratingPdf || isGeneratingJpg}
-              onClick={handleDownloadPdf}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
-              title="Unduh file dokumen format PDF ke memori perangkat"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Unduh PDF</span>
-            </button>
-
             {/* Print Button */}
             <button
               type="button"
               disabled={isGeneratingPdf || isGeneratingJpg}
               onClick={handlePrint}
-              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
+              className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60 shadow-xs"
             >
               {isGeneratingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
               <span>Cetak</span>
@@ -1942,45 +1918,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                 <span className="text-[10px] bg-teal-600 text-white px-2 py-0.5 rounded-full font-bold">PDF</span>
               </button>
 
-              {/* Option 3: Download JPG */}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowShareMenuModal(false);
-                  handleDownloadJpg();
-                }}
-                className="w-full p-3 bg-slate-100 hover:bg-slate-200 text-slate-900 font-semibold rounded-xl border border-slate-300 flex items-center justify-between transition-all cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Download className="w-4 h-4 text-slate-700 shrink-0" />
-                  <div className="text-left">
-                    <div className="font-bold">Unduh Gambar (JPG)</div>
-                    <div className="text-[10px] text-slate-600">Simpan gambar nota berkualitas tinggi ke galeri</div>
-                  </div>
-                </div>
-                <span className="text-[10px] bg-slate-700 text-white px-2 py-0.5 rounded-full font-bold">JPG</span>
-              </button>
-
-              {/* Option 4: Download PDF */}
-              <button
-                type="button"
-                onClick={() => {
-                  setShowShareMenuModal(false);
-                  handleDownloadPdf();
-                }}
-                className="w-full p-3 bg-slate-100 hover:bg-slate-200 text-slate-900 font-semibold rounded-xl border border-slate-300 flex items-center justify-between transition-all cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5">
-                  <FileText className="w-4 h-4 text-slate-700 shrink-0" />
-                  <div className="text-left">
-                    <div className="font-bold">Unduh Dokumen (PDF)</div>
-                    <div className="text-[10px] text-slate-600">Simpan file .pdf resmi ke folder Download</div>
-                  </div>
-                </div>
-                <span className="text-[10px] bg-slate-800 text-white px-2 py-0.5 rounded-full font-bold">PDF</span>
-              </button>
-
-              {/* Option 5: Email Client */}
+              {/* Option 3: Email Client */}
               <button
                 type="button"
                 onClick={() => {
