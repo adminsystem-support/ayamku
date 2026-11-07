@@ -207,16 +207,16 @@ export function createDocumentPdf(
       // 2. Customer Details Card Box (y: 34 to 68)
       doc.setFillColor(255, 255, 255);
       doc.setDrawColor(226, 232, 240);
-      doc.roundedRect(14, 34, 182, 34, 3, 3, 'DF');
+      doc.roundedRect(14, 34, 182, 19, 3, 3, 'DF');
 
-      // Avatar Circle (x: 23, y: 42, r: 4.5)
+      // Avatar Circle (x: 23, y: 43.5, r: 4.5)
       doc.setFillColor(254, 243, 199); // amber-100
       doc.setDrawColor(253, 230, 138); // amber-200
-      doc.circle(23, 42, 4.5, 'DF');
+      doc.circle(23, 43.5, 4.5, 'DF');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(120, 53, 15); // amber-900
-      doc.text(sale.customerName.charAt(0).toUpperCase(), 23, 45, { align: 'center' });
+      doc.text(sale.customerName.charAt(0).toUpperCase(), 23, 46.5, { align: 'center' });
 
       // Customer Name & Address & Phone directly underneath
       doc.setFont('helvetica', 'bold');
@@ -227,39 +227,9 @@ export function createDocumentPdf(
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(71, 85, 105);
-      const addrSnippet = sale.customerAddress ? (sale.customerAddress.length > 50 ? sale.customerAddress.substring(0, 47) + '...' : sale.customerAddress) : '-';
+      const addrSnippet = sale.customerAddress ? (sale.customerAddress.length > 55 ? sale.customerAddress.substring(0, 52) + '...' : sale.customerAddress) : '-';
       doc.text(`Alamat: ${addrSnippet}`, 30, 44);
-      doc.text(`No. Handphone: ${sale.customerPhone || '-'}`, 30, 47.5);
-
-      // Line separator inside card
-      doc.setDrawColor(241, 245, 249);
-      doc.line(18, 50, 192, 50);
-
-      // 2 Info Grid Cards: Ditujukan Kepada & Metode Bayar
-      const cardW = 85;
-      const cardH = 12;
-      const cardY = 53;
-      const infoList = [
-        { label: 'DITUJUKAN KEPADA:', val: sale.customerName },
-        { label: 'METODE PEMBAYARAN:', val: sale.paymentMethod }
-      ];
-
-      infoList.forEach((info, i) => {
-        const cX = 18 + i * (cardW + 4);
-        doc.setFillColor(248, 250, 252); // slate-50
-        doc.setDrawColor(226, 232, 240); // slate-200
-        doc.roundedRect(cX, cardY, cardW, cardH, 1.5, 1.5, 'DF');
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(6.5);
-        doc.setTextColor(100, 116, 139);
-        doc.text(info.label, cX + 3.5, cardY + 4);
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(15, 23, 42);
-        doc.text(info.val, cX + 3.5, cardY + 9);
-      });
+      doc.text(`No. Handphone: ${sale.customerPhone || '-'}`, 30, 48);
 
       // 3. Rincian Barang Table Section
       const tableRows = sale.items.map((item, idx) => [
@@ -282,14 +252,14 @@ export function createDocumentPdf(
       // Header bar
       doc.setFillColor(241, 245, 249);
       doc.setDrawColor(203, 213, 225);
-      doc.roundedRect(14, 71, 182, 7, 1.5, 1.5, 'DF');
+      doc.roundedRect(14, 57, 182, 7, 1.5, 1.5, 'DF');
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(15, 23, 42);
-      doc.text(`RINCIAN BARANG & DETAIL DIBELI (${sale.items.length} ITEM)`, 18, 75.8);
+      doc.text(`RINCIAN BARANG & DETAIL DIBELI (${sale.items.length} ITEM)`, 18, 61.8);
 
       autoTable(doc, {
-        startY: 78,
+        startY: 64,
         head: [['No', 'Jumlah', 'Nama Item', 'Harga Satuan', 'Subtotal']],
         body: tableRows,
         foot: [
