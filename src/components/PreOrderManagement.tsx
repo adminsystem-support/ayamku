@@ -458,7 +458,7 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
               }`}
             >
               <History className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Riwayat PO Selesai ({historyPreOrders.length})</span>
+              <span>Riwayat PO ({historyPreOrders.length})</span>
             </button>
           </div>
 
@@ -468,15 +468,15 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
               onClick={() => onPrintDocument({
                 type: 'preorder_rekap',
                 data: {
-                  preorders: activePreOrders.length > 0 ? activePreOrders : preorders,
+                  preorders: historyPreOrders.length > 0 ? historyPreOrders : preorders,
                   items
                 }
               })}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-              title="Cetak rekap total kebutuhan potong ayam & rincian pesanan semua customer (Tanpa harga)"
+              title="Print rekap total kebutuhan potong ayam & rincian pesanan semua customer (Format Landscape)"
             >
               <Printer className="w-4 h-4 text-amber-400" />
-              <span>Cetak Rekap PO Keseluruhan</span>
+              <span>Print Keseluruhan Pesanan (Landscape)</span>
             </button>
           )}
 
@@ -781,68 +781,115 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
 
         </div>
       ) : (
-        /* 4. HISTORY TAB (SELESAI / NOTA) */
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
-          <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
-            Riwayat Pre-Order (Sudah Diproses ke Nota)
-          </h3>
+        /* 4. HISTORY TAB: RIWAYAT PO */
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">
+                Riwayat PO (Seluruh Pesanan Tersimpan)
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Semua pesanan yang tersimpan. Anda dapat mencetak keseluruhan pesanan (Landscape) atau per customer (Portrait), serta memproses ke Nota Kasir.
+              </p>
+            </div>
+
+            {onPrintDocument && (
+              <button
+                type="button"
+                onClick={() => onPrintDocument({
+                  type: 'preorder_rekap',
+                  data: {
+                    preorders: historyPreOrders.length > 0 ? historyPreOrders : preorders,
+                    items
+                  }
+                })}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer shrink-0"
+                title="Print keseluruhan pesanan semua customer (Format Landscape)"
+              >
+                <Printer className="w-4 h-4 text-amber-400" />
+                <span>Print Keseluruhan Pesanan (Landscape)</span>
+              </button>
+            )}
+          </div>
+
           <div className="divide-y divide-slate-100">
-            {historyPreOrders.map((po) => (
-              <div key={po.id} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-slate-900">{po.poNumber}</span>
-                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-full text-[10px]">
-                      Selesai (Nota)
-                    </span>
+            {historyPreOrders.map((po) => {
+              const isProcessed = po.status === 'Selesai';
+              return (
+                <div key={po.id} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-slate-900">{po.poNumber}</span>
+                      <span className={`px-2.5 py-0.5 font-bold rounded-full text-[10px] ${
+                        isProcessed 
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                          : po.status === 'Menunggu Potong' 
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                            : 'bg-blue-100 text-blue-800 border border-blue-200'
+                      }`}>
+                        {isProcessed ? 'Diproses ke Nota' : po.status}
+                      </span>
+                    </div>
+                    <div className="text-slate-700 font-medium mt-1">
+                      Pelanggan: <strong className="text-slate-900">{po.customerName}</strong> {po.customerPhone ? `(${po.customerPhone})` : ''} • Tgl: {formatDateTime(po.orderDate)}
+                    </div>
+                    <div className="text-slate-500 text-[11px] mt-0.5">
+                      Rincian: {po.items.length > 0 ? po.items.map(i => `${i.itemName} (${i.quantity} ${i.unit})`).join(', ') : 'Belum ada item'}
+                    </div>
                   </div>
-                  <div className="text-slate-600 font-medium mt-0.5">
-                    Pelanggan: <strong>{po.customerName}</strong> • {formatDateTime(po.updatedAt)}
-                  </div>
-                  <div className="text-slate-400 text-[11px] mt-0.5">
-                    Item: {po.items.map(i => `${i.itemName} (${i.quantity} ${i.unit})`).join(', ')}
+
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    <div className="text-right font-mono mr-2 hidden sm:block">
+                      <span className="text-slate-400 text-[10px] block">Nilai Pesanan:</span>
+                      <span className="font-bold text-slate-900 text-sm">{formatCurrency(po.grandTotal)}</span>
+                    </div>
+
+                    {onPrintDocument && (
+                      <button
+                        type="button"
+                        onClick={() => onPrintDocument({ type: 'preorder_single', data: po })}
+                        className="px-3 py-1.5 text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-xl font-bold cursor-pointer flex items-center gap-1.5 border border-amber-200"
+                        title="Print PO Customer ini (Format Portrait)"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Print PO Customer</span>
+                      </button>
+                    )}
+
+                    {!isProcessed && (
+                      <button
+                        type="button"
+                        onClick={() => onProcessPreOrderToSale(po)}
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold cursor-pointer flex items-center gap-1 shadow-2xs"
+                        title="Proses pesanan ini langsung ke Nota Kasir"
+                      >
+                        <span>Proses ke Nota</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    )}
+
+                    {userRole === 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`Hapus PO ${po.poNumber}?`)) {
+                            onDeletePreOrder(po.id);
+                          }
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
+                        title="Hapus PO"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="text-right font-mono">
-                    <span className="text-slate-400 text-[10px] block">Total Pesanan:</span>
-                    <span className="font-bold text-slate-900 text-sm">{formatCurrency(po.grandTotal)}</span>
-                  </div>
-
-                  {onPrintDocument && (
-                    <button
-                      type="button"
-                      onClick={() => onPrintDocument({ type: 'preorder_single', data: po })}
-                      className="px-3 py-2 text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-xl font-bold cursor-pointer flex items-center gap-1.5 border border-amber-200"
-                      title="Cetak ulang dokumen PO pelanggan ini (Format Portrait Tanpa Harga)"
-                    >
-                      <Printer className="w-3.5 h-3.5 text-amber-700" />
-                      <span>Cetak PO</span>
-                    </button>
-                  )}
-
-                  {userRole === 'admin' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm(`Hapus riwayat PO ${po.poNumber}?`)) {
-                          onDeletePreOrder(po.id);
-                        }
-                      }}
-                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer"
-                      title="Hapus PO"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
             {historyPreOrders.length === 0 && (
               <div className="py-8 text-center text-slate-400 text-xs">
-                Belum ada riwayat PO yang telah selesai diproses.
+                Belum ada data riwayat PO tersimpan.
               </div>
             )}
           </div>

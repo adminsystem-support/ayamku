@@ -1852,7 +1852,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                         <span className="text-[10px] text-slate-500 font-semibold block uppercase">STATUS PESANAN:</span>
                         <span className={`font-bold mt-0.5 block ${po.status === 'Selesai' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                          [{po.status.toUpperCase()}]
+                          [{po.status === 'Selesai' ? 'DIPROSES KE NOTA' : po.status.toUpperCase()}]
                         </span>
                       </div>
                     </div>
@@ -2036,47 +2036,78 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </div>
                   </div>
 
-                  {/* SECTION 1: RINGKASAN TOTAL KEBUTUHAN ITEM */}
+                  {/* SECTION 1: MATRIKS SPREADSHEET PESANAN CUSTOMER (LANDSCAPE) */}
                   <div className="border border-slate-300 rounded-xl overflow-hidden bg-white text-xs shadow-2xs">
                     <div className="bg-slate-900 text-white px-3.5 py-2.5 flex items-center justify-between">
                       <h4 className="font-bold text-xs uppercase tracking-wide text-amber-300">
-                        1. REKAPITULASI TOTAL KEBUTUHAN POTONG AYAM / ITEM ({activeDemands.length} ITEM)
+                        1. MATRIKS PESANAN CUSTOMER & REKAP KEBUTUHAN ITEM ({poList.length} PELANGGAN)
                       </h4>
-                      <span className="text-[11px] font-mono text-slate-300">Total {poList.length} Pelanggan</span>
+                      <span className="text-[11px] font-mono text-slate-300">Format Landscape (A4)</span>
                     </div>
-                    <table className="w-full text-left border-collapse">
-                      <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-300">
-                        <tr>
-                          <th className="py-2.5 px-3 border-r border-slate-300 w-12 text-center">No</th>
-                          <th className="py-2.5 px-3 border-r border-slate-300">Nama Item / Jenis Potongan Ayam</th>
-                          <th className="py-2.5 px-3 text-center w-40">Total Kebutuhan Jumlah</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 font-medium">
-                        {activeDemands.map((d, idx) => (
-                          <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                            <td className="py-2.5 px-3 border-r border-slate-200 text-center text-slate-500">{idx + 1}</td>
-                            <td className="py-2.5 px-3 border-r border-slate-200 font-bold text-slate-900">{d.name}</td>
-                            <td className="py-2.5 px-3 text-center font-mono font-extrabold text-amber-900 text-sm bg-amber-50/50">
-                              {formatNumber(d.totalQty)} {d.unit}
-                            </td>
-                          </tr>
-                        ))}
-                        {activeDemands.length === 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead className="bg-slate-900 text-white font-bold border-b border-slate-700">
                           <tr>
-                            <td colSpan={3} className="py-6 text-center text-slate-400">Belum ada item kebutuhan pesanan.</td>
+                            <th className="py-2.5 px-3 border-r border-slate-700 font-bold min-w-[160px]">
+                              Nama Pelanggan (Customer)
+                            </th>
+                            {itemList.map(it => (
+                              <th key={it.id} className="py-2.5 px-2 text-center border-r border-slate-700 font-bold text-amber-300 min-w-[90px]">
+                                {it.name}
+                              </th>
+                            ))}
                           </tr>
-                        )}
-                      </tbody>
-                      <tfoot className="bg-slate-900 text-white font-bold border-t-2 border-slate-700 text-xs">
-                        <tr>
-                          <td colSpan={2} className="py-3 px-3.5 text-right font-bold text-amber-300">TOTAL AKUMULASI KESELURUHAN ITEM PESANAN:</td>
-                          <td className="py-3 px-3.5 text-center font-mono text-amber-400 text-sm font-extrabold">
-                            {formatNumber(grandTotalQty)} Qty
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {poList.map((po, idx) => (
+                            <tr key={po.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                              <td className="py-2 px-3 border-r border-slate-300 font-bold text-slate-900">
+                                {po.customerName}
+                                <span className="block text-[10px] font-mono text-slate-500 font-normal">{po.poNumber}</span>
+                              </td>
+                              {itemList.map(it => {
+                                const pi = po.items.find(i => i.itemId === it.id || i.itemName.toLowerCase() === it.name.toLowerCase());
+                                return (
+                                  <td key={it.id} className="py-2 px-2 text-center border-r border-slate-200 font-mono font-bold">
+                                    {pi && pi.quantity > 0 ? (
+                                      <span className="text-amber-950 bg-amber-100/90 px-1.5 py-0.5 rounded text-[11px]">
+                                        {formatNumber(pi.quantity)} {it.unit}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-300">-</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                          {poList.length === 0 && (
+                            <tr>
+                              <td colSpan={itemList.length + 1} className="py-6 text-center text-slate-400">Belum ada pesanan pre-order tersimpan.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                        <tfoot className="bg-slate-900 text-white font-mono font-bold border-t-2 border-slate-700">
+                          <tr className="text-amber-300">
+                            <td className="py-2.5 px-3 border-r border-slate-700 font-bold text-right text-xs">
+                              TOTAL PESANAN:
+                            </td>
+                            {itemList.map(it => {
+                              const totalDemand = poList.reduce((sum, po) => {
+                                const pi = po.items.find(i => i.itemId === it.id || i.itemName.toLowerCase() === it.name.toLowerCase());
+                                return sum + (pi ? Number(pi.quantity) || 0 : 0);
+                              }, 0);
+
+                              return (
+                                <td key={it.id} className="py-2.5 px-2 text-center border-r border-slate-700 text-xs font-extrabold text-amber-300">
+                                  {totalDemand > 0 ? `${formatNumber(totalDemand)} ${it.unit}` : '0'}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
                   </div>
 
                   {/* SECTION 2: RINCIAN PESANAN PER PELANGGAN */}
@@ -2108,7 +2139,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                               <td className="py-2.5 px-3 border-r border-slate-200 font-mono">
                                 <span className="font-bold text-slate-900 block">{po.poNumber}</span>
                                 <span className={`text-[10px] font-bold ${po.status === 'Selesai' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                                  [{po.status.toUpperCase()}]
+                                  [{po.status === 'Selesai' ? 'DIPROSES KE NOTA' : po.status.toUpperCase()}]
                                 </span>
                               </td>
                               <td className="py-2.5 px-3 border-r border-slate-200">
