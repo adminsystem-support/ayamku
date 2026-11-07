@@ -16,7 +16,8 @@ import {
   UserCheck, 
   CheckCircle2,
   FileText,
-  Printer
+  Printer,
+  Receipt
 } from 'lucide-react';
 import { 
   OperationalTransaction, 
@@ -226,8 +227,8 @@ export const OperationalManagement: React.FC<OperationalManagementProps> = ({
                 : 'text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200'
             }`}
           >
-            <CalendarCheck className="w-4 h-4" />
-            <span>Absensi & Gaji Karyawan</span>
+            <Receipt className="w-4 h-4" />
+            <span>Slip Gaji Karyawan</span>
           </button>
         </div>
 
