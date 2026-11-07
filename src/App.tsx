@@ -445,13 +445,37 @@ export default function App() {
     StorageManager.saveSales(updatedSales);
     syncSaveSale(newSale);
 
-    // Update customer deposit balance if there is an overpayment recorded
-    if (newSale.overpaymentAmount && newSale.overpaymentAmount > 0 && newSale.customerId) {
+    let finalSalesList = updatedSales;
+    // Jika customer membayar lunas total barang + hutang, tandai nota-nota lama sebagai lunas
+    if (newSale.previousDebt && newSale.previousDebt > 0 && newSale.amountPaid >= (newSale.grandTotal + newSale.previousDebt)) {
+      finalSalesList = updatedSales.map(s => {
+        if (s.id !== newSale.id && (s.customerId === newSale.customerId || s.customerName.toLowerCase() === newSale.customerName.toLowerCase())) {
+          if (s.remainingDebt && s.remainingDebt > 0) {
+            const updatedOld = {
+              ...s,
+              remainingDebt: 0,
+              paymentStatus: 'Lunas' as const,
+            };
+            syncSaveSale(updatedOld);
+            return updatedOld;
+          }
+        }
+        return s;
+      });
+      setSales(finalSalesList);
+      StorageManager.saveSales(finalSalesList);
+    }
+
+    // Update customer deposit / tabungan balance
+    if (newSale.customerId) {
       const updatedCustomers = customers.map(c => {
         if (c.id === newSale.customerId || c.name.toLowerCase() === newSale.customerName.toLowerCase()) {
+          const finalDeposit = newSale.customerDepositBalance !== undefined
+            ? Math.max(0, newSale.customerDepositBalance)
+            : ((c.depositBalance || 0) + (newSale.overpaymentAmount || 0));
           const updatedCust = {
             ...c,
-            depositBalance: (c.depositBalance || 0) + (newSale.overpaymentAmount || 0),
+            depositBalance: finalDeposit,
           };
           syncSaveCustomer(updatedCust);
           return updatedCust;

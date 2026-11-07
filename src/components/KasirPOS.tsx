@@ -75,9 +75,25 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<SaleItem[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('cust-5'); // Default: Pelanggan Umum
+  const [discountEnabled, setDiscountEnabled] = useState<boolean>(false);
   const [discountType, setDiscountType] = useState<'percent' | 'nominal'>('percent');
   const [discountValue, setDiscountValue] = useState<number>(0);
-  const [overpaymentMode, setOverpaymentMode] = useState<'kembalian' | 'deposit'>('kembalian');
+
+  // Pajak (PPN)
+  const [taxEnabled, setTaxEnabled] = useState<boolean>(false);
+  const [taxType, setTaxType] = useState<'percent' | 'nominal'>('percent');
+  const [taxValue, setTaxValue] = useState<number>(11);
+
+  // Ongkos Kirim
+  const [shippingEnabled, setShippingEnabled] = useState<boolean>(false);
+  const [shippingCost, setShippingCost] = useState<number>(0);
+
+  // Biaya Lain-lain
+  const [otherCostEnabled, setOtherCostEnabled] = useState<boolean>(false);
+  const [otherCost, setOtherCost] = useState<number>(0);
+  const [otherCostNote, setOtherCostNote] = useState<string>('');
+
+  const [overpaymentMode, setOverpaymentMode] = useState<'kembalian' | 'deposit'>('deposit');
   
   // Payment states matching Pembelian
   const [paymentMethod, setPaymentMethod] = useState<'Tunai' | 'Transfer'>('Tunai');
@@ -152,9 +168,11 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
     setSelectedCustomerId(customerId);
     const cust = customers.find(c => c.id === customerId);
     if (cust && cust.defaultDiscountPercent > 0) {
+      setDiscountEnabled(true);
       setDiscountType('percent');
       setDiscountValue(cust.defaultDiscountPercent);
     } else {
+      setDiscountEnabled(false);
       setDiscountValue(0);
     }
   };
@@ -203,15 +221,34 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
   }, [cart]);
 
   const discountAmount = useMemo(() => {
+    if (!discountEnabled) return 0;
     if (discountType === 'percent') {
       return (cartSubtotal * discountValue) / 100;
     }
     return Math.min(cartSubtotal, discountValue);
-  }, [cartSubtotal, discountType, discountValue]);
+  }, [cartSubtotal, discountType, discountValue, discountEnabled]);
+
+  const subtotalAfterDiscount = Math.max(0, cartSubtotal - discountAmount);
+
+  const taxAmount = useMemo(() => {
+    if (!taxEnabled) return 0;
+    if (taxType === 'percent') {
+      return (subtotalAfterDiscount * taxValue) / 100;
+    }
+    return Math.max(0, taxValue);
+  }, [subtotalAfterDiscount, taxType, taxValue, taxEnabled]);
+
+  const actualShippingCost = useMemo(() => {
+    return shippingEnabled ? Math.max(0, shippingCost) : 0;
+  }, [shippingEnabled, shippingCost]);
+
+  const actualOtherCost = useMemo(() => {
+    return otherCostEnabled ? Math.max(0, otherCost) : 0;
+  }, [otherCostEnabled, otherCost]);
 
   const grandTotal = useMemo(() => {
-    return Math.max(0, cartSubtotal - discountAmount);
-  }, [cartSubtotal, discountAmount]);
+    return Math.max(0, cartSubtotal - discountAmount + taxAmount + actualShippingCost + actualOtherCost);
+  }, [cartSubtotal, discountAmount, taxAmount, actualShippingCost, actualOtherCost]);
 
   const totalCostHPP = useMemo(() => {
     return cart.reduce((sum, item) => sum + item.costSubtotal, 0);
@@ -398,10 +435,42 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
       setTimeout(() => setStockWarning(null), 4500);
       return;
     }
+
+    // Validasi input ON yang wajib diisi
+    if (discountEnabled && (!discountValue || discountValue <= 0)) {
+      setStockWarning('Diskon aktif! Mohon isi persentase atau nominal diskon.');
+      setTimeout(() => setStockWarning(null), 4000);
+      return;
+    }
+    if (taxEnabled && (!taxValue || taxValue <= 0)) {
+      setStockWarning('Pajak aktif! Mohon isi persentase atau nominal pajak.');
+      setTimeout(() => setStockWarning(null), 4000);
+      return;
+    }
+    if (shippingEnabled && (!shippingCost || shippingCost <= 0)) {
+      setStockWarning('Ongkos Kirim aktif! Mohon isi nominal ongkos kirim.');
+      setTimeout(() => setStockWarning(null), 4000);
+      return;
+    }
+    if (otherCostEnabled && (!otherCost || otherCost <= 0)) {
+      setStockWarning('Biaya Lain-lain aktif! Mohon isi nominal biaya lain-lain.');
+      setTimeout(() => setStockWarning(null), 4000);
+      return;
+    }
+
     setPaymentStatus('Lunas');
     setPaymentMethod('Tunai');
-    setAmountPaidInput(grandTotal);
-    setOverpaymentMode('kembalian');
+    
+    // Default nilai yang harus dibayar
+    if (customerPreviousDebt > 0) {
+      setAmountPaidInput(grandTotal + customerPreviousDebt);
+    } else if (customerExistingDeposit > 0) {
+      setAmountPaidInput(Math.max(0, grandTotal - customerExistingDeposit));
+    } else {
+      setAmountPaidInput(grandTotal);
+    }
+    
+    setOverpaymentMode('deposit');
     setShowCheckoutModal(true);
   };
 
@@ -420,16 +489,64 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
       return;
     }
 
-    let recordedOverpayment = 0;
-    let finalChange = change;
-    if (paymentStatus === 'Lunas' && paymentMethod === 'Tunai' && amountPaidInput > grandTotal) {
-      if (overpaymentMode === 'deposit') {
-        recordedOverpayment = amountPaidInput - grandTotal;
-        finalChange = 0;
+    const hasHutang = customerPreviousDebt > 0;
+    const hasTabungan = !hasHutang && customerExistingDeposit > 0;
+
+    let recordedNewSavings = 0;
+    let finalCustomerDepositBalance = customerExistingDeposit;
+    let totalCustomerDebtAfterSale = 0;
+    let noteRemainingDebt = 0;
+    let totalBarangPlusMinus = grandTotal;
+    let totalOverall = 0;
+
+    if (hasHutang) {
+      totalBarangPlusMinus = grandTotal + customerPreviousDebt;
+      if (actualAmountPaid >= totalBarangPlusMinus) {
+        recordedNewSavings = actualAmountPaid - totalBarangPlusMinus;
+        finalCustomerDepositBalance = recordedNewSavings;
+        totalCustomerDebtAfterSale = 0;
+        noteRemainingDebt = 0;
+        totalOverall = 0;
+      } else {
+        totalOverall = totalBarangPlusMinus - actualAmountPaid;
+        totalCustomerDebtAfterSale = totalOverall;
+        finalCustomerDepositBalance = 0;
+        noteRemainingDebt = Math.max(0, grandTotal - actualAmountPaid);
+      }
+    } else if (hasTabungan) {
+      const targetToPay = Math.max(0, grandTotal - customerExistingDeposit);
+      const usedTabungan = Math.min(grandTotal, customerExistingDeposit);
+      const unusedTabungan = customerExistingDeposit - usedTabungan;
+      totalBarangPlusMinus = targetToPay;
+
+      if (actualAmountPaid >= targetToPay) {
+        const cashExcess = actualAmountPaid - targetToPay;
+        recordedNewSavings = cashExcess;
+        finalCustomerDepositBalance = unusedTabungan + cashExcess;
+        totalCustomerDebtAfterSale = 0;
+        noteRemainingDebt = 0;
+        totalOverall = 0;
+      } else {
+        totalOverall = targetToPay - actualAmountPaid;
+        totalCustomerDebtAfterSale = totalOverall;
+        finalCustomerDepositBalance = 0;
+        noteRemainingDebt = totalOverall;
+      }
+    } else {
+      totalBarangPlusMinus = grandTotal;
+      if (actualAmountPaid >= grandTotal) {
+        recordedNewSavings = actualAmountPaid - grandTotal;
+        finalCustomerDepositBalance = recordedNewSavings;
+        totalCustomerDebtAfterSale = 0;
+        noteRemainingDebt = 0;
+        totalOverall = 0;
+      } else {
+        totalOverall = grandTotal - actualAmountPaid;
+        totalCustomerDebtAfterSale = totalOverall;
+        finalCustomerDepositBalance = 0;
+        noteRemainingDebt = totalOverall;
       }
     }
-
-    const totalCustomerDebtAfterSale = customerPreviousDebt + remainingReceivable;
 
     const sale: SaleTransaction = {
       id: `sal-${Date.now()}`,
@@ -438,23 +555,40 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
       customerId: selectedCustomer.id,
       customerName: selectedCustomer.name,
       customerPhone: selectedCustomer.phone,
+      customerAddress: selectedCustomer.address,
       customerType: selectedCustomer.type,
       items: [...cart],
       subtotal: cartSubtotal,
+      totalBarang: cartSubtotal,
       discount: discountAmount,
       discountType,
       discountValue,
+      discountEnabled,
+      tax: taxAmount,
+      taxType,
+      taxValue,
+      taxEnabled,
+      shippingCost: actualShippingCost,
+      shippingEnabled,
+      otherCost: actualOtherCost,
+      otherCostNote: otherCostNote.trim(),
+      otherCostEnabled,
       grandTotal,
       totalCostHPP,
       grossProfit,
       paymentMethod,
-      paymentStatus,
+      paymentStatus: (noteRemainingDebt === 0 && totalCustomerDebtAfterSale === 0) ? 'Lunas' : paymentStatus,
       amountPaid: actualAmountPaid,
-      remainingDebt: remainingReceivable,
+      remainingDebt: noteRemainingDebt,
       totalCustomerDebt: totalCustomerDebtAfterSale,
-      overpaymentAmount: recordedOverpayment,
-      customerDepositBalance: (customerExistingDeposit || 0) + recordedOverpayment,
-      change: finalChange,
+      previousDebt: customerPreviousDebt,
+      previousSavings: customerExistingDeposit,
+      totalBarangPlusHutang: totalBarangPlusMinus,
+      totalOverall,
+      newSavingsRecorded: recordedNewSavings,
+      overpaymentAmount: recordedNewSavings,
+      customerDepositBalance: finalCustomerDepositBalance,
+      change: 0, // Kelebihan bayar tunai otomatis menjadi tabungan
       customerDebtPayments: actualAmountPaid > 0 && paymentStatus !== 'Lunas' ? [
         {
           id: `dp-sale-${Date.now()}`,
@@ -874,76 +1008,244 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
                       <span className="font-mono tabular-nums">{formatCurrency(cartSubtotal)}</span>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span>Diskon:</span>
-                        <div className="inline-flex rounded-md border border-slate-200 bg-slate-100 p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => {
+                    {/* Penyesuaian Biaya Nota (Diskon, Pajak, Ongkir, Lain-lain On/Off) */}
+                    <div className="pt-2 border-t border-slate-200/60 space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                        <span className="uppercase tracking-wider">Penyesuaian Biaya Nota:</span>
+                        <span className="text-[10px] text-slate-400 font-normal">Klik ON/OFF</span>
+                      </div>
+
+                      {/* 4 Toggle Buttons */}
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = !discountEnabled;
+                            setDiscountEnabled(next);
+                            if (next && discountValue === 0) {
+                              setDiscountValue(selectedCustomer.defaultDiscountPercent || 5);
                               setDiscountType('percent');
-                              setDiscountValue(0);
-                            }}
-                            className={`px-1.5 py-0.5 text-[10px] font-bold rounded cursor-pointer transition-all ${
-                              discountType === 'percent'
-                                ? 'bg-amber-600 text-white shadow-2xs'
-                                : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                            title="Diskon Persentase (%)"
-                          >
-                            %
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setDiscountType('nominal');
-                              setDiscountValue(0);
-                            }}
-                            className={`px-1.5 py-0.5 text-[10px] font-bold rounded cursor-pointer transition-all ${
-                              discountType === 'nominal'
-                                ? 'bg-amber-600 text-white shadow-2xs'
-                                : 'text-slate-600 hover:text-slate-900'
-                            }`}
-                            title="Diskon Nominal Rupiah (Rp)"
-                          >
-                            Rp
-                          </button>
-                        </div>
-                        {discountType === 'percent' ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={discountValue === 0 ? '' : discountValue}
-                              onFocus={(e) => e.target.select()}
-                              placeholder="0"
-                              onChange={(e) => setDiscountValue(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                              className="w-12 px-1 py-0.5 text-xs bg-white/90 border border-slate-200 rounded text-center font-mono focus:border-amber-500 focus:outline-hidden"
-                            />
-                            <span>%</span>
+                            }
+                          }}
+                          className={`px-2 py-1.5 rounded-lg border text-[11px] font-bold flex items-center justify-between transition-all cursor-pointer ${
+                            discountEnabled
+                              ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span>🏷️ Diskon</span>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${discountEnabled ? 'bg-black/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                            {discountEnabled ? 'ON' : 'OFF'}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setTaxEnabled(!taxEnabled)}
+                          className={`px-2 py-1.5 rounded-lg border text-[11px] font-bold flex items-center justify-between transition-all cursor-pointer ${
+                            taxEnabled
+                              ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span>🏛️ Pajak</span>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${taxEnabled ? 'bg-black/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                            {taxEnabled ? 'ON' : 'OFF'}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setShippingEnabled(!shippingEnabled)}
+                          className={`px-2 py-1.5 rounded-lg border text-[11px] font-bold flex items-center justify-between transition-all cursor-pointer ${
+                            shippingEnabled
+                              ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span>🚚 Ongkir</span>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${shippingEnabled ? 'bg-black/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                            {shippingEnabled ? 'ON' : 'OFF'}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setOtherCostEnabled(!otherCostEnabled)}
+                          className={`px-2 py-1.5 rounded-lg border text-[11px] font-bold flex items-center justify-between transition-all cursor-pointer ${
+                            otherCostEnabled
+                              ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <span>📦 Lain-lain</span>
+                          <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${otherCostEnabled ? 'bg-black/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                            {otherCostEnabled ? 'ON' : 'OFF'}
+                          </span>
+                        </button>
+                      </div>
+
+                      {/* KOLOM ISIAN - HANYA MUNCUL JIKA ON */}
+                      {discountEnabled && (
+                        <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg space-y-1">
+                          <div className="flex items-center justify-between text-[11px] font-semibold text-amber-900">
+                            <span>Input Nilai Diskon:</span>
+                            <div className="inline-flex rounded border border-amber-300 bg-white p-0.5">
+                              <button
+                                type="button"
+                                onClick={() => setDiscountType('percent')}
+                                className={`px-1.5 py-0.5 text-[9px] font-bold rounded cursor-pointer ${discountType === 'percent' ? 'bg-amber-600 text-white' : 'text-slate-600'}`}
+                              >%</button>
+                              <button
+                                type="button"
+                                onClick={() => setDiscountType('nominal')}
+                                className={`px-1.5 py-0.5 text-[9px] font-bold rounded cursor-pointer ${discountType === 'nominal' ? 'bg-amber-600 text-white' : 'text-slate-600'}`}
+                              >Rp</button>
+                            </div>
                           </div>
-                        ) : (
+                          <div className="flex items-center justify-between gap-2">
+                            {discountType === 'percent' ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={discountValue === 0 ? '' : discountValue}
+                                  placeholder="0"
+                                  onFocus={(e) => e.target.select()}
+                                  onChange={(e) => setDiscountValue(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                                  className="w-16 px-1.5 py-1 text-xs bg-white border border-amber-300 rounded font-mono font-bold text-slate-900"
+                                />
+                                <span className="text-xs font-bold text-amber-900">%</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 flex-1">
+                                <span className="text-[11px] font-bold text-slate-500">Rp</span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={discountValue === 0 ? '' : discountValue.toLocaleString('id-ID')}
+                                  placeholder="0"
+                                  onFocus={(e) => e.target.select()}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(/\./g, '').replace(',', '.');
+                                    setDiscountValue(raw === '' ? 0 : Math.min(cartSubtotal, parseFloat(raw) || 0));
+                                  }}
+                                  className="w-full px-1.5 py-1 text-xs bg-white border border-amber-300 rounded font-mono font-bold text-slate-900"
+                                />
+                              </div>
+                            )}
+                            <span className="font-mono font-bold text-rose-600 text-xs shrink-0">
+                              -{formatCurrency(discountAmount)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {taxEnabled && (
+                        <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg space-y-1">
+                          <div className="flex items-center justify-between text-[11px] font-semibold text-amber-900">
+                            <span>Input Pajak (PPN):</span>
+                            <div className="inline-flex rounded border border-amber-300 bg-white p-0.5">
+                              <button
+                                type="button"
+                                onClick={() => setTaxType('percent')}
+                                className={`px-1.5 py-0.5 text-[9px] font-bold rounded cursor-pointer ${taxType === 'percent' ? 'bg-amber-600 text-white' : 'text-slate-600'}`}
+                              >%</button>
+                              <button
+                                type="button"
+                                onClick={() => setTaxType('nominal')}
+                                className={`px-1.5 py-0.5 text-[9px] font-bold rounded cursor-pointer ${taxType === 'nominal' ? 'bg-amber-600 text-white' : 'text-slate-600'}`}
+                              >Rp</button>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            {taxType === 'percent' ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={taxValue === 0 ? '' : taxValue}
+                                  placeholder="11"
+                                  onFocus={(e) => e.target.select()}
+                                  onChange={(e) => setTaxValue(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                                  className="w-16 px-1.5 py-1 text-xs bg-white border border-amber-300 rounded font-mono font-bold text-slate-900"
+                                />
+                                <span className="text-xs font-bold text-amber-900">%</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 flex-1">
+                                <span className="text-[11px] font-bold text-slate-500">Rp</span>
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={taxValue === 0 ? '' : taxValue.toLocaleString('id-ID')}
+                                  placeholder="0"
+                                  onFocus={(e) => e.target.select()}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(/\./g, '').replace(',', '.');
+                                    setTaxValue(raw === '' ? 0 : parseFloat(raw) || 0);
+                                  }}
+                                  className="w-full px-1.5 py-1 text-xs bg-white border border-amber-300 rounded font-mono font-bold text-slate-900"
+                                />
+                              </div>
+                            )}
+                            <span className="font-mono font-bold text-amber-900 text-xs shrink-0">
+                              +{formatCurrency(taxAmount)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {shippingEnabled && (
+                        <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg space-y-1">
+                          <span className="text-[11px] font-semibold text-amber-900 block">Input Ongkos Kirim:</span>
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-slate-500">Rp</span>
+                            <span className="text-[11px] font-bold text-slate-500">Rp</span>
                             <input
                               type="text"
                               inputMode="numeric"
-                              value={discountValue === 0 ? '' : discountValue.toLocaleString('id-ID')}
+                              value={shippingCost === 0 ? '' : shippingCost.toLocaleString('id-ID')}
+                              placeholder="Contoh: 15.000"
                               onFocus={(e) => e.target.select()}
-                              placeholder="0"
                               onChange={(e) => {
                                 const raw = e.target.value.replace(/\./g, '').replace(',', '.');
-                                setDiscountValue(raw === '' ? 0 : Math.min(cartSubtotal, parseFloat(raw) || 0));
+                                setShippingCost(raw === '' ? 0 : parseFloat(raw) || 0);
                               }}
-                              className="w-20 px-1 py-0.5 text-xs bg-white/90 border border-slate-200 rounded text-right font-mono focus:border-amber-500 focus:outline-hidden"
+                              className="w-full px-1.5 py-1 text-xs bg-white border border-amber-300 rounded font-mono font-bold text-slate-900"
                             />
                           </div>
-                        )}
-                      </div>
-                      <span className="font-mono tabular-nums text-emerald-600 font-bold">
-                        -{formatCurrency(discountAmount)}
-                      </span>
+                        </div>
+                      )}
+
+                      {otherCostEnabled && (
+                        <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg space-y-1.5">
+                          <span className="text-[11px] font-semibold text-amber-900 block">Input Biaya Lain-lain:</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[11px] font-bold text-slate-500">Rp</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={otherCost === 0 ? '' : otherCost.toLocaleString('id-ID')}
+                              placeholder="Nominal..."
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const raw = e.target.value.replace(/\./g, '').replace(',', '.');
+                                setOtherCost(raw === '' ? 0 : parseFloat(raw) || 0);
+                              }}
+                              className="w-full px-1.5 py-1 text-xs bg-white border border-amber-300 rounded font-mono font-bold text-slate-900"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            value={otherCostNote}
+                            placeholder="Keterangan biaya lain-lain (opsional)..."
+                            onChange={(e) => setOtherCostNote(e.target.value)}
+                            className="w-full px-1.5 py-1 text-[11px] bg-white border border-amber-200 rounded text-slate-800"
+                          />
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex justify-between text-base font-bold text-slate-900 pt-1 border-t border-slate-200/60">
@@ -1365,19 +1667,25 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
                   {customerPreviousDebt > 0 && (
                     <div className="bg-rose-50/90 p-2.5 rounded-lg border border-rose-200 text-xs">
                       <div className="flex justify-between items-center text-rose-700">
-                        <span className="font-semibold">Sisa Hutang Lama Pelanggan:</span>
+                        <span className="font-semibold">SISA HUTANG PELANGGAN:</span>
                         <span className="font-mono font-bold">{formatCurrency(customerPreviousDebt)}</span>
                       </div>
                       <div className="flex justify-between items-center text-slate-900 font-extrabold text-xs pt-1.5 mt-1 border-t border-rose-200/80">
-                        <span>Total Penjualan + Total Hutang:</span>
+                        <span>TOTAL BARANG + HUTANG:</span>
                         <span className="font-mono text-rose-800 text-sm font-bold">{formatCurrency(grandTotal + customerPreviousDebt)}</span>
                       </div>
                     </div>
                   )}
                   {customerExistingDeposit > 0 && (
-                    <div className="bg-emerald-50/90 p-2 rounded-lg border border-emerald-200 text-[11px] flex justify-between items-center">
-                      <span className="text-emerald-700 font-semibold block">Kelebihan Bayar (Deposit):</span>
-                      <span className="font-mono font-bold text-emerald-800">{formatCurrency(customerExistingDeposit)}</span>
+                    <div className="bg-emerald-50/90 p-2.5 rounded-lg border border-emerald-200 text-xs">
+                      <div className="flex justify-between items-center text-emerald-800">
+                        <span className="font-semibold">TABUNGAN PELANGGAN:</span>
+                        <span className="font-mono font-bold">+{formatCurrency(customerExistingDeposit)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-900 font-extrabold text-xs pt-1.5 mt-1 border-t border-emerald-200/80">
+                        <span>TOTAL BARANG - TABUNGAN:</span>
+                        <span className="font-mono text-emerald-900 text-sm font-bold">{formatCurrency(Math.max(0, grandTotal - customerExistingDeposit))}</span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1398,7 +1706,13 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
                     onClick={() => {
                       setPaymentStatus(st.id as SalePaymentStatus);
                       if (st.id === 'Lunas') {
-                        setAmountPaidInput(grandTotal);
+                        if (customerPreviousDebt > 0) {
+                          setAmountPaidInput(grandTotal + customerPreviousDebt);
+                        } else if (customerExistingDeposit > 0) {
+                          setAmountPaidInput(Math.max(0, grandTotal - customerExistingDeposit));
+                        } else {
+                          setAmountPaidInput(grandTotal);
+                        }
                       } else if (st.id === 'Sebagian') {
                         if (amountPaidInput === 0 || amountPaidInput >= grandTotal) {
                           setAmountPaidInput(Math.round(grandTotal / 2));
@@ -1501,14 +1815,14 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
               </div>
             )}
 
-            {/* Jika Lunas Tunai: Input Uang Diterima & Kembalian */}
-            {paymentStatus === 'Lunas' && paymentMethod === 'Tunai' && (
+            {/* Input Uang Diterima & Otomatis Tabungan */}
+            {paymentStatus === 'Lunas' && (
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-700">Jumlah Uang Tunai Diterima:</label>
+                <label className="text-xs font-semibold text-slate-700">Jumlah Uang Diterima (BAYAR):</label>
                 <input
                   type="text"
                   inputMode="numeric"
-                  placeholder="Masukkan nominal uang tunai..."
+                  placeholder="Masukkan nominal uang..."
                   value={amountPaidInput === 0 ? '' : amountPaidInput.toLocaleString('id-ID')}
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => {
@@ -1522,86 +1836,64 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   <button
                     type="button"
-                    onClick={() => handleQuickCash(grandTotal)}
-                    className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md font-medium text-slate-700 cursor-pointer"
+                    onClick={() => {
+                      if (customerPreviousDebt > 0) {
+                        handleQuickCash(grandTotal + customerPreviousDebt);
+                      } else if (customerExistingDeposit > 0) {
+                        handleQuickCash(Math.max(0, grandTotal - customerExistingDeposit));
+                      } else {
+                        handleQuickCash(grandTotal);
+                      }
+                    }}
+                    className="px-2.5 py-1 text-xs bg-amber-100 hover:bg-amber-200 rounded-md font-bold text-amber-900 cursor-pointer"
                   >
-                    Uang Pas
+                    Uang Pas: {formatCurrency(customerPreviousDebt > 0 ? (grandTotal + customerPreviousDebt) : (customerExistingDeposit > 0 ? Math.max(0, grandTotal - customerExistingDeposit) : grandTotal))}
                   </button>
+                  {customerPreviousDebt > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickCash(grandTotal)}
+                      className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md font-medium text-slate-700 cursor-pointer"
+                    >
+                      Hanya Nota: {formatCurrency(grandTotal)}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleQuickCash(50000)}
-                    className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md font-medium text-slate-700 cursor-pointer"
-                  >
-                    50.000
-                  </button>
+                    className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md font-medium text-slate-700 cursor-pointer"
+                  >50rb</button>
                   <button
                     type="button"
                     onClick={() => handleQuickCash(100000)}
-                    className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md font-medium text-slate-700 cursor-pointer"
-                  >
-                    100.000
-                  </button>
+                    className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md font-medium text-slate-700 cursor-pointer"
+                  >100rb</button>
                   <button
                     type="button"
                     onClick={() => handleQuickCash(200000)}
-                    className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md font-medium text-slate-700 cursor-pointer"
-                  >
-                    200.000
-                  </button>
+                    className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md font-medium text-slate-700 cursor-pointer"
+                  >200rb</button>
                   <button
                     type="button"
                     onClick={() => handleQuickCash(500000)}
-                    className="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md font-medium text-slate-700 cursor-pointer"
-                  >
-                    500.000
-                  </button>
+                    className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded-md font-medium text-slate-700 cursor-pointer"
+                  >500rb</button>
                 </div>
 
-                {/* Kembalian & Penanganan Kelebihan Bayar */}
-                {amountPaidInput > grandTotal && (
-                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg space-y-2 mt-2">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-semibold text-amber-900">Selisih Uang Masuk Lebih:</span>
-                      <span className="font-bold font-mono text-amber-800">
-                        {formatCurrency(amountPaidInput - grandTotal)}
+                {/* Notifikasi Otomatis Masuk Tabungan jika Kelebihan Bayar */}
+                {amountPaidInput > (customerPreviousDebt > 0 ? (grandTotal + customerPreviousDebt) : (customerExistingDeposit > 0 ? Math.max(0, grandTotal - customerExistingDeposit) : grandTotal)) && (
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-300 rounded-lg space-y-1 mt-2 text-xs">
+                    <div className="flex justify-between items-center text-emerald-950 font-bold">
+                      <span>Kelebihan Bayar:</span>
+                      <span className="font-mono text-emerald-700 text-sm">
+                        +{formatCurrency(amountPaidInput - (customerPreviousDebt > 0 ? (grandTotal + customerPreviousDebt) : (customerExistingDeposit > 0 ? Math.max(0, grandTotal - customerExistingDeposit) : grandTotal)))}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setOverpaymentMode('kembalian')}
-                        className={`py-1.5 px-2 rounded-md text-[11px] font-semibold border transition-all cursor-pointer ${
-                          overpaymentMode === 'kembalian'
-                            ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        💵 Berikan Kembalian
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setOverpaymentMode('deposit')}
-                        className={`py-1.5 px-2 rounded-md text-[11px] font-semibold border transition-all cursor-pointer ${
-                          overpaymentMode === 'deposit'
-                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        📥 Simpan Kelebihan Bayar
-                      </button>
-                    </div>
+                    <p className="text-[11px] text-emerald-800 leading-tight">
+                      ✨ Sesuai ketentuan, kelebihan pembayaran otomatis disimpan menjadi <strong>TABUNGAN</strong> pelanggan dan muncul di nota pembelian selanjutnya.
+                    </p>
                   </div>
                 )}
-
-                {/* Display Final Change or Overpayment Summary */}
-                <div className="flex justify-between items-center p-2.5 bg-slate-50 border border-slate-200 rounded-lg mt-2">
-                  <span className="text-xs font-semibold text-slate-600">
-                    {overpaymentMode === 'deposit' && amountPaidInput > grandTotal ? 'Kelebihan Bayar (Masuk Saldo):' : 'Kembalian Tunai:'}
-                  </span>
-                  <span className={`text-sm font-bold font-mono ${overpaymentMode === 'deposit' && amountPaidInput > grandTotal ? 'text-amber-700' : 'text-emerald-600'}`}>
-                    {overpaymentMode === 'deposit' && amountPaidInput > grandTotal ? formatCurrency(amountPaidInput - grandTotal) : formatCurrency(change)}
-                  </span>
-                </div>
               </div>
             )}
 

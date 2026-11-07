@@ -128,12 +128,23 @@ export interface SaleTransaction {
   customerId: string;
   customerName: string;
   customerPhone?: string;
+  customerAddress?: string;
   customerType: CustomerType;
   items: SaleItem[];
   subtotal: number;
   discount: number;
   discountType?: 'percent' | 'nominal';
   discountValue?: number;
+  discountEnabled?: boolean;
+  tax?: number;
+  taxType?: 'percent' | 'nominal';
+  taxValue?: number;
+  taxEnabled?: boolean;
+  shippingCost?: number;
+  shippingEnabled?: boolean;
+  otherCost?: number;
+  otherCostNote?: string;
+  otherCostEnabled?: boolean;
   grandTotal: number;
   totalCostHPP: number;
   grossProfit: number;
@@ -141,9 +152,15 @@ export interface SaleTransaction {
   paymentStatus?: SalePaymentStatus;
   amountPaid: number;
   remainingDebt?: number; // Sisa piutang dari pelanggan pada nota ini
-  totalCustomerDebt?: number; // Akumulasi total sisa hutang pelanggan (nota ini + nota sebelumnya)
-  overpaymentAmount?: number; // Nominal kelebihan bayar yang dicatat sebagai saldo lebih
-  customerDepositBalance?: number; // Saldo deposit pelanggan
+  totalCustomerDebt?: number; // Akumulasi total sisa hutang pelanggan
+  overpaymentAmount?: number; // Nominal kelebihan bayar yang dicatat sebagai saldo lebih / tabungan
+  customerDepositBalance?: number; // Saldo tabungan / deposit pelanggan setelah transaksi ini
+  previousDebt?: number; // Sisa hutang lama pelanggan sebelum transaksi ini
+  previousSavings?: number; // Tabungan lama pelanggan sebelum transaksi ini
+  totalBarang?: number; // TOTAL BARANG transaksi
+  totalBarangPlusHutang?: number; // TOTAL BARANG + HUTANG atau TOTAL BARANG - TABUNGAN
+  totalOverall?: number; // TOTAL KESELURUHAN
+  newSavingsRecorded?: number; // Kelebihan bayar yang otomatis masuk tabungan
   change: number;
   customerDebtPayments?: DebtPayment[];
   notes?: string;

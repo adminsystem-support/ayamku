@@ -139,8 +139,11 @@ export const PrintModal: React.FC<PrintModalProps> = ({
     const sale = printData.data;
     const cust = customers.find(c => c.id === sale.customerId || c.name.toLowerCase() === sale.customerName?.toLowerCase());
     
+    const customerPhone = sale.customerPhone || cust?.phone || '-';
+    const customerAddress = sale.customerAddress || cust?.address || '-';
+
     // Sisa piutang pada nota ini
-    const noteRemainingDebt = Math.max(0, (sale.grandTotal || 0) - (sale.amountPaid || 0));
+    const noteRemainingDebt = sale.remainingDebt !== undefined ? sale.remainingDebt : Math.max(0, (sale.grandTotal || 0) - (sale.amountPaid || 0));
 
     // Sisa piutang nota-nota lainnya dari customer ini
     const otherNotesDebt = sales
@@ -152,18 +155,69 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           }, 0)
       : 0;
 
+    const previousDebt = sale.previousDebt !== undefined ? sale.previousDebt : otherNotesDebt;
+    const previousSavings = sale.previousSavings !== undefined ? sale.previousSavings : (cust?.depositBalance || 0);
+
+    const hasHutang = previousDebt > 0;
+    const hasTabungan = !hasHutang && previousSavings > 0;
+
+    const itemSubtotal = sale.subtotal || sale.items.reduce((sum, i) => sum + i.subtotal, 0);
+    const netBarang = sale.grandTotal;
+    const amountPaid = sale.amountPaid || 0;
+
+    let totalBarangPlusMinus = netBarang;
+    let totalKeseluruhan = 0;
+    let newSavings = 0;
+
+    if (hasHutang) {
+      totalBarangPlusMinus = netBarang + previousDebt;
+      totalKeseluruhan = Math.max(0, totalBarangPlusMinus - amountPaid);
+      if (amountPaid > totalBarangPlusMinus) {
+        newSavings = amountPaid - totalBarangPlusMinus;
+      }
+    } else if (hasTabungan) {
+      totalBarangPlusMinus = Math.max(0, netBarang - previousSavings);
+      totalKeseluruhan = Math.max(0, totalBarangPlusMinus - amountPaid);
+      if (amountPaid > totalBarangPlusMinus) {
+        newSavings = (amountPaid - totalBarangPlusMinus) + Math.max(0, previousSavings - netBarang);
+      } else if (previousSavings > netBarang) {
+        newSavings = previousSavings - netBarang;
+      }
+    } else {
+      totalBarangPlusMinus = netBarang;
+      totalKeseluruhan = Math.max(0, netBarang - amountPaid);
+      if (amountPaid > netBarang) {
+        newSavings = amountPaid - netBarang;
+      }
+    }
+
+    if (sale.newSavingsRecorded && sale.newSavingsRecorded > 0) {
+      newSavings = Math.max(newSavings, sale.newSavingsRecorded);
+    }
+
     const totalAllDebt = sale.totalCustomerDebt !== undefined 
       ? sale.totalCustomerDebt 
-      : (otherNotesDebt + noteRemainingDebt);
+      : totalKeseluruhan;
 
-    const overpayment = sale.overpaymentAmount || 0;
+    const overpayment = sale.overpaymentAmount || newSavings;
     const depositBalance = sale.customerDepositBalance !== undefined 
       ? sale.customerDepositBalance 
-      : (cust?.depositBalance || 0);
+      : (cust?.depositBalance || newSavings);
 
     return {
+      customerPhone,
+      customerAddress,
       noteRemainingDebt,
       otherNotesDebt,
+      previousDebt,
+      previousSavings,
+      hasHutang,
+      hasTabungan,
+      itemSubtotal,
+      netBarang,
+      totalBarangPlusMinus,
+      totalKeseluruhan,
+      newSavings,
       totalAllDebt,
       overpayment,
       depositBalance,
@@ -691,14 +745,24 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       )}
                     </div>
 
-                    {/* 2 Info Cards (Tujuan WA & Kasir/Petugas Dihapus) */}
-                    <div className="grid grid-cols-2 gap-2.5 text-xs">
+                    {/* 4 Info Cards: Ditujukan Kepada, No HP/WA, Alamat, dan Metode Bayar */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
                       <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
                         <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">DITUJUKAN KEPADA:</span>
-                        <span className="font-bold text-slate-900 mt-0.5 block">{printData.data.customerName}</span>
+                        <span className="font-bold text-slate-900 mt-0.5 block truncate">{printData.data.customerName}</span>
                       </div>
                       <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">METODE PEMBAYARAN:</span>
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">NO. TELP / WA:</span>
+                        <span className="font-semibold text-slate-900 mt-0.5 block truncate">{saleCustomerInfo?.customerPhone || '-'}</span>
+                      </div>
+                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">ALAMAT:</span>
+                        <span className="font-semibold text-slate-900 mt-0.5 block truncate" title={saleCustomerInfo?.customerAddress || '-'}>
+                          {saleCustomerInfo?.customerAddress || '-'}
+                        </span>
+                      </div>
+                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">METODE BAYAR:</span>
                         <span className="font-bold text-slate-900 mt-0.5 block">{printData.data.paymentMethod}</span>
                       </div>
                     </div>
@@ -764,11 +828,11 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Income & Calculation Breakdown Box */}
+                  {/* Calculations Breakdown Box */}
                   <div className="bg-white border border-slate-300 rounded-xl overflow-hidden shadow-2xs text-xs">
                     <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
                       <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
-                        RINCIAN PEMBAYARAN & TOTAL PENJUALAN
+                        RINCIAN PERHITUNGAN NOTA
                       </h4>
                     </div>
                     
@@ -776,66 +840,81 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       <table className="w-full text-left text-xs border-collapse">
                         <tbody className="divide-y divide-slate-200 font-medium text-xs">
                           <tr className="hover:bg-slate-50/50">
-                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">Subtotal Harga Barang:</td>
-                            <td className="py-2.5 px-3.5 text-right font-mono font-semibold text-slate-900">{formatCurrency(printData.data.subtotal)}</td>
+                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200 font-bold">TOTAL BARANG:</td>
+                            <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-900">{formatCurrency(saleCustomerInfo?.itemSubtotal ?? printData.data.subtotal)}</td>
                           </tr>
-                          {printData.data.discount > 0 && (
+                          {printData.data.discountEnabled !== false && printData.data.discount > 0 && (
                             <tr className="hover:bg-slate-50/50">
                               <td className="py-2.5 px-3.5 text-rose-700 font-semibold border-r border-slate-200">Diskon Potongan Harga:</td>
                               <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-600">-{formatCurrency(printData.data.discount)}</td>
                             </tr>
                           )}
+                          {printData.data.taxEnabled && printData.data.tax && printData.data.tax > 0 && (
+                            <tr className="hover:bg-slate-50/50">
+                              <td className="py-2.5 px-3.5 text-slate-700 font-semibold border-r border-slate-200">Pajak{printData.data.taxType === 'percent' ? ` (${printData.data.taxValue}%)` : ''}:</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-800">+{formatCurrency(printData.data.tax)}</td>
+                            </tr>
+                          )}
+                          {printData.data.shippingEnabled && printData.data.shippingCost && printData.data.shippingCost > 0 && (
+                            <tr className="hover:bg-slate-50/50">
+                              <td className="py-2.5 px-3.5 text-slate-700 font-semibold border-r border-slate-200">Ongkos Kirim:</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-800">+{formatCurrency(printData.data.shippingCost)}</td>
+                            </tr>
+                          )}
+                          {printData.data.otherCostEnabled && printData.data.otherCost && printData.data.otherCost > 0 && (
+                            <tr className="hover:bg-slate-50/50">
+                              <td className="py-2.5 px-3.5 text-slate-700 font-semibold border-r border-slate-200">Biaya Lain-lain{printData.data.otherCostNote ? ` (${printData.data.otherCostNote})` : ''}:</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-800">+{formatCurrency(printData.data.otherCost)}</td>
+                            </tr>
+                          )}
+
+                          {/* SISA HUTANG ATAU TABUNGAN */}
+                          {saleCustomerInfo?.hasHutang && (
+                            <>
+                              <tr className="bg-rose-50/60 text-rose-900 font-semibold">
+                                <td className="py-2.5 px-3.5 border-r border-rose-200">SISA HUTANG:</td>
+                                <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-700">{formatCurrency(saleCustomerInfo.previousDebt)}</td>
+                              </tr>
+                              <tr className="bg-amber-50/60 text-slate-900 font-bold">
+                                <td className="py-2.5 px-3.5 border-r border-amber-200">TOTAL BARANG + HUTANG:</td>
+                                <td className="py-2.5 px-3.5 text-right font-mono font-extrabold text-slate-900">{formatCurrency(saleCustomerInfo.totalBarangPlusMinus)}</td>
+                              </tr>
+                            </>
+                          )}
+
+                          {saleCustomerInfo?.hasTabungan && (
+                            <>
+                              <tr className="bg-emerald-50/60 text-emerald-900 font-semibold">
+                                <td className="py-2.5 px-3.5 border-r border-emerald-200">TABUNGAN:</td>
+                                <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-700">{formatCurrency(saleCustomerInfo.previousSavings)}</td>
+                              </tr>
+                              <tr className="bg-amber-50/60 text-slate-900 font-bold">
+                                <td className="py-2.5 px-3.5 border-r border-amber-200">TOTAL BARANG - TABUNGAN:</td>
+                                <td className="py-2.5 px-3.5 text-right font-mono font-extrabold text-slate-900">{formatCurrency(saleCustomerInfo.totalBarangPlusMinus)}</td>
+                              </tr>
+                            </>
+                          )}
+
                           <tr className="hover:bg-slate-50/50">
-                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">Nominal Dibayar Customer:</td>
+                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200 font-bold">BAYAR:</td>
                             <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-900">{formatCurrency(printData.data.amountPaid)}</td>
                           </tr>
-                          {/* Sisa Hutang Nota Ini */}
-                          {printData.data.amountPaid < printData.data.grandTotal && (
-                            <tr className="bg-rose-50/70 text-rose-900 font-semibold">
-                              <td className="py-2.5 px-3.5 border-r border-rose-200">Sisa Hutang Nota Ini:</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-700">{formatCurrency(printData.data.grandTotal - printData.data.amountPaid)}</td>
-                            </tr>
-                          )}
 
-                          {/* Total Sisa Hutang Pelanggan (jika ada sisa hutang nota lain) */}
-                          {saleCustomerInfo && saleCustomerInfo.otherNotesDebt > 0 && (
-                            <tr className="bg-rose-100/60 text-rose-950 font-bold">
-                              <td className="py-2.5 px-3.5 border-r border-rose-200">Total Sisa Hutang Pelanggan:</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-800">{formatCurrency(saleCustomerInfo.totalAllDebt)}</td>
-                            </tr>
-                          )}
-
-                          {/* Kelebihan Bayar / Deposit */}
-                          {saleCustomerInfo && (saleCustomerInfo.overpayment > 0 || saleCustomerInfo.depositBalance > 0) && (
-                            <tr className="bg-emerald-50/80 text-emerald-950 font-bold">
-                              <td className="py-2.5 px-3.5 border-r border-emerald-200">Kelebihan Bayar (Saldo Deposit):</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-700">+{formatCurrency(saleCustomerInfo.overpayment > 0 ? saleCustomerInfo.overpayment : saleCustomerInfo.depositBalance)}</td>
-                            </tr>
-                          )}
-
-                          {/* Uang Kembalian */}
-                          {printData.data.change > 0 && (
-                            <tr className="bg-slate-50/70 text-slate-900">
-                              <td className="py-2.5 px-3.5 border-r border-slate-200">Uang Kembalian:</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-semibold">{formatCurrency(printData.data.change)}</td>
+                          {/* TABUNGAN BARU JIKA KELEBIHAN BAYAR */}
+                          {saleCustomerInfo && saleCustomerInfo.newSavings > 0 && (
+                            <tr className="bg-emerald-50/90 text-emerald-950 font-bold">
+                              <td className="py-2.5 px-3.5 border-r border-emerald-200">TABUNGAN (Tersimpan ke Saldo Deposit Pelanggan):</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-extrabold text-emerald-700">+{formatCurrency(saleCustomerInfo.newSavings)}</td>
                             </tr>
                           )}
                         </tbody>
-                        <tfoot className="bg-amber-50/80 font-bold border-t-2 border-slate-300 text-slate-900 text-xs sm:text-sm">
+                        <tfoot className="bg-slate-900 font-bold border-t-2 border-slate-800 text-white text-xs sm:text-sm">
                           <tr>
-                            <td className="py-3 px-3.5 text-slate-900 font-bold border-r border-slate-300">Total Penjualan (Grand Total):</td>
-                            <td className="py-3 px-3.5 text-right font-mono text-emerald-800 text-sm sm:text-base font-bold">{formatCurrency(printData.data.grandTotal)}</td>
+                            <td className="py-3 px-3.5 text-white font-extrabold border-r border-slate-800">TOTAL KESELURUHAN:</td>
+                            <td className="py-3 px-3.5 text-right font-mono text-amber-300 text-sm sm:text-base font-extrabold">
+                              {formatCurrency(saleCustomerInfo?.totalKeseluruhan ?? 0)}
+                            </td>
                           </tr>
-                          {saleCustomerInfo && saleCustomerInfo.otherNotesDebt > 0 && (
-                            <tr className="bg-rose-50 border-t border-rose-200 text-rose-950 font-extrabold">
-                              <td className="py-3 px-3.5 text-rose-900 font-bold border-r border-rose-200">
-                                Total Penjualan + Total Hutang:
-                              </td>
-                              <td className="py-3 px-3.5 text-right font-mono text-rose-800 text-sm sm:text-base font-bold">
-                                {formatCurrency(printData.data.grandTotal + saleCustomerInfo.otherNotesDebt)}
-                              </td>
-                            </tr>
-                          )}
                         </tfoot>
                       </table>
                     </div>
@@ -872,8 +951,20 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </div>
                     <div className="flex justify-between">
                       <span>Pelanggan:</span>
-                      <span className="truncate max-w-[150px]">{printData.data.customerName}</span>
+                      <span className="truncate max-w-[150px] font-bold">{printData.data.customerName}</span>
                     </div>
+                    {saleCustomerInfo?.customerPhone && (
+                      <div className="flex justify-between">
+                        <span>Telp/WA:</span>
+                        <span>{saleCustomerInfo.customerPhone}</span>
+                      </div>
+                    )}
+                    {saleCustomerInfo?.customerAddress && (
+                      <div className="flex justify-between items-start">
+                        <span className="shrink-0 mr-2">Alamat:</span>
+                        <span className="text-right line-clamp-2">{saleCustomerInfo.customerAddress}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="border-b border-dashed border-slate-400 my-2"></div>
@@ -913,52 +1004,78 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   {/* Calculations */}
                   <div className="text-left space-y-1 text-[10px]">
                     <div className="flex justify-between">
-                      <span>Subtotal:</span>
-                      <span>{formatCurrency(printData.data.subtotal)}</span>
+                      <span>TOTAL BARANG:</span>
+                      <span className="font-bold">{formatCurrency(saleCustomerInfo?.itemSubtotal ?? printData.data.subtotal)}</span>
                     </div>
-                    {printData.data.discount > 0 && (
+                    {printData.data.discountEnabled !== false && printData.data.discount > 0 && (
                       <div className="flex justify-between text-rose-600">
                         <span>Diskon:</span>
                         <span>-{formatCurrency(printData.data.discount)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between font-bold text-xs pt-1 border-t border-slate-300">
-                      <span>TOTAL:</span>
-                      <span>{formatCurrency(printData.data.grandTotal)}</span>
-                    </div>
-                    {saleCustomerInfo && saleCustomerInfo.otherNotesDebt > 0 && (
-                      <div className="flex justify-between font-bold text-xs pt-0.5 text-rose-800">
-                        <span>TOTAL + HUTANG:</span>
-                        <span>{formatCurrency(printData.data.grandTotal + saleCustomerInfo.otherNotesDebt)}</span>
+                    {printData.data.taxEnabled && printData.data.tax && printData.data.tax > 0 && (
+                      <div className="flex justify-between text-slate-700">
+                        <span>Pajak{printData.data.taxType === 'percent' ? ` (${printData.data.taxValue}%)` : ''}:</span>
+                        <span>+{formatCurrency(printData.data.tax)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between pt-0.5">
-                      <span>Bayar ({printData.data.paymentMethod}):</span>
+                    {printData.data.shippingEnabled && printData.data.shippingCost && printData.data.shippingCost > 0 && (
+                      <div className="flex justify-between text-slate-700">
+                        <span>Ongkos Kirim:</span>
+                        <span>+{formatCurrency(printData.data.shippingCost)}</span>
+                      </div>
+                    )}
+                    {printData.data.otherCostEnabled && printData.data.otherCost && printData.data.otherCost > 0 && (
+                      <div className="flex justify-between text-slate-700">
+                        <span>Lain-lain{printData.data.otherCostNote ? ` (${printData.data.otherCostNote})` : ''}:</span>
+                        <span>+{formatCurrency(printData.data.otherCost)}</span>
+                      </div>
+                    )}
+
+                    {/* SISA HUTANG ATAU TABUNGAN */}
+                    {saleCustomerInfo?.hasHutang && (
+                      <>
+                        <div className="flex justify-between text-rose-700 font-semibold pt-1 border-t border-slate-300">
+                          <span>SISA HUTANG:</span>
+                          <span className="font-bold">{formatCurrency(saleCustomerInfo.previousDebt)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-slate-900">
+                          <span>TOTAL BARANG + HUTANG:</span>
+                          <span>{formatCurrency(saleCustomerInfo.totalBarangPlusMinus)}</span>
+                        </div>
+                      </>
+                    )}
+
+                    {saleCustomerInfo?.hasTabungan && (
+                      <>
+                        <div className="flex justify-between text-emerald-700 font-semibold pt-1 border-t border-slate-300">
+                          <span>TABUNGAN:</span>
+                          <span className="font-bold">{formatCurrency(saleCustomerInfo.previousSavings)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-slate-900">
+                          <span>TOTAL BARANG - TABUNGAN:</span>
+                          <span>{formatCurrency(saleCustomerInfo.totalBarangPlusMinus)}</span>
+                        </div>
+                      </>
+                    )}
+
+                    {/* BAYAR */}
+                    <div className={`flex justify-between font-bold ${!saleCustomerInfo?.hasHutang && !saleCustomerInfo?.hasTabungan ? 'pt-1 border-t border-slate-300' : ''}`}>
+                      <span>BAYAR:</span>
                       <span>{formatCurrency(printData.data.amountPaid)}</span>
                     </div>
-                    {printData.data.amountPaid < printData.data.grandTotal ? (
-                      <div className="flex justify-between text-rose-600 font-bold">
-                        <span>Sisa Hutang Nota:</span>
-                        <span>{formatCurrency(printData.data.grandTotal - printData.data.amountPaid)}</span>
-                      </div>
-                    ) : (
-                      printData.data.change > 0 && (
-                        <div className="flex justify-between">
-                          <span>Kembali Tunai:</span>
-                          <span>{formatCurrency(printData.data.change)}</span>
-                        </div>
-                      )
-                    )}
-                    {saleCustomerInfo && saleCustomerInfo.otherNotesDebt > 0 && (
-                      <div className="flex justify-between text-rose-700 font-bold border-t border-dashed border-rose-300 pt-0.5">
-                        <span>Sisa Hutang Sebelumnya:</span>
-                        <span>{formatCurrency(saleCustomerInfo.otherNotesDebt)}</span>
-                      </div>
-                    )}
-                    {saleCustomerInfo && (saleCustomerInfo.overpayment > 0 || saleCustomerInfo.depositBalance > 0) && (
-                      <div className="flex justify-between text-emerald-700 font-bold border-t border-dashed border-emerald-300 pt-0.5">
-                        <span>Kelebihan Bayar:</span>
-                        <span>+{formatCurrency(saleCustomerInfo.overpayment > 0 ? saleCustomerInfo.overpayment : saleCustomerInfo.depositBalance)}</span>
+
+                    {/* TOTAL KESELURUHAN */}
+                    <div className="flex justify-between font-extrabold text-xs pt-1 border-t-2 border-slate-900 text-slate-900">
+                      <span>TOTAL KESELURUHAN:</span>
+                      <span>{formatCurrency(saleCustomerInfo?.totalKeseluruhan ?? 0)}</span>
+                    </div>
+
+                    {/* TABUNGAN BARU JIKA KELEBIHAN BAYAR */}
+                    {saleCustomerInfo && saleCustomerInfo.newSavings > 0 && (
+                      <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 p-1 rounded border border-emerald-300 mt-1">
+                        <span>TABUNGAN:</span>
+                        <span>+{formatCurrency(saleCustomerInfo.newSavings)}</span>
                       </div>
                     )}
                   </div>
