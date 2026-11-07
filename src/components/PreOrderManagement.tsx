@@ -300,7 +300,7 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
       status: editingPO ? editingPO.status : 'Menunggu Potong',
       notes: '',
       createdBy: userRole === 'admin' ? 'Admin Usaha' : 'Kasir',
-      convertedSaleId: editingPO?.convertedSaleId,
+      ...(editingPO?.convertedSaleId ? { convertedSaleId: editingPO.convertedSaleId } : {}),
       createdAt: editingPO ? editingPO.createdAt : new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
