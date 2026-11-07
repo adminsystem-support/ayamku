@@ -218,59 +218,47 @@ export function createDocumentPdf(
       doc.setTextColor(120, 53, 15); // amber-900
       doc.text(sale.customerName.charAt(0).toUpperCase(), 23, 45, { align: 'center' });
 
-      // Customer Name & Type
+      // Customer Name & Address & Phone directly underneath
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10.5);
       doc.setTextColor(15, 23, 42);
-      doc.text(sale.customerName, 30, 41.5);
+      doc.text(sale.customerName, 30, 40);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`Tipe Pelanggan: ${sale.customerType || 'Pelanggan Usaha'}`, 30, 46);
-
-      // Status Badge (Hapus status lunas di kanan atas karena sudah ada watermark)
-      if (!isLunas) {
-        doc.setFillColor(255, 228, 230); // rose-100
-        doc.setDrawColor(254, 205, 211); // rose-200
-        doc.roundedRect(138, 37.5, 54, 6, 3, 3, 'DF');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7);
-        doc.setTextColor(159, 18, 57); // rose-800
-        doc.text(`Status: Hutang (Sisa ${formatCurrency(sale.grandTotal - sale.amountPaid)})`, 165, 41.7, { align: 'center' });
-      }
+      doc.setFontSize(7.5);
+      doc.setTextColor(71, 85, 105);
+      const addrSnippet = sale.customerAddress ? (sale.customerAddress.length > 50 ? sale.customerAddress.substring(0, 47) + '...' : sale.customerAddress) : '-';
+      doc.text(`Alamat: ${addrSnippet}`, 30, 44);
+      doc.text(`No. Handphone: ${sale.customerPhone || '-'}`, 30, 47.5);
 
       // Line separator inside card
       doc.setDrawColor(241, 245, 249);
-      doc.line(18, 49, 192, 49);
+      doc.line(18, 50, 192, 50);
 
-      // 4 Info Grid Cards: Ditujukan Kepada, No Telp/WA, Alamat, Metode Bayar
-      const cardW = 42;
+      // 2 Info Grid Cards: Ditujukan Kepada & Metode Bayar
+      const cardW = 85;
       const cardH = 12;
-      const cardY = 52;
+      const cardY = 53;
       const infoList = [
         { label: 'DITUJUKAN KEPADA:', val: sale.customerName },
-        { label: 'NO. TELP / WA:', val: sale.customerPhone || '-' },
-        { label: 'ALAMAT:', val: sale.customerAddress || '-' },
         { label: 'METODE PEMBAYARAN:', val: sale.paymentMethod }
       ];
 
       infoList.forEach((info, i) => {
-        const cX = 18 + i * (cardW + 3);
+        const cX = 18 + i * (cardW + 4);
         doc.setFillColor(248, 250, 252); // slate-50
         doc.setDrawColor(226, 232, 240); // slate-200
         doc.roundedRect(cX, cardY, cardW, cardH, 1.5, 1.5, 'DF');
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(6);
+        doc.setFontSize(6.5);
         doc.setTextColor(100, 116, 139);
-        doc.text(info.label, cX + 2.5, cardY + 3.8);
+        doc.text(info.label, cX + 3.5, cardY + 4);
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
+        doc.setFontSize(8);
         doc.setTextColor(15, 23, 42);
-        const valText = doc.splitTextToSize(info.val, cardW - 5);
-        doc.text(valText[0] || '', cX + 2.5, cardY + 8.5);
+        doc.text(info.val, cX + 3.5, cardY + 9);
       });
 
       // 3. Rincian Barang Table Section
@@ -414,18 +402,19 @@ export function createDocumentPdf(
         summaryBody.push([`Biaya Lain-lain${sale.otherCostNote ? ` (${sale.otherCostNote})` : ''}:`, `+${formatCurrency(sale.otherCost)}`]);
       }
 
-      if (hasHutang) {
-        summaryBody.push(['SISA HUTANG:', formatCurrency(previousDebt)]);
-        summaryBody.push(['TOTAL BARANG + HUTANG:', formatCurrency(totalBarangPlusMinus)]);
-      } else if (hasTabungan) {
+      if (hasTabungan) {
         summaryBody.push(['TABUNGAN:', formatCurrency(previousSavings)]);
         summaryBody.push(['TOTAL BARANG - TABUNGAN:', formatCurrency(totalBarangPlusMinus)]);
+      } else {
+        summaryBody.push(['SISA HUTANG:', formatCurrency(previousDebt || 0)]);
+        summaryBody.push(['TOTAL BARANG + HUTANG:', formatCurrency(totalBarangPlusMinus)]);
       }
 
       summaryBody.push(['BAYAR:', formatCurrency(amountPaid)]);
 
-      if (newSavings > 0) {
-        summaryBody.push(['TABUNGAN (Saldo Deposit Pelanggan):', `+${formatCurrency(newSavings)}`]);
+      const excessSavings = newSavings || sale.overpaymentAmount || (amountPaid > totalBarangPlusMinus ? amountPaid - totalBarangPlusMinus : 0);
+      if (excessSavings > 0) {
+        summaryBody.push(['KELEBIHAN BAYAR (TABUNGAN):', `+${formatCurrency(excessSavings)}`]);
       }
 
       const summaryFoot: any[] = [
@@ -594,21 +583,21 @@ export function createDocumentPdf(
         curY += 4;
       }
 
-      if (hasHutang) {
-        doc.text('SISA HUTANG:', 6, curY);
-        doc.text(formatCurrency(previousDebt), 74, curY, { align: 'right' });
-        curY += 4;
-        doc.setFont('courier', 'bold');
-        doc.text('TOTAL BRG + HTG:', 6, curY);
-        doc.text(formatCurrency(totalBarangPlusMinus), 74, curY, { align: 'right' });
-        curY += 4;
-        doc.setFont('courier', 'normal');
-      } else if (hasTabungan) {
+      if (hasTabungan) {
         doc.text('TABUNGAN:', 6, curY);
         doc.text(formatCurrency(previousSavings), 74, curY, { align: 'right' });
         curY += 4;
         doc.setFont('courier', 'bold');
         doc.text('TOTAL BRG - TBG:', 6, curY);
+        doc.text(formatCurrency(totalBarangPlusMinus), 74, curY, { align: 'right' });
+        curY += 4;
+        doc.setFont('courier', 'normal');
+      } else {
+        doc.text('SISA HUTANG:', 6, curY);
+        doc.text(formatCurrency(previousDebt || 0), 74, curY, { align: 'right' });
+        curY += 4;
+        doc.setFont('courier', 'bold');
+        doc.text('TOTAL BRG + HTG:', 6, curY);
         doc.text(formatCurrency(totalBarangPlusMinus), 74, curY, { align: 'right' });
         curY += 4;
         doc.setFont('courier', 'normal');
@@ -618,17 +607,18 @@ export function createDocumentPdf(
       doc.text(formatCurrency(amountPaid), 74, curY, { align: 'right' });
       curY += 5;
 
+      const excessSavingsThermal = newSavings || sale.overpaymentAmount || (amountPaid > totalBarangPlusMinus ? amountPaid - totalBarangPlusMinus : 0);
+      if (excessSavingsThermal > 0) {
+        doc.text('KELEBIHAN (TABUNGAN):', 6, curY);
+        doc.text(`+${formatCurrency(excessSavingsThermal)}`, 74, curY, { align: 'right' });
+        curY += 4;
+      }
+
       doc.setFont('courier', 'bold');
       doc.text('TOTAL KESELURUHAN:', 6, curY);
       doc.text(formatCurrency(totalKeseluruhan), 74, curY, { align: 'right' });
       curY += 5;
       doc.setFont('courier', 'normal');
-
-      if (newSavings > 0) {
-        doc.text('TABUNGAN:', 6, curY);
-        doc.text(`+${formatCurrency(newSavings)}`, 74, curY, { align: 'right' });
-        curY += 4;
-      }
 
       if (isLunas) {
         curY += 2;

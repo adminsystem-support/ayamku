@@ -392,6 +392,7 @@ export const KasirPOS: React.FC<KasirPOSProps> = ({
   // Payment calculations
   const actualAmountPaid = useMemo(() => {
     if (paymentStatus === 'Sebagian') return Math.min(grandTotal, amountPaidInput);
+    if (amountPaidInput !== undefined && amountPaidInput > 0) return amountPaidInput;
     return grandTotal;
   }, [paymentStatus, amountPaidInput, grandTotal]);
 

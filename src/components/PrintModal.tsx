@@ -714,55 +714,37 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
                   {/* Customer Details & Info Grid Card */}
                   <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3.5 shadow-2xs">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-900 font-bold flex items-center justify-center text-base border border-amber-200/80 shrink-0">
+                    <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+                      <div className="flex items-start gap-3.5">
+                        <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-900 font-bold flex items-center justify-center text-lg border border-amber-200/80 shrink-0 mt-0.5">
                           {printData.data.customerName.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <h3 className="font-bold text-slate-900 text-sm leading-tight">{printData.data.customerName}</h3>
-                          <p className="text-[11px] font-medium text-slate-500">Tipe Pelanggan: {printData.data.customerType || 'Pelanggan Usaha'}</p>
+                        <div className="space-y-1">
+                          <h3 className="font-bold text-slate-900 text-base leading-tight">{printData.data.customerName}</h3>
+                          <div className="text-xs text-slate-700 space-y-0.5">
+                            <p>
+                              <span className="font-semibold text-slate-500">Alamat:</span> {saleCustomerInfo?.customerAddress || '-'}
+                            </p>
+                            <p>
+                              <span className="font-semibold text-slate-500">No. Handphone:</span> {saleCustomerInfo?.customerPhone || '-'}
+                            </p>
+                          </div>
+                          {printData.data.customerType && (
+                            <p className="text-[11px] font-medium text-slate-400">Tipe Pelanggan: {printData.data.customerType}</p>
+                          )}
                         </div>
                       </div>
-                      {saleCustomerInfo && (
-                        <div className="flex flex-wrap items-center gap-1.5 justify-end">
-                          {saleCustomerInfo.noteRemainingDebt > 0 && (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                              Sisa Hutang Nota: {formatCurrency(saleCustomerInfo.noteRemainingDebt)}
-                            </span>
-                          )}
-                          {(saleCustomerInfo.overpayment > 0 || saleCustomerInfo.depositBalance > 0) && (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                              Kelebihan Bayar: {formatCurrency(saleCustomerInfo.overpayment > 0 ? saleCustomerInfo.overpayment : saleCustomerInfo.depositBalance)}
-                            </span>
-                          )}
-                          {saleCustomerInfo.noteRemainingDebt === 0 && (
-                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              Status: Lunas
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      {/* Status lunas di pojok kanan atas dihilangkan sesuai permintaan */}
                     </div>
 
-                    {/* 4 Info Cards: Ditujukan Kepada, No HP/WA, Alamat, dan Metode Bayar */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                    {/* 2 Info Cards: Ditujukan Kepada & Metode Bayar */}
+                    <div className="grid grid-cols-2 gap-2.5 text-xs">
                       <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
                         <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">DITUJUKAN KEPADA:</span>
                         <span className="font-bold text-slate-900 mt-0.5 block truncate">{printData.data.customerName}</span>
                       </div>
                       <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">NO. TELP / WA:</span>
-                        <span className="font-semibold text-slate-900 mt-0.5 block truncate">{saleCustomerInfo?.customerPhone || '-'}</span>
-                      </div>
-                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">ALAMAT:</span>
-                        <span className="font-semibold text-slate-900 mt-0.5 block truncate" title={saleCustomerInfo?.customerAddress || '-'}>
-                          {saleCustomerInfo?.customerAddress || '-'}
-                        </span>
-                      </div>
-                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">METODE BAYAR:</span>
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">METODE PEMBAYARAN:</span>
                         <span className="font-bold text-slate-900 mt-0.5 block">{printData.data.paymentMethod}</span>
                       </div>
                     </div>
@@ -869,20 +851,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                           )}
 
                           {/* SISA HUTANG ATAU TABUNGAN */}
-                          {saleCustomerInfo?.hasHutang && (
-                            <>
-                              <tr className="bg-rose-50/60 text-rose-900 font-semibold">
-                                <td className="py-2.5 px-3.5 border-r border-rose-200">SISA HUTANG:</td>
-                                <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-700">{formatCurrency(saleCustomerInfo.previousDebt)}</td>
-                              </tr>
-                              <tr className="bg-amber-50/60 text-slate-900 font-bold">
-                                <td className="py-2.5 px-3.5 border-r border-amber-200">TOTAL BARANG + HUTANG:</td>
-                                <td className="py-2.5 px-3.5 text-right font-mono font-extrabold text-slate-900">{formatCurrency(saleCustomerInfo.totalBarangPlusMinus)}</td>
-                              </tr>
-                            </>
-                          )}
-
-                          {saleCustomerInfo?.hasTabungan && (
+                          {saleCustomerInfo?.hasTabungan ? (
                             <>
                               <tr className="bg-emerald-50/60 text-emerald-900 font-semibold">
                                 <td className="py-2.5 px-3.5 border-r border-emerald-200">TABUNGAN:</td>
@@ -893,6 +862,17 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                                 <td className="py-2.5 px-3.5 text-right font-mono font-extrabold text-slate-900">{formatCurrency(saleCustomerInfo.totalBarangPlusMinus)}</td>
                               </tr>
                             </>
+                          ) : (
+                            <>
+                              <tr className="bg-rose-50/60 text-rose-900 font-semibold">
+                                <td className="py-2.5 px-3.5 border-r border-rose-200">SISA HUTANG:</td>
+                                <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-700">{formatCurrency(saleCustomerInfo?.previousDebt || 0)}</td>
+                              </tr>
+                              <tr className="bg-amber-50/60 text-slate-900 font-bold">
+                                <td className="py-2.5 px-3.5 border-r border-amber-200">TOTAL BARANG + HUTANG:</td>
+                                <td className="py-2.5 px-3.5 text-right font-mono font-extrabold text-slate-900">{formatCurrency(saleCustomerInfo?.totalBarangPlusMinus || printData.data.grandTotal)}</td>
+                              </tr>
+                            </>
                           )}
 
                           <tr className="hover:bg-slate-50/50">
@@ -901,10 +881,12 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                           </tr>
 
                           {/* TABUNGAN BARU JIKA KELEBIHAN BAYAR */}
-                          {saleCustomerInfo && saleCustomerInfo.newSavings > 0 && (
+                          {saleCustomerInfo && (saleCustomerInfo.newSavings > 0 || (printData.data.overpaymentAmount && printData.data.overpaymentAmount > 0)) && (
                             <tr className="bg-emerald-50/90 text-emerald-950 font-bold">
-                              <td className="py-2.5 px-3.5 border-r border-emerald-200">TABUNGAN (Tersimpan ke Saldo Deposit Pelanggan):</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-extrabold text-emerald-700">+{formatCurrency(saleCustomerInfo.newSavings)}</td>
+                              <td className="py-2.5 px-3.5 border-r border-emerald-200">KELEBIHAN BAYAR (TABUNGAN):</td>
+                              <td className="py-2.5 px-3.5 text-right font-mono font-extrabold text-emerald-700">
+                                +{formatCurrency(saleCustomerInfo.newSavings || printData.data.overpaymentAmount || 0)}
+                              </td>
                             </tr>
                           )}
                         </tbody>
@@ -1033,20 +1015,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     )}
 
                     {/* SISA HUTANG ATAU TABUNGAN */}
-                    {saleCustomerInfo?.hasHutang && (
-                      <>
-                        <div className="flex justify-between text-rose-700 font-semibold pt-1 border-t border-slate-300">
-                          <span>SISA HUTANG:</span>
-                          <span className="font-bold">{formatCurrency(saleCustomerInfo.previousDebt)}</span>
-                        </div>
-                        <div className="flex justify-between font-bold text-slate-900">
-                          <span>TOTAL BARANG + HUTANG:</span>
-                          <span>{formatCurrency(saleCustomerInfo.totalBarangPlusMinus)}</span>
-                        </div>
-                      </>
-                    )}
-
-                    {saleCustomerInfo?.hasTabungan && (
+                    {saleCustomerInfo?.hasTabungan ? (
                       <>
                         <div className="flex justify-between text-emerald-700 font-semibold pt-1 border-t border-slate-300">
                           <span>TABUNGAN:</span>
@@ -1057,27 +1026,38 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                           <span>{formatCurrency(saleCustomerInfo.totalBarangPlusMinus)}</span>
                         </div>
                       </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between text-rose-700 font-semibold pt-1 border-t border-slate-300">
+                          <span>SISA HUTANG:</span>
+                          <span className="font-bold">{formatCurrency(saleCustomerInfo?.previousDebt || 0)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-slate-900">
+                          <span>TOTAL BARANG + HUTANG:</span>
+                          <span>{formatCurrency(saleCustomerInfo?.totalBarangPlusMinus || printData.data.grandTotal)}</span>
+                        </div>
+                      </>
                     )}
 
                     {/* BAYAR */}
-                    <div className={`flex justify-between font-bold ${!saleCustomerInfo?.hasHutang && !saleCustomerInfo?.hasTabungan ? 'pt-1 border-t border-slate-300' : ''}`}>
+                    <div className="flex justify-between font-bold pt-0.5">
                       <span>BAYAR:</span>
                       <span>{formatCurrency(printData.data.amountPaid)}</span>
                     </div>
+
+                    {/* TABUNGAN BARU JIKA KELEBIHAN BAYAR */}
+                    {saleCustomerInfo && (saleCustomerInfo.newSavings > 0 || (printData.data.overpaymentAmount && printData.data.overpaymentAmount > 0)) && (
+                      <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 p-1 rounded border border-emerald-300 mt-1">
+                        <span>KELEBIHAN BAYAR (TABUNGAN):</span>
+                        <span>+{formatCurrency(saleCustomerInfo.newSavings || printData.data.overpaymentAmount || 0)}</span>
+                      </div>
+                    )}
 
                     {/* TOTAL KESELURUHAN */}
                     <div className="flex justify-between font-extrabold text-xs pt-1 border-t-2 border-slate-900 text-slate-900">
                       <span>TOTAL KESELURUHAN:</span>
                       <span>{formatCurrency(saleCustomerInfo?.totalKeseluruhan ?? 0)}</span>
                     </div>
-
-                    {/* TABUNGAN BARU JIKA KELEBIHAN BAYAR */}
-                    {saleCustomerInfo && saleCustomerInfo.newSavings > 0 && (
-                      <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 p-1 rounded border border-emerald-300 mt-1">
-                        <span>TABUNGAN:</span>
-                        <span>+{formatCurrency(saleCustomerInfo.newSavings)}</span>
-                      </div>
-                    )}
                   </div>
 
                   {/* BADGE LUNAS ATAU BELUM LUNAS DI NOTA THERMAL */}
