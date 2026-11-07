@@ -155,7 +155,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
           }, 0)
       : 0;
 
-    const previousDebt = sale.previousDebt !== undefined ? sale.previousDebt : otherNotesDebt;
+    const previousDebt = Math.max(sale.previousDebt || 0, otherNotesDebt);
 
     let previousSavings = sale.previousSavings !== undefined ? sale.previousSavings : (cust?.depositBalance || 0);
     if (!previousSavings && sales) {
@@ -220,11 +220,13 @@ export const PrintModal: React.FC<PrintModalProps> = ({
       : (cust?.depositBalance || newSavings);
 
     const isFullyLunas = (
-      (sale.paymentStatus === 'Lunas' || noteRemainingDebt === 0) &&
       !hasHutang &&
       previousDebt === 0 &&
+      otherNotesDebt === 0 &&
+      noteRemainingDebt === 0 &&
       totalKeseluruhan === 0 &&
-      totalAllDebt === 0
+      totalAllDebt === 0 &&
+      sale.paymentStatus === 'Lunas'
     );
 
     return {
