@@ -597,7 +597,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 no-print-overlay">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200">
+      <div className={`bg-white rounded-2xl shadow-2xl ${printData?.type === 'preorder_rekap' ? 'max-w-6xl' : 'max-w-4xl'} w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200`}>
         
         {/* Modal Header */}
         <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50 no-print">
@@ -702,7 +702,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({
             id="printable-document" 
             className={`bg-white shadow-sm transition-all text-slate-900 mx-auto ${
               printFormat === 'a4' 
-                ? 'w-full max-w-[760px] p-8 border border-slate-200 rounded-xl print:p-0 print:border-none print:shadow-none print:max-w-full print:w-full' 
+                ? (printData.type === 'preorder_rekap'
+                    ? 'w-full max-w-[1020px] p-8 border border-slate-200 rounded-xl print:p-0 print:border-none print:shadow-none print:max-w-full print:w-full'
+                    : 'w-full max-w-[760px] p-8 border border-slate-200 rounded-xl print:p-0 print:border-none print:shadow-none print:max-w-full print:w-full')
                 : thermalSize === '58mm'
                   ? 'w-[280px] p-4 text-[11px] font-mono border border-slate-300 rounded-lg print:p-0 print:border-none print:shadow-none print:w-[58mm] print:max-w-[58mm]'
                   : 'w-[360px] p-5 text-[12px] font-mono border border-slate-300 rounded-lg print:p-0 print:border-none print:shadow-none print:w-[80mm] print:max-w-[80mm]'
@@ -1797,6 +1799,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({
             {/* 5. PRE-ORDER INDIVIDUAL PER CUSTOMER TEMPLATE (NO PRICES!) */}
             {printData.type === 'preorder_single' && (() => {
               const po = printData.data;
+              const custObj = customers.find(c => c.id === po.customerId || c.name.toLowerCase() === po.customerName.toLowerCase());
+              const displayPhone = po.customerPhone || custObj?.phone || '-';
+              const displayAddress = po.customerAddress || custObj?.address || '-';
               const totalQty = po.items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
               const primaryUnit = po.items[0]?.unit || 'Kg';
 
@@ -1825,16 +1830,20 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Info Card */}
+                  {/* Info Card with Name, Phone, and Address */}
                   <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs text-xs">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
                       <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                         <span className="text-[10px] text-slate-500 font-semibold block uppercase">NAMA PELANGGAN:</span>
                         <span className="font-bold text-slate-900 mt-0.5 block text-sm">{po.customerName}</span>
                       </div>
                       <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                         <span className="text-[10px] text-slate-500 font-semibold block uppercase">NO. HP / WHATSAPP:</span>
-                        <span className="font-semibold text-emerald-700 mt-0.5 block">{po.customerPhone || '-'}</span>
+                        <span className="font-semibold text-emerald-700 mt-0.5 block">{displayPhone}</span>
+                      </div>
+                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase">ALAMAT PELANGGAN:</span>
+                        <span className="font-semibold text-slate-900 mt-0.5 block truncate" title={displayAddress}>{displayAddress}</span>
                       </div>
                       <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                         <span className="text-[10px] text-slate-500 font-semibold block uppercase">RENCANA PENGAMBILAN:</span>
@@ -1932,6 +1941,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     <div className="flex justify-between">
                       <span>Pelanggan:</span>
                       <span className="font-bold truncate max-w-[140px]">{po.customerName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>No. HP:</span>
+                      <span className="font-semibold">{displayPhone}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Alamat:</span>
+                      <span className="font-semibold truncate max-w-[140px]">{displayAddress}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Pengambilan:</span>

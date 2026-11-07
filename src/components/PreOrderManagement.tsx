@@ -750,30 +750,33 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
             </table>
           </div>
 
-          {/* BOTTOM ACTION BAR: SHARE WA / KIRIM WA */}
+          {/* BOTTOM SUMMARY BAR */}
           <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="text-xs text-slate-600 font-medium">
               <span>Total Pesanan Masuk: </span>
               <strong className="text-slate-900 font-mono font-bold">{activePreOrders.length} Pelanggan</strong>
-              <span className="text-slate-400 ml-2 hidden sm:inline">• Rekap otomatis format PDF siap dibagikan ke WhatsApp</span>
+              <span className="text-slate-400 ml-2 hidden sm:inline">• Semua pesanan tersimpan otomatis dan siap diproses ke Nota Kasir</span>
             </div>
 
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-              <button
-                type="button"
-                disabled={isSharingMatrix}
-                onClick={handleShareMatrixWhatsApp}
-                className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                title="Kirim dan bagikan rekap pesanan PO & kebutuhan potong ayam ke WhatsApp dalam bentuk PDF"
-              >
-                {isSharingMatrix ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <MessageSquare className="w-4 h-4" />
-                )}
-                <span>{isSharingMatrix ? 'Membuat PDF...' : 'Kirim WA'}</span>
-              </button>
-            </div>
+            {onPrintDocument && (
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={() => onPrintDocument({
+                    type: 'preorder_rekap',
+                    data: {
+                      preorders: activePreOrders.length > 0 ? activePreOrders : preorders,
+                      items
+                    }
+                  })}
+                  className="w-full sm:w-auto px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+                  title="Cetak rekap total kebutuhan potong ayam & rincian pesanan semua customer (Format Landscape Tanpa Harga)"
+                >
+                  <Printer className="w-4 h-4 text-amber-400" />
+                  <span>Cetak Rekap PO Keseluruhan (Landscape)</span>
+                </button>
+              </div>
+            )}
           </div>
 
         </div>
@@ -781,7 +784,7 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
         /* 4. HISTORY TAB (SELESAI / NOTA) */
         <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
           <h3 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2">
-            Riwayat Pre-Order Selesai (Sudah Diproses ke Nota)
+            Riwayat Pre-Order (Sudah Diproses ke Nota)
           </h3>
           <div className="divide-y divide-slate-100">
             {historyPreOrders.map((po) => (
@@ -790,7 +793,7 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold text-slate-900">{po.poNumber}</span>
                     <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-full text-[10px]">
-                      Selesai
+                      Selesai (Nota)
                     </span>
                   </div>
                   <div className="text-slate-600 font-medium mt-0.5">
@@ -803,7 +806,7 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
 
                 <div className="flex items-center gap-3">
                   <div className="text-right font-mono">
-                    <span className="text-slate-400 text-[10px] block">Total Nota:</span>
+                    <span className="text-slate-400 text-[10px] block">Total Pesanan:</span>
                     <span className="font-bold text-slate-900 text-sm">{formatCurrency(po.grandTotal)}</span>
                   </div>
 
@@ -812,21 +815,12 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
                       type="button"
                       onClick={() => onPrintDocument({ type: 'preorder_single', data: po })}
                       className="px-3 py-2 text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-xl font-bold cursor-pointer flex items-center gap-1.5 border border-amber-200"
-                      title="Cetak ulang dokumen PO ini (Tanpa harga)"
+                      title="Cetak ulang dokumen PO pelanggan ini (Format Portrait Tanpa Harga)"
                     >
                       <Printer className="w-3.5 h-3.5 text-amber-700" />
                       <span>Cetak PO</span>
                     </button>
                   )}
-
-                  <button
-                    type="button"
-                    onClick={() => handleSharePOWhatsApp(po)}
-                    className="p-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl font-bold cursor-pointer flex items-center gap-1"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>Share WA</span>
-                  </button>
 
                   {userRole === 'admin' && (
                     <button
