@@ -31,7 +31,8 @@ app.get('/api/sql/status', async (req, res) => {
     const sales = await db.select().from(salesTable);
     res.json({
       status: 'connected',
-      engine: 'PostgreSQL (Cloud SQL)',
+      engine: 'PostgreSQL (Supabase Online)',
+      host: 'db.vkgnmioktfpcijstfwlj.supabase.co',
       counts: {
         items: items.length,
         customers: customers.length,

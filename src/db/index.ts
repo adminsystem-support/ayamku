@@ -17,11 +17,14 @@ export const createPool = () => {
         connectionTimeoutMillis: 15000,
       });
     } else {
+      // Connect to user's Supabase PostgreSQL Online database
       global._postgresPool = new Pool({
-        host: process.env.SQL_HOST,
-        user: process.env.SQL_USER,
-        password: process.env.SQL_PASSWORD,
-        database: process.env.SQL_DB_NAME,
+        host: process.env.SUPABASE_HOST || 'db.vkgnmioktfpcijstfwlj.supabase.co',
+        port: 5432,
+        user: 'postgres',
+        password: process.env.SUPABASE_PASSWORD || '@khafadi28April20',
+        database: 'postgres',
+        ssl: { rejectUnauthorized: false },
         max: 10,
         connectionTimeoutMillis: 15000,
       });
