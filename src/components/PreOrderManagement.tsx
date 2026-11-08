@@ -97,6 +97,11 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
   const [newCustAddress, setNewCustAddress] = useState('');
   const [newCustType, setNewCustType] = useState<CustomerType>('Restoran / Rumah Makan');
 
+  // Filter date for Riwayat PO (default: Today)
+  const [historyDateFilter, setHistoryDateFilter] = useState<string>(
+    new Date().toISOString().substring(0, 10)
+  );
+
   // Filter Active vs Completed POs
   const activePreOrders = useMemo(() => {
     return preorders
@@ -117,6 +122,11 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
     return preorders
       .filter(po => po.status === 'Selesai' || po.status === 'Dibatalkan')
       .filter(po => {
+        if (!historyDateFilter) return true;
+        const poDate = po.pickupDate || po.orderDate.substring(0, 10) || po.createdAt.substring(0, 10);
+        return poDate === historyDateFilter;
+      })
+      .filter(po => {
         if (!searchQuery.trim()) return true;
         const q = searchQuery.toLowerCase();
         return (
@@ -125,7 +135,7 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
         );
       })
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  }, [preorders, searchQuery]);
+  }, [preorders, historyDateFilter, searchQuery]);
 
   // Total demanded quantity per item across all active preorders
   const itemDemands = useMemo(() => {
@@ -418,6 +428,39 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
     window.open(waUrl, '_blank');
   };
 
+  // Function to save all filled PO rows from matrix input to history and clean matrix for new inputs
+  const handleSaveMatrixToHistory = () => {
+    const filledPOs = activePreOrders.filter(po => 
+      po.items && po.items.length > 0 && po.items.some(i => i.quantity > 0)
+    );
+
+    if (filledPOs.length === 0) {
+      alert('Belum ada pesanan yang diisi pada matriks input.');
+      setActiveTab('history');
+      return;
+    }
+
+    // Save each filled PO with status = 'Selesai' (so it moves to Riwayat PO)
+    filledPOs.forEach(po => {
+      onSavePreOrder({
+        ...po,
+        status: 'Selesai',
+        updatedAt: new Date().toISOString()
+      });
+    });
+
+    // Remove any empty active PO rows so the matrix becomes blank and ready for new input
+    activePreOrders.forEach(po => {
+      const hasQty = po.items && po.items.length > 0 && po.items.some(i => i.quantity > 0);
+      if (!hasQty) {
+        onDeletePreOrder(po.id);
+      }
+    });
+
+    // Switch active view tab to 'history'
+    setActiveTab('history');
+  };
+
   return (
     <div className="space-y-4 animate-in fade-in duration-150">
       
@@ -461,24 +504,6 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
               <span>Riwayat PO ({historyPreOrders.length})</span>
             </button>
           </div>
-
-          {onPrintDocument && (
-            <button
-              type="button"
-              onClick={() => onPrintDocument({
-                type: 'preorder_rekap',
-                data: {
-                  preorders: historyPreOrders.length > 0 ? historyPreOrders : preorders,
-                  items
-                }
-              })}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-              title="Print rekap total kebutuhan potong ayam & rincian pesanan semua customer (Format Landscape)"
-            >
-              <Printer className="w-4 h-4 text-amber-400" />
-              <span>Print Keseluruhan Pesanan (Landscape)</span>
-            </button>
-          )}
 
           <button
             type="button"
@@ -631,18 +656,6 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
                       {/* Action Cell */}
                       <td className="py-2.5 px-3 text-center">
                         <div className="flex items-center justify-center gap-1.5">
-                          {onPrintDocument && (
-                            <button
-                              type="button"
-                              onClick={() => onPrintDocument({ type: 'preorder_single', data: po })}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
-                              title="Cetak Dokumen PO Customer ini (Tanpa harga)"
-                            >
-                              <Printer className="w-3.5 h-3.5 text-amber-700" />
-                              <span>Cetak PO</span>
-                            </button>
-                          )}
-
                           <button
                             type="button"
                             onClick={() => onProcessPreOrderToSale(po)}
@@ -678,7 +691,7 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
                     <td colSpan={items.length + 2} className="py-12 text-center text-slate-400">
                       <ShoppingBag className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                       <p className="text-xs font-medium text-slate-600">Belum ada baris pesanan pelanggan aktif.</p>
-                      <p className="text-[11px] text-slate-400 mt-1">Pilih pelanggan di menu atas "+ Tambah Baris Pelanggan" untuk mulai menginput.</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Pilih pelanggan di menu atas "+ Tambah Baris Pelanggan" untuk mulai menginput pesanan baru.</p>
                     </td>
                   </tr>
                 )}
@@ -755,66 +768,92 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
             <div className="text-xs text-slate-600 font-medium">
               <span>Total Pesanan Masuk: </span>
               <strong className="text-slate-900 font-mono font-bold">{activePreOrders.length} Pelanggan</strong>
-              <span className="text-slate-400 ml-2 hidden sm:inline">• Semua pesanan tersimpan otomatis dan siap diproses ke Nota Kasir</span>
+              <span className="text-slate-400 ml-2 hidden sm:inline">• Klik simpan untuk mengunci pesanan ke Riwayat PO dan mengosongkan matriks input</span>
             </div>
 
-            {onPrintDocument && (
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <button
-                  type="button"
-                  onClick={() => onPrintDocument({
-                    type: 'preorder_rekap',
-                    data: {
-                      preorders: activePreOrders.length > 0 ? activePreOrders : preorders,
-                      items
-                    }
-                  })}
-                  className="w-full sm:w-auto px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
-                  title="Cetak rekap total kebutuhan potong ayam & rincian pesanan semua customer (Format Landscape Tanpa Harga)"
-                >
-                  <Printer className="w-4 h-4 text-amber-400" />
-                  <span>Cetak Rekap PO Keseluruhan (Landscape)</span>
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={handleSaveMatrixToHistory}
+                className="w-full sm:w-auto px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4 text-white" />
+                <span>Simpan & Masuk ke Riwayat PO</span>
+              </button>
+            </div>
           </div>
 
         </div>
       ) : (
         /* 4. HISTORY TAB: RIWAYAT PO */
         <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div>
               <h3 className="text-sm font-bold text-slate-900">
                 Riwayat PO (Seluruh Pesanan Tersimpan)
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Semua pesanan yang tersimpan. Anda dapat mencetak keseluruhan pesanan (Landscape) atau per customer (Portrait), serta memproses ke Nota Kasir.
+                Filter tanggal untuk melihat & mencetak rekap pesanan per tanggal dalam format Portrait A4.
               </p>
             </div>
 
-            {onPrintDocument && (
-              <button
-                type="button"
-                onClick={() => onPrintDocument({
-                  type: 'preorder_rekap',
-                  data: {
-                    preorders: historyPreOrders.length > 0 ? historyPreOrders : preorders,
-                    items
-                  }
-                })}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer shrink-0"
-                title="Print keseluruhan pesanan semua customer (Format Landscape)"
-              >
-                <Printer className="w-4 h-4 text-amber-400" />
-                <span>Print Keseluruhan Pesanan (Landscape)</span>
-              </button>
-            )}
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full md:w-auto justify-end">
+              {/* Date Filter Input & Preset */}
+              <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl text-xs">
+                <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="font-semibold text-amber-900 shrink-0">Filter Tanggal:</span>
+                <input
+                  type="date"
+                  value={historyDateFilter}
+                  onChange={(e) => setHistoryDateFilter(e.target.value)}
+                  className="bg-white border border-amber-300 rounded-lg px-2 py-1 text-xs font-semibold text-slate-900 focus:outline-hidden cursor-pointer"
+                />
+                {historyDateFilter ? (
+                  <button
+                    type="button"
+                    onClick={() => setHistoryDateFilter('')}
+                    className="text-amber-700 hover:text-amber-950 text-[11px] font-bold underline cursor-pointer ml-1"
+                    title="Tampilkan semua tanggal"
+                  >
+                    Semua Tanggal
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setHistoryDateFilter(new Date().toISOString().substring(0, 10))}
+                    className="text-amber-700 hover:text-amber-950 text-[11px] font-bold underline cursor-pointer ml-1"
+                  >
+                    Hari Ini
+                  </button>
+                )}
+              </div>
+
+              {onPrintDocument && (
+                <button
+                  type="button"
+                  onClick={() => onPrintDocument({
+                    type: 'preorder_rekap',
+                    data: {
+                      preorders: historyPreOrders,
+                      items
+                    }
+                  })}
+                  disabled={historyPreOrders.length === 0}
+                  className={`px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer shrink-0 ${
+                    historyPreOrders.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  title="Print rekap keseluruhan pesanan sesuai tanggal terpilih (Format Portrait A4)"
+                >
+                  <Printer className="w-4 h-4 text-amber-400" />
+                  <span>Print Keseluruhan Pesanan ({historyPreOrders.length})</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="divide-y divide-slate-100">
             {historyPreOrders.map((po) => {
-              const isProcessed = po.status === 'Selesai';
+              const isProcessed = Boolean(po.convertedSaleId);
               return (
                 <div key={po.id} className="py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                   <div>
@@ -823,11 +862,9 @@ export const PreOrderManagement: React.FC<PreOrderManagementProps> = ({
                       <span className={`px-2.5 py-0.5 font-bold rounded-full text-[10px] ${
                         isProcessed 
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                          : po.status === 'Menunggu Potong' 
-                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                            : 'bg-blue-100 text-blue-800 border border-blue-200'
+                          : 'bg-amber-100 text-amber-800 border border-amber-200'
                       }`}>
-                        {isProcessed ? 'Diproses ke Nota' : po.status}
+                        {isProcessed ? 'Diproses ke Nota' : 'Tersimpan di Riwayat'}
                       </span>
                     </div>
                     <div className="text-slate-700 font-medium mt-1">

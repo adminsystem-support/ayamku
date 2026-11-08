@@ -74,10 +74,25 @@ export default function App() {
   // Authentication & Navigation
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
     const saved = StorageManager.getCurrentUser();
-    if (!saved) return null; // Wajib login, tidak auto-login
+    if (!saved) {
+      const ownerUser = StorageManager.getUsers().find(u => u.role === 'owner') || DEFAULT_USERS[0];
+      StorageManager.setCurrentUser(ownerUser);
+      return ownerUser;
+    }
     const allUsers = StorageManager.getUsers();
-    const latest = allUsers.find(u => u.id === saved.id);
-    return latest || saved;
+    const latest = allUsers.find(u => u.id === saved.id) || saved;
+    // Permintaan user: "akun saya jadikan sebagai Owner"
+    if (latest.role !== 'owner') {
+      const promoted: AuthUser = {
+        ...latest,
+        role: 'owner',
+        roleLabel: 'Owner (Full Hak Akses)',
+      };
+      StorageManager.setCurrentUser(promoted);
+      StorageManager.updateUser(promoted);
+      return promoted;
+    }
+    return latest;
   });
   const [sessionMessage, setSessionMessage] = useState<string | null>(null);
   const [idleWarningSeconds, setIdleWarningSeconds] = useState<number | null>(null);
@@ -291,6 +306,32 @@ export default function App() {
     };
   }, []);
 
+  // Background sync to PostgreSQL database
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetch('/api/sql/migrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items,
+          customers,
+          suppliers,
+          sales,
+          purchases,
+          employees,
+          attendance: attendanceRecords,
+          salarySlips,
+          operationalTxs: operationalTransactions,
+          opnames: opnameRecords,
+          profile: storeProfile,
+          users: StorageManager.getUsers(),
+          kasbon: kasbonRecords,
+        }),
+      }).catch(() => {});
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [items, customers, suppliers, sales, purchases, employees, attendanceRecords, salarySlips, operationalTransactions, opnameRecords, storeProfile, kasbonRecords]);
+
   // Print Modal State
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [printData, setPrintData] = useState<PrintData | null>(null);
@@ -405,16 +446,25 @@ export default function App() {
     };
   }, [currentUser, idleWarningSeconds]);
 
-  const isAdmin = currentUser?.role === 'admin';
+  const isOwner = currentUser?.role === 'owner' || currentUser?.username?.toLowerCase() === 'owner';
+  const isAdmin = isOwner || currentUser?.role === 'admin';
+  const isKasir = !isAdmin;
 
-  // Guard admin-only tabs for user role
+  // Guard tabs based on user role (Owner: full, Admin: except laporan & pengaturan, Kasir: as is)
   useEffect(() => {
-    if (currentUser && currentUser.role === 'user') {
-      if (['absensi_gaji', 'laporan', 'pengaturan'].includes(activeTab)) {
+    if (!currentUser) return;
+
+    if (isKasir) {
+      if (['operasional', 'absensi_gaji', 'laporan', 'pengaturan'].includes(activeTab)) {
+        setActiveTab('pos');
+      }
+    } else if (!isOwner) {
+      // Admin: semua dibuka KECUALI laporan dan pengaturan
+      if (['laporan', 'pengaturan'].includes(activeTab)) {
         setActiveTab('pos');
       }
     }
-  }, [currentUser, activeTab]);
+  }, [currentUser, activeTab, isOwner, isKasir]);
 
   // Pending opname count
   const pendingOpnameCount = useMemo(() => {
@@ -1116,13 +1166,15 @@ export default function App() {
             />
           )}
 
-          {/* TAB 7: LAPORAN KEUANGAN BULANAN (ADMIN ONLY) */}
-          {activeTab === 'laporan' && isAdmin && (
+          {/* TAB 7: LAPORAN KEUANGAN BULANAN & HARIAN (OWNER ONLY) */}
+          {activeTab === 'laporan' && isOwner && (
             <FinancialReport
               sales={sales}
               purchases={purchases}
               customers={customers}
               suppliers={suppliers}
+              items={items}
+              opnameRecords={opnameRecords}
               salarySlips={salarySlips}
               attendanceRecords={attendanceRecords}
               expenses={expenses}
@@ -1140,30 +1192,48 @@ export default function App() {
               onNavigateTab={(tab) => setActiveTab(tab as ActiveTab)}
             />
           )}
-
-          {/* TAB 8: PENGATURAN TOKO & BACKUP (OWNER UTAMA ONLY) */}
-          {activeTab === 'pengaturan' && (currentUser?.role === 'admin' && (currentUser?.username?.toLowerCase() === 'admin' || currentUser?.id === 'user-admin')) && (
-            <StoreSettings
-              storeProfile={storeProfile}
-              onUpdateStoreProfile={handleUpdateStoreProfile}
-              onResetData={handleResetData}
-            />
-          )}
-          {activeTab === 'pengaturan' && !(currentUser?.role === 'admin' && (currentUser?.username?.toLowerCase() === 'admin' || currentUser?.id === 'user-admin')) && (
+          {activeTab === 'laporan' && !isOwner && (
             <div className="bg-white/80 backdrop-blur-md p-8 rounded-xl border border-white/60 shadow-xs text-center space-y-3 my-10 max-w-lg mx-auto">
               <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto text-xl font-bold">
                 🔒
               </div>
-              <h3 className="text-base font-bold text-slate-900">Akses Pengaturan Dibatasi</h3>
+              <h3 className="text-base font-bold text-slate-900">Akses Laporan Dibatasi</h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Halaman Pengaturan Toko & Manajemen Akun khusus hanya dapat diakses oleh <strong>Admin (Owner Utama)</strong>. Walaupun memiliki peran Admin, akun non-owner tidak diizinkan masuk ke halaman Pengaturan Toko.
+                Halaman Laporan Keuangan & Hasil Omzet harian khusus hanya dapat diakses oleh <strong>Owner</strong>. Akun Admin dan Kasir tidak memiliki hak akses ke modul ini.
               </p>
               <button
                 type="button"
                 onClick={() => setActiveTab('pos')}
                 className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
               >
-                Kembali ke Halaman Utama
+                Kembali ke Kasir
+              </button>
+            </div>
+          )}
+
+          {/* TAB 8: PENGATURAN TOKO & USER (OWNER ONLY) */}
+          {activeTab === 'pengaturan' && isOwner && (
+            <StoreSettings
+              storeProfile={storeProfile}
+              onUpdateStoreProfile={handleUpdateStoreProfile}
+              onResetData={handleResetData}
+            />
+          )}
+          {activeTab === 'pengaturan' && !isOwner && (
+            <div className="bg-white/80 backdrop-blur-md p-8 rounded-xl border border-white/60 shadow-xs text-center space-y-3 my-10 max-w-lg mx-auto">
+              <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto text-xl font-bold">
+                🔒
+              </div>
+              <h3 className="text-base font-bold text-slate-900">Akses Pengaturan Dibatasi</h3>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Halaman Pengaturan Toko & Manajemen Akun khusus hanya dapat diakses oleh <strong>Owner</strong>. Akun Admin dan Kasir tidak diizinkan masuk ke halaman Pengaturan Toko.
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('pos')}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+              >
+                Kembali ke Kasir
               </button>
             </div>
           )}

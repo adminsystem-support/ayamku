@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'owner' | 'admin' | 'kasir' | 'user';
 
 export interface AuthUser {
   id: string;
@@ -359,5 +359,23 @@ export interface CustomerPreOrder {
   updatedAt: string;
 }
 
-
-
+export interface DailyFinancialReportData {
+  reportDate: string;
+  tagihanPerHari: number;
+  stokOpnameHariIni: number;
+  totalOutput: number;
+  stokOpnameKemarin: number;
+  operasionalPerHari: number;
+  modalSuplaier: number;
+  hasilLaporanHarian: number;
+  sisaHutangCostumer: number;
+  totalSetelahHutang: number;
+  kembalianTabunganCostumer: number;
+  totalKeuangan: number;
+  notes?: string;
+  salesCount?: number;
+  purchasesCount?: number;
+  expenseCount?: number;
+  unpaidCustomersCount?: number;
+  depositCustomersCount?: number;
+}

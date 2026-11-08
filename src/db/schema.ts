@@ -204,3 +204,27 @@ export const storeProfileTable = pgTable('store_profile', {
   bankAccountNo: text('bank_account_no'),
   bankAccountName: text('bank_account_name'),
 });
+
+// 12. USERS / PENGGUNA SISTEM
+export const usersTable = pgTable('users', {
+  id: text('id').primaryKey(),
+  username: text('username').notNull().unique(),
+  name: text('name').notNull(),
+  role: text('role').notNull(), // 'owner' | 'admin' | 'kasir' | 'user'
+  roleLabel: text('role_label').notNull(),
+  password: text('password'),
+  pin: text('pin'),
+});
+
+// 13. KASBON KARYAWAN
+export const kasbonTable = pgTable('employee_kasbon', {
+  id: text('id').primaryKey(),
+  employeeId: text('employee_id').notNull(),
+  employeeName: text('employee_name').notNull(),
+  date: text('date').notNull(),
+  amount: doublePrecision('amount').notNull(),
+  type: text('type').notNull(), // 'pinjam' | 'bayar'
+  notes: text('notes'),
+  createdAt: text('created_at').notNull(),
+  balanceAfter: doublePrecision('balance_after').notNull(),
+});

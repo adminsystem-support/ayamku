@@ -37,7 +37,8 @@ import {
   Employee,
   AttendanceRecord,
   CustomerPreOrder,
-  Item
+  Item,
+  DailyFinancialReportData
 } from '../types/index.ts';
 import { formatCurrency, formatNumber, formatDate, formatDateTime, generateWhatsAppSalaryMessage } from '../utils/formatters.ts';
 import { createDocumentPdf, formatWhatsAppPhone, generateWhatsAppMessage, getStoreLogoDataUrl } from '../utils/documentPdf.ts';
@@ -73,6 +74,10 @@ export type PrintData =
         receiptType?: 'BKM' | 'BKK';
         counterpartyType?: string;
       }
+    }
+  | {
+      type: 'daily_financial_report';
+      data: DailyFinancialReportData;
     };
 
 interface PrintModalProps {
@@ -260,31 +265,35 @@ export const PrintModal: React.FC<PrintModalProps> = ({
     };
   }, [printData, customers, sales]);
 
+  // Auto-switch to A4 format and add landscape body class when viewing rekap PO
+  React.useEffect(() => {
+    if (printData?.type === 'preorder_rekap') {
+      setPrintFormat('a4');
+    }
+  }, [printData]);
+
+  React.useEffect(() => {
+    if (isOpen && printData?.type === 'preorder_rekap') {
+      document.body.classList.add('print-landscape');
+      return () => {
+        document.body.classList.remove('print-landscape');
+      };
+    }
+  }, [isOpen, printData]);
+
   if (!isOpen || !printData) return null;
 
-  const handlePrint = async () => {
-    setIsGeneratingPdf(true);
+  const handlePrint = () => {
     try {
-      const res = await generatePdfBlob();
-      
-      // Coba window.print()
+      window.print();
+    } catch (e) {
+      console.warn('window.print() error:', e);
       try {
+        window.focus();
         window.print();
-      } catch (e) {
-        console.warn('Native window.print() blocked by iframe sandbox:', e);
+      } catch (err) {
+        alert('Gagal membuka dialog cetak browser. Silakan gunakan fungsi cetak browser Anda.');
       }
-
-      // Download file PDF cetak agar pasti bisa dicetak langsung di printer apapun tanpa gagal
-      if (res && res.blob) {
-        downloadBlobAsFile(res.blob, res.fileName);
-      }
-    } catch (err) {
-      console.warn('Print error fallback:', err);
-      try {
-        window.print();
-      } catch {}
-    } finally {
-      setIsGeneratingPdf(false);
     }
   };
 
@@ -305,6 +314,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
     else if (printData.type === 'purchase') fileName = `Faktur_Pembelian_${printData.data.invoiceNumber}.pdf`;
     else if (printData.type === 'salary') fileName = `Slip_Gaji_${printData.data.slipNumber}.pdf`;
     else if (printData.type === 'payment_receipt') fileName = `Kuitansi_${printData.data.receiptNo}.pdf`;
+    else if (printData.type === 'preorder_rekap') fileName = `Rekap_PO_${new Date().toISOString().substring(0, 10)}.pdf`;
+    else if (printData.type === 'daily_financial_report') fileName = `Laporan_Keuangan_${printData.data.reportDate}.pdf`;
 
     const summaryText = generateWhatsAppMessage(printData, storeProfile, recipientPhone);
 
@@ -332,10 +343,11 @@ export const PrintModal: React.FC<PrintModalProps> = ({
         });
 
         const imgData = canvas.toDataURL('image/png');
-        const isThermal = printFormat === 'thermal';
+        const isLandscape = printData.type === 'preorder_rekap';
+        const isThermal = printFormat === 'thermal' && !isLandscape;
 
         const pdf = new jsPDF({
-          orientation: 'portrait',
+          orientation: isLandscape ? 'landscape' : 'portrait',
           unit: 'mm',
           format: isThermal
             ? (thermalSize === '58mm' ? [58, Math.max(90, (canvas.height * 58) / canvas.width)] : [80, Math.max(120, (canvas.height * 80) / canvas.width)])
@@ -481,6 +493,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
     else if (printData.type === 'purchase') baseName = `Faktur_Pembelian_${printData.data.invoiceNumber}`;
     else if (printData.type === 'salary') baseName = `Slip_Gaji_${printData.data.slipNumber}`;
     else if (printData.type === 'payment_receipt') baseName = `Kuitansi_${printData.data.receiptNo}`;
+    else if (printData.type === 'daily_financial_report') baseName = `Laporan_Keuangan_${printData.data.reportDate}`;
 
     const fileName = `${baseName}.jpg`;
     const summaryText = generateWhatsAppMessage(printData, storeProfile, recipientPhone);
@@ -607,7 +620,15 @@ export const PrintModal: React.FC<PrintModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-semibold text-slate-900">
-                Cetak Dokumen: {printData.type === 'sale' ? 'Nota Penjualan Elektronik' : printData.type === 'purchase' ? 'Faktur Pembelian Supplier' : 'Slip Gaji Karyawan'}
+                Cetak Dokumen: {
+                  printData.type === 'sale' ? 'Nota Penjualan Elektronik' : 
+                  printData.type === 'purchase' ? 'Faktur Pembelian Supplier' : 
+                  printData.type === 'salary' ? 'Slip Gaji Karyawan' :
+                  printData.type === 'preorder_single' ? 'Dokumen Pre-Order (PO)' :
+                  printData.type === 'preorder_rekap' ? 'Rekap Pre-Order Keseluruhan' :
+                  printData.type === 'daily_financial_report' ? 'Laporan Keuangan Harian' :
+                  'Kuitansi Pembayaran'
+                }
               </h2>
               <p className="text-xs text-slate-500">Pilih format cetak A4 atau Struk Thermal</p>
             </div>
@@ -1469,188 +1490,61 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       </span>
                     </div>
 
-                    {/* 4 Info Cards */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 text-xs">
+                    {/* 2 Info Cards: Posisi / Bagian & Nomor Whatsapp */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
                       <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
                         <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">POSISI / BAGIAN:</span>
                         <span className="font-bold text-slate-900 mt-0.5 block">{empRole}</span>
                       </div>
                       <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">NO. WHATSAPP KARYAWAN:</span>
+                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">NOMOR WHATSAPP:</span>
                         <span className="font-semibold text-emerald-700 flex items-center gap-1 mt-0.5">
                           <Phone className="w-3 h-3 text-emerald-600 inline shrink-0" />
                           {empPhone}
                         </span>
                       </div>
-                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">TARIF UPAH HARIAN:</span>
-                        <span className="font-bold text-slate-900 mt-0.5 block">{formatCurrency(dailyWageRate)} <span className="text-[10px] font-normal text-slate-500">/hari</span></span>
-                      </div>
-                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">STANDAR TARIF LEMBUR:</span>
-                        <span className="font-bold text-blue-700 mt-0.5 block">{formatCurrency(overtimeRate)} <span className="text-[10px] font-normal text-slate-500">/jam</span></span>
-                      </div>
-                    </div>
-
-                    {/* Period Row */}
-                    <div className="grid grid-cols-2 gap-3 text-xs pt-1">
-                      <div>
-                        <span className="text-[11px] font-semibold text-slate-600 block mb-1">Dari Tanggal (Awal Periode):</span>
-                        <div className="bg-slate-50 border border-slate-300 rounded-lg p-2 font-mono font-medium text-slate-900 flex justify-between items-center text-xs">
-                          <span>{formatDate(s.periodStart)}</span>
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        </div>
-                      </div>
-                      <div>
-                        <span className="text-[11px] font-semibold text-slate-600 block mb-1">Sampai Tanggal (Akhir Periode):</span>
-                        <div className="bg-slate-50 border border-slate-300 rounded-lg p-2 font-mono font-medium text-slate-900 flex justify-between items-center text-xs">
-                          <span>{formatDate(s.periodEnd)}</span>
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                        </div>
-                      </div>
                     </div>
                   </div>
 
-                  {/* Daily Attendance & Pay Calculation Breakdown Table */}
-                  <div className="bg-white rounded-xl border border-slate-300 overflow-hidden shadow-2xs">
-                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-amber-600" />
-                        <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
-                          RINCIAN ABSENSI & HITUNGAN HARIAN ({formatDate(s.periodStart)} S/D {formatDate(s.periodEnd)})
-                        </h4>
-                      </div>
-                    </div>
-                    
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
-                          <tr>
-                            <th className="py-2.5 px-3 border-r border-slate-300">Tanggal</th>
-                            <th className="py-2.5 px-3 border-r border-slate-300">Status</th>
-                            <th className="py-2.5 px-3 text-right border-r border-slate-300">Upah Pokok</th>
-                            <th className="py-2.5 px-3 text-center border-r border-slate-300">Jam Lembur</th>
-                            <th className="py-2.5 px-3 text-right border-r border-slate-300">Upah Lembur</th>
-                            <th className="py-2.5 px-3 text-right">Subtotal Hari Ini</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200 font-medium text-xs">
-                          {dailyRowsToRender.map((rec, idx) => {
-                            const otHrs = rec.overtimeHours ? `${rec.overtimeHours} Jam` : (rec.overtimePay ? `${Math.round(rec.overtimePay / overtimeRate)} Jam` : '0 Jam');
-                            const subtotalDay = rec.wageAmount + (rec.overtimePay || 0);
-                            return (
-                              <tr key={rec.id || rec.date} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                                <td className="py-2 px-3 text-slate-900 font-semibold border-r border-slate-200">{formatDate(rec.date)}</td>
-                                <td className="py-2 px-3 border-r border-slate-200">
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                    {rec.status}
-                                  </span>
-                                </td>
-                                <td className="py-2 px-3 text-right font-mono text-slate-800 border-r border-slate-200">{formatCurrency(rec.wageAmount)}</td>
-                                <td className="py-2 px-3 text-center font-semibold text-slate-700 border-r border-slate-200">{otHrs}</td>
-                                <td className="py-2 px-3 text-right font-mono text-blue-700 border-r border-slate-200">
-                                  {rec.overtimePay && rec.overtimePay > 0 ? `+${formatCurrency(rec.overtimePay)}` : 'Rp 0'}
-                                </td>
-                                <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">{formatCurrency(subtotalDay)}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot className="bg-amber-50/80 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
-                          <tr>
-                            <td colSpan={2} className="py-2.5 px-3 text-slate-900 font-bold border-r border-slate-200">Total Akumulasi Periode:</td>
-                            <td className="py-2.5 px-3 text-right font-mono border-r border-slate-200">{formatCurrency(s.totalDailyWage)}</td>
-                            <td className="py-2.5 px-3 text-center font-mono text-slate-800 border-r border-slate-200">
-                              {hrsOvertime} Jam ({s.daysOvertime} Hari)
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700 border-r border-slate-200">+{formatCurrency(s.totalOvertimePay)}</td>
-                            <td className="py-2.5 px-3 text-right font-mono text-emerald-800 text-xs font-bold">
-                              {formatCurrency(s.totalDailyWage + s.totalOvertimePay)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Income & Deductions Summary Box with Clean Table Lines */}
+                  {/* Rincian Gaji Section matching input format */}
                   <div className="bg-white border border-slate-300 rounded-xl overflow-hidden shadow-2xs text-xs">
-                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
-                      <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
-                        RINCIAN PENGHASILAN & POTONGAN
-                      </h4>
+                    <div className="bg-slate-900 text-white px-4 py-2.5 font-bold uppercase tracking-wider text-xs">
+                      RINCIAN GAJI
                     </div>
                     
                     <div className="overflow-x-auto">
                       <table className="w-full text-left text-xs border-collapse">
                         <tbody className="divide-y divide-slate-200 font-medium text-xs">
                           <tr className="hover:bg-slate-50/50">
-                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">Total Upah Harian Pokok:</td>
-                            <td className="py-2.5 px-3.5 text-right font-mono font-semibold text-slate-900">{formatCurrency(s.totalDailyWage)}</td>
+                            <td className="py-3 px-4 font-bold text-slate-800 border-r border-slate-200">Gaji Pokok:</td>
+                            <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">{formatCurrency(s.totalDailyWage)}</td>
                           </tr>
                           <tr className="hover:bg-slate-50/50">
-                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">
-                              Total Upah Lembur ({hrsOvertime} Jam / {s.daysOvertime} Hari):
-                            </td>
-                            <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-700">+{formatCurrency(s.totalOvertimePay)}</td>
+                            <td className="py-3 px-4 font-bold text-blue-700 border-r border-slate-200">Tambahan:</td>
+                            <td className="py-3 px-4 text-right font-mono font-bold text-blue-700">+{formatCurrency(s.bonus || s.totalOvertimePay || 0)}</td>
                           </tr>
-                          {s.allowance > 0 && (
-                            <tr className="hover:bg-slate-50/50">
-                              <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200">Uang Makan & Tunjangan:</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-900">+{formatCurrency(s.allowance)}</td>
-                            </tr>
-                          )}
-                          {s.bonus > 0 && (
-                            <tr className="hover:bg-slate-50/50">
-                              <td className="py-2.5 px-3.5 text-emerald-800 font-semibold border-r border-slate-200">Bonus Khusus Tambahan:</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-700">+{formatCurrency(s.bonus)}</td>
-                            </tr>
-                          )}
-                          {s.deduction > 0 && (
-                            <tr className="hover:bg-slate-50/50">
-                              <td className="py-2.5 px-3.5 text-rose-700 font-semibold border-r border-slate-200">Potongan Kasbon / Pinjaman:</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-600">-{formatCurrency(s.deduction)}</td>
-                            </tr>
-                          )}
-                          {s.kasbonRemainingAfter !== undefined && s.kasbonRemainingAfter > 0 && (
-                            <tr className="bg-amber-50/70 text-amber-900 font-semibold">
-                              <td className="py-2.5 px-3.5 border-r border-amber-200">Sisa Saldo Kasbon Karyawan:</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-bold">{formatCurrency(s.kasbonRemainingAfter)}</td>
-                            </tr>
-                          )}
-                          {s.kasbonRemainingAfter !== undefined && s.kasbonRemainingAfter === 0 && (s.kasbonOutstandingBefore || 0) > 0 && (
-                            <tr className="bg-emerald-50/70 text-emerald-900 font-semibold">
-                              <td className="py-2.5 px-3.5 border-r border-emerald-200">Status Kasbon:</td>
-                              <td className="py-2.5 px-3.5 text-right font-bold">Lunas (Sisa Rp 0)</td>
-                            </tr>
-                          )}
+                          <tr className="hover:bg-rose-50/50">
+                            <td className="py-3 px-4 font-bold text-rose-700 border-r border-slate-200">
+                              <div>Kasbon:</div>
+                              {s.kasbonRemainingAfter !== undefined && (
+                                <div className="text-[10px] text-slate-500 font-normal mt-0.5">Sisa Saldo Kasbon Karyawan: {formatCurrency(s.kasbonRemainingAfter)}</div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-bold text-rose-600">
+                              -{formatCurrency(s.deduction || 0)}
+                            </td>
+                          </tr>
                         </tbody>
-                        <tfoot className="bg-amber-50/80 font-bold border-t-2 border-slate-300 text-slate-900 text-xs sm:text-sm">
+                        <tfoot className="bg-emerald-900 text-white font-bold text-sm">
                           <tr>
-                            <td className="py-3 px-3.5 text-slate-900 font-bold border-r border-slate-300">Total Gaji Bersih (Take Home Pay):</td>
-                            <td className="py-3 px-3.5 text-right font-mono text-emerald-800 text-sm sm:text-base font-bold">{formatCurrency(s.netSalary)}</td>
+                            <td className="py-3.5 px-4 font-extrabold text-white border-r border-slate-800">Total Gaji Bersih:</td>
+                            <td className="py-3.5 px-4 text-right font-mono font-extrabold text-amber-300 text-base">{formatCurrency(s.netSalary)}</td>
                           </tr>
                         </tfoot>
                       </table>
                     </div>
                   </div>
 
-                  {s.notes && (
-                    <p className="text-xs text-slate-500 italic">Catatan: {s.notes}</p>
-                  )}
-
-                  {/* Official Electronic Verification Notice (No Manual Signature Lines) */}
-                  <div className="pt-3 border-t border-slate-200 text-center">
-                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 max-w-lg mx-auto space-y-1">
-                      <div className="flex items-center justify-center gap-1.5 text-emerald-800 font-bold text-xs">
-                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                        <span>DOKUMEN BUKTI GAJI ELEKTRONIK SAH</span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 leading-tight">
-                        Dokumen Slip Gaji ini diterbitkan secara otomatis oleh sistem operasional <strong>{storeProfile.name}</strong>. Berkas ini sah dan berlaku sebagai bukti resmi penerimaan upah tanpa memerlukan tanda tangan basah.
-                      </p>
-                    </div>
-                  </div>
                 </div>
               );
             })()}
@@ -1830,35 +1724,30 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Info Card with Name, Phone, and Address */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-2xs text-xs">
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5">
-                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase">NAMA PELANGGAN:</span>
-                        <span className="font-bold text-slate-900 mt-0.5 block text-sm">{po.customerName}</span>
+                  {/* Info Card with Name, Phone, and Address (Styled like Sale Invoice) */}
+                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-900 font-bold flex items-center justify-center text-lg border border-amber-200/80 shrink-0 mt-0.5">
+                        {po.customerName.charAt(0).toUpperCase()}
                       </div>
-                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase">NO. HP / WHATSAPP:</span>
-                        <span className="font-semibold text-emerald-700 mt-0.5 block">{displayPhone}</span>
-                      </div>
-                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase">ALAMAT PELANGGAN:</span>
-                        <span className="font-semibold text-slate-900 mt-0.5 block truncate" title={displayAddress}>{displayAddress}</span>
-                      </div>
-                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase">RENCANA PENGAMBILAN:</span>
-                        <span className="font-bold text-amber-900 mt-0.5 block">{formatDate(po.pickupDate)} • Jam {po.pickupTime || '06:00'}</span>
-                      </div>
-                      <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase">STATUS PESANAN:</span>
-                        <span className={`font-bold mt-0.5 block ${po.status === 'Selesai' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                          [{po.status === 'Selesai' ? 'DIPROSES KE NOTA' : po.status.toUpperCase()}]
-                        </span>
+                      <div className="space-y-1">
+                        <h3 className="font-bold text-slate-900 text-base leading-tight">{po.customerName}</h3>
+                        <div className="text-xs text-slate-700 space-y-0.5">
+                          <p>
+                            <span className="font-semibold text-slate-500">Alamat:</span> {displayAddress}
+                          </p>
+                          <p>
+                            <span className="font-semibold text-slate-500">No. Handphone:</span> {displayPhone}
+                          </p>
+                        </div>
+                        {po.customerType && (
+                          <p className="text-[11px] font-medium text-slate-400">Tipe Pelanggan: {po.customerType}</p>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Items Table (NO PRICES) */}
+                  {/* Items Table (NO PRICES & NO CATATAN ITEM COLUMN) */}
                   <div className="border border-slate-300 rounded-xl overflow-hidden bg-white text-xs shadow-2xs">
                     <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
                       <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
@@ -1870,8 +1759,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                         <tr>
                           <th className="py-2.5 px-3 border-r border-slate-300 w-12 text-center">No</th>
                           <th className="py-2.5 px-3 border-r border-slate-300">Nama Barang / Potongan Ayam</th>
-                          <th className="py-2.5 px-3 border-r border-slate-300 text-center w-36">Jumlah Pesanan</th>
-                          <th className="py-2.5 px-3">Catatan Item</th>
+                          <th className="py-2.5 px-3 text-center w-40">Jumlah Pesanan</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200 font-medium">
@@ -1879,46 +1767,26 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                           <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                             <td className="py-2.5 px-3 border-r border-slate-200 text-center text-slate-500">{idx + 1}</td>
                             <td className="py-2.5 px-3 border-r border-slate-200 font-bold text-slate-900">{item.itemName}</td>
-                            <td className="py-2.5 px-3 border-r border-slate-200 text-center font-mono font-bold text-slate-900 text-sm">
+                            <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-900 text-sm">
                               {formatNumber(item.quantity)} {item.unit}
                             </td>
-                            <td className="py-2.5 px-3 text-slate-600 italic">{item.notes || '-'}</td>
                           </tr>
                         ))}
                         {po.items.length === 0 && (
                           <tr>
-                            <td colSpan={4} className="py-6 text-center text-slate-400">Belum ada item rincian pesanan.</td>
+                            <td colSpan={3} className="py-6 text-center text-slate-400">Belum ada item rincian pesanan.</td>
                           </tr>
                         )}
                       </tbody>
                       <tfoot className="bg-amber-50 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
                         <tr>
                           <td colSpan={2} className="py-3 px-3.5 text-right font-bold border-r border-slate-300">TOTAL JUMLAH KESELURUHAN ITEM PESANAN:</td>
-                          <td className="py-3 px-3.5 text-center font-mono text-amber-900 text-sm font-extrabold border-r border-slate-300">
+                          <td className="py-3 px-3.5 text-center font-mono text-amber-900 text-sm font-extrabold">
                             {formatNumber(totalQty)} {primaryUnit}
-                          </td>
-                          <td className="py-3 px-3.5 text-slate-500 font-normal italic">
-                            {po.notes ? `Catatan Nota: ${po.notes}` : '-'}
                           </td>
                         </tr>
                       </tfoot>
                     </table>
-                  </div>
-
-                  {/* Signatures */}
-                  <div className="pt-6 border-t border-slate-200">
-                    <div className="grid grid-cols-2 text-center text-xs text-slate-600">
-                      <div>
-                        <p className="font-semibold text-slate-700">Pelanggan Pemesan,</p>
-                        <div className="h-14"></div>
-                        <p className="font-bold text-slate-900">( {po.customerName} )</p>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-700">Petugas / Admin Usaha,</p>
-                        <div className="h-14"></div>
-                        <p className="font-bold text-slate-900">( {po.createdBy || 'Admin Usaha'} )</p>
-                      </div>
-                    </div>
                   </div>
                 </div>
               ) : (
@@ -1950,14 +1818,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       <span>Alamat:</span>
                       <span className="font-semibold truncate max-w-[140px]">{displayAddress}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Pengambilan:</span>
-                      <span className="font-bold">{formatDate(po.pickupDate)} ({po.pickupTime || '06:00'})</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Status:</span>
-                      <span className="font-bold text-amber-800">[{po.status}]</span>
-                    </div>
                   </div>
 
                   <div className="border-b border-dashed border-slate-400 my-2"></div>
@@ -1977,10 +1837,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     <span>TOTAL QTY:</span>
                     <span className="font-mono">{formatNumber(totalQty)} {primaryUnit}</span>
                   </div>
-
-                  {po.notes && (
-                    <div className="text-slate-600 italic mt-2 text-left">Catatan: {po.notes}</div>
-                  )}
                 </div>
               );
             })()}
@@ -2009,7 +1865,6 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               });
 
               const activeDemands = Object.values(demandMap).filter(d => d.totalQty > 0);
-              const grandTotalQty = activeDemands.reduce((sum, d) => sum + d.totalQty, 0);
 
               return printFormat === 'a4' ? (
                 <div className="space-y-6">
@@ -2036,148 +1891,97 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                     </div>
                   </div>
 
-                  {/* SECTION 1: MATRIKS SPREADSHEET PESANAN CUSTOMER (LANDSCAPE) */}
+                  {/* MATRIKS SPREADSHEET PESANAN CUSTOMER (TRANSPOSED PORTRAIT A4) */}
                   <div className="border border-slate-300 rounded-xl overflow-hidden bg-white text-xs shadow-2xs">
                     <div className="bg-slate-900 text-white px-3.5 py-2.5 flex items-center justify-between">
                       <h4 className="font-bold text-xs uppercase tracking-wide text-amber-300">
-                        1. MATRIKS PESANAN CUSTOMER & REKAP KEBUTUHAN ITEM ({poList.length} PELANGGAN)
+                        MATRIKS KEBUTUHAN ITEM & PESANAN PELANGGAN ({poList.length} PELANGGAN)
                       </h4>
-                      <span className="text-[11px] font-mono text-slate-300">Format Landscape (A4)</span>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse text-xs">
                         <thead className="bg-slate-900 text-white font-bold border-b border-slate-700">
                           <tr>
+                            <th className="py-2.5 px-3 border-r border-slate-700 w-10 text-center">No</th>
                             <th className="py-2.5 px-3 border-r border-slate-700 font-bold min-w-[160px]">
-                              Nama Pelanggan (Customer)
+                              Nama Barang / Potongan Ayam
                             </th>
-                            {itemList.map(it => (
-                              <th key={it.id} className="py-2.5 px-2 text-center border-r border-slate-700 font-bold text-amber-300 min-w-[90px]">
-                                {it.name}
+                            {poList.map((po) => (
+                              <th key={po.id} className="py-2.5 px-2 text-center border-r border-slate-700 font-bold text-amber-300 min-w-[90px]">
+                                <div>{po.customerName}</div>
+                                <div className="text-[9px] font-mono text-slate-400 font-normal">{po.poNumber}</div>
                               </th>
                             ))}
+                            <th className="py-2.5 px-3 text-center font-bold text-amber-400 min-w-[110px] bg-slate-950">
+                              TOTAL KEBUTUHAN
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-200">
-                          {poList.map((po, idx) => (
-                            <tr key={po.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                              <td className="py-2 px-3 border-r border-slate-300 font-bold text-slate-900">
-                                {po.customerName}
-                                <span className="block text-[10px] font-mono text-slate-500 font-normal">{po.poNumber}</span>
-                              </td>
-                              {itemList.map(it => {
-                                const pi = po.items.find(i => i.itemId === it.id || i.itemName.toLowerCase() === it.name.toLowerCase());
-                                return (
-                                  <td key={it.id} className="py-2 px-2 text-center border-r border-slate-200 font-mono font-bold">
-                                    {pi && pi.quantity > 0 ? (
-                                      <span className="text-amber-950 bg-amber-100/90 px-1.5 py-0.5 rounded text-[11px]">
-                                        {formatNumber(pi.quantity)} {it.unit}
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-300">-</span>
-                                    )}
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          ))}
-                          {poList.length === 0 && (
+                          {itemList.map((it, idx) => {
+                            const totalItemDemand = poList.reduce((sum, po) => {
+                              const pi = po.items.find(i => i.itemId === it.id || i.itemName.toLowerCase() === it.name.toLowerCase());
+                              return sum + (pi ? Number(pi.quantity) || 0 : 0);
+                            }, 0);
+
+                            return (
+                              <tr key={it.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                                <td className="py-2 px-3 border-r border-slate-200 text-center text-slate-500">{idx + 1}</td>
+                                <td className="py-2 px-3 border-r border-slate-300 font-bold text-slate-900">
+                                  {it.name}
+                                </td>
+                                {poList.map((po) => {
+                                  const pi = po.items.find(i => i.itemId === it.id || i.itemName.toLowerCase() === it.name.toLowerCase());
+                                  const qty = pi ? Number(pi.quantity) || 0 : 0;
+                                  return (
+                                    <td key={po.id} className="py-2 px-2 text-center border-r border-slate-200 font-mono font-bold">
+                                      {qty > 0 ? (
+                                        <span className="text-amber-950 bg-amber-100/90 px-2 py-0.5 rounded text-[11px] inline-block">
+                                          {formatNumber(qty)} {it.unit}
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-300">-</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                                <td className="py-2 px-3 text-center border-l border-slate-300 font-mono font-extrabold bg-amber-50/70 text-amber-900">
+                                  {totalItemDemand > 0 ? (
+                                    <span className="bg-amber-500/20 text-amber-950 px-2 py-0.5 rounded text-xs font-bold inline-block border border-amber-300/80">
+                                      {formatNumber(totalItemDemand)} {it.unit}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400">0</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {itemList.length === 0 && (
                             <tr>
-                              <td colSpan={itemList.length + 1} className="py-6 text-center text-slate-400">Belum ada pesanan pre-order tersimpan.</td>
+                              <td colSpan={poList.length + 3} className="py-6 text-center text-slate-400">Belum ada item catalog terdaftar.</td>
                             </tr>
                           )}
                         </tbody>
                         <tfoot className="bg-slate-900 text-white font-mono font-bold border-t-2 border-slate-700">
                           <tr className="text-amber-300">
-                            <td className="py-2.5 px-3 border-r border-slate-700 font-bold text-right text-xs">
-                              TOTAL PESANAN:
+                            <td colSpan={2} className="py-2.5 px-3 border-r border-slate-700 font-bold text-right text-xs">
+                              TOTAL PESANAN PER PELANGGAN:
                             </td>
-                            {itemList.map(it => {
-                              const totalDemand = poList.reduce((sum, po) => {
-                                const pi = po.items.find(i => i.itemId === it.id || i.itemName.toLowerCase() === it.name.toLowerCase());
-                                return sum + (pi ? Number(pi.quantity) || 0 : 0);
-                              }, 0);
-
+                            {poList.map((po) => {
+                              const totalCustQty = po.items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
                               return (
-                                <td key={it.id} className="py-2.5 px-2 text-center border-r border-slate-700 text-xs font-extrabold text-amber-300">
-                                  {totalDemand > 0 ? `${formatNumber(totalDemand)} ${it.unit}` : '0'}
+                                <td key={po.id} className="py-2.5 px-2 text-center border-r border-slate-700 text-xs font-extrabold text-amber-300">
+                                  {totalCustQty > 0 ? `${formatNumber(totalCustQty)} Item` : '0'}
                                 </td>
                               );
                             })}
+                            <td className="py-2.5 px-3 text-center font-extrabold text-xs text-amber-400 bg-slate-950">
+                              {formatNumber(poList.reduce((sum, po) => sum + po.items.reduce((isum, i) => isum + (Number(i.quantity) || 0), 0), 0))} Total Qty
+                            </td>
                           </tr>
                         </tfoot>
                       </table>
-                    </div>
-                  </div>
-
-                  {/* SECTION 2: RINCIAN PESANAN PER PELANGGAN */}
-                  <div className="border border-slate-300 rounded-xl overflow-hidden bg-white text-xs shadow-2xs">
-                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
-                      <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
-                        2. RINCIAN PESANAN PER PELANGGAN ({poList.length} PELANGGAN)
-                      </h4>
-                    </div>
-                    <table className="w-full text-left border-collapse">
-                      <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-300">
-                        <tr>
-                          <th className="py-2.5 px-3 border-r border-slate-300 w-10 text-center">No</th>
-                          <th className="py-2.5 px-3 border-r border-slate-300 w-36">No. PO & Status</th>
-                          <th className="py-2.5 px-3 border-r border-slate-300 w-44">Nama Pelanggan & HP</th>
-                          <th className="py-2.5 px-3 border-r border-slate-300">Rincian Item Pesanan (Tanpa Harga)</th>
-                          <th className="py-2.5 px-3 w-36">Jam Ambil & Catatan</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 font-medium">
-                        {poList.map((po, idx) => {
-                          const itemsSummary = po.items.length > 0 
-                            ? po.items.map(i => `${i.itemName} (${formatNumber(i.quantity)} ${i.unit})`).join(', ')
-                            : '- Belum ada item';
-
-                          return (
-                            <tr key={po.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                              <td className="py-2.5 px-3 border-r border-slate-200 text-center text-slate-500">{idx + 1}</td>
-                              <td className="py-2.5 px-3 border-r border-slate-200 font-mono">
-                                <span className="font-bold text-slate-900 block">{po.poNumber}</span>
-                                <span className={`text-[10px] font-bold ${po.status === 'Selesai' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                                  [{po.status === 'Selesai' ? 'DIPROSES KE NOTA' : po.status.toUpperCase()}]
-                                </span>
-                              </td>
-                              <td className="py-2.5 px-3 border-r border-slate-200">
-                                <span className="font-bold text-slate-900 block">{po.customerName}</span>
-                                <span className="text-[10px] text-slate-500">{po.customerPhone || '-'}</span>
-                              </td>
-                              <td className="py-2.5 px-3 border-r border-slate-200 font-bold text-slate-800 leading-relaxed">
-                                {itemsSummary}
-                              </td>
-                              <td className="py-2.5 px-3 text-slate-700">
-                                <span className="font-bold text-amber-900 block">{po.pickupTime || '06:00'}</span>
-                                <span className="text-[10px] text-slate-500 italic block">{po.notes || '-'}</span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                        {poList.length === 0 && (
-                          <tr>
-                            <td colSpan={5} className="py-6 text-center text-slate-400">Belum ada data pre-order.</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Signatures */}
-                  <div className="pt-6 border-t border-slate-200">
-                    <div className="grid grid-cols-2 text-center text-xs text-slate-600">
-                      <div>
-                        <p className="font-semibold text-slate-700">Penanggung Jawab Gudang / Pemotongan,</p>
-                        <div className="h-14"></div>
-                        <p className="font-bold text-slate-900">( .................................... )</p>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-700">Petugas / Admin Usaha,</p>
-                        <div className="h-14"></div>
-                        <p className="font-bold text-slate-900">( Admin Usaha )</p>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -2219,6 +2023,331 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                       </div>
                     ))}
                   </div>
+                </div>
+              );
+            })()}
+
+            {/* 7. DAILY FINANCIAL REPORT TEMPLATE (SESUAI BUKU CATATAN LAPORAN) */}
+            {printData.type === 'daily_financial_report' && (() => {
+              const r = printData.data;
+
+              return printFormat === 'a4' ? (
+                <div className="space-y-6">
+                  {/* Header with Logo */}
+                  <div className="flex justify-between items-start border-b border-slate-300 pb-4">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white flex items-center justify-center p-1.5 shrink-0 shadow-xs">
+                        <img src={storeProfile.logoUrl || '/logo_unggas.svg'} alt="Logo" className="max-w-full max-h-full object-contain" />
+                      </div>
+                      <div>
+                        <h1 className="text-lg font-bold text-slate-900 tracking-tight">{storeProfile.name}</h1>
+                        <p className="text-xs text-slate-600 mt-0.5 max-w-sm">{storeProfile.address}</p>
+                        <p className="text-xs text-slate-600 mt-0.5">Telp/WA: {storeProfile.phone}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+                        LAPORAN
+                      </span>
+                      <h2 className="text-sm font-bold font-mono text-slate-900 mt-1">LAP-HARIAN-{r.reportDate.replace(/-/g, '')}</h2>
+                      <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                        Tanggal: <strong>{formatDate(r.reportDate)}</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Main Report Journal Card (Exact recreation of handwritten sheet) */}
+                  <div className="border border-slate-300 rounded-xl overflow-hidden bg-white text-xs shadow-2xs">
+                    <div className="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between">
+                      <h4 className="font-bold text-xs uppercase tracking-wide text-amber-300">
+                        LAPORAN HARIAN KEUANGAN & OMZET OPERASIONAL
+                      </h4>
+                      <span className="text-[11px] font-mono text-slate-300">
+                        {formatDate(r.reportDate)}
+                      </span>
+                    </div>
+
+                    <div className="p-4 sm:p-6 space-y-4 font-sans text-xs">
+                      {/* STEP 1 & 2: OUTPUT */}
+                      <div className="space-y-2">
+                        {/* 1. Tagihan Per Hari (Nota) */}
+                        <div className="flex items-start justify-between py-2 border-b border-slate-100">
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[11px] font-bold shrink-0">1</span>
+                              <span>TAGIHAN PER HARI (NOTA)</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium pl-6.5">
+                              (TANPA SISA HUTANG & KEMBALIAN / TABUNGAN)
+                            </div>
+                          </div>
+                          <div className="font-mono font-bold text-slate-900 text-sm sm:text-base text-right">
+                            {formatCurrency(r.tagihanPerHari)}
+                          </div>
+                        </div>
+
+                        {/* 2. Stok Opname Per Hari */}
+                        <div className="flex items-start justify-between py-2">
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[11px] font-bold shrink-0">2</span>
+                              <span>STOK OPNAME PER HARI</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium pl-6.5">
+                              (Aset Fisik Stok Akhir Hari Ini)
+                            </div>
+                          </div>
+                          <div className="font-mono font-bold text-slate-900 text-sm sm:text-base text-right">
+                            {formatCurrency(r.stokOpnameHariIni)}
+                          </div>
+                        </div>
+
+                        {/* TOTAL (1 + 2) (+) */}
+                        <div className="border-t-2 border-slate-400 pt-2 flex items-center justify-between bg-amber-50/70 p-3 rounded-lg border border-amber-200">
+                          <div className="flex items-center gap-2 font-bold text-slate-900 text-xs sm:text-sm">
+                            <span className="text-amber-800 uppercase tracking-wide">(TOTAL)</span>
+                            <span className="text-xs text-slate-500 font-normal">① + ②</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-extrabold text-slate-900 text-sm sm:text-base">
+                              {formatCurrency(r.totalOutput)}
+                            </span>
+                            <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                              (+)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* STEP 3, 4, 5: INPUTS & OPERASIONAL */}
+                      <div className="space-y-2 pt-2">
+                        {/* 3. Stok Opname Kemarin */}
+                        <div className="flex items-start justify-between py-2 border-b border-slate-100">
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-full bg-slate-700 text-white flex items-center justify-center text-[11px] font-bold shrink-0">3</span>
+                              <span>STOK OPNAME KEMARIN</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium pl-6.5">
+                              (Aset Fisik Stok Awal H-1 Kemarin)
+                            </div>
+                          </div>
+                          <div className="font-mono font-bold text-slate-800 text-sm sm:text-base text-right">
+                            {formatCurrency(r.stokOpnameKemarin)}
+                          </div>
+                        </div>
+
+                        {/* 4. Operasional Per Hari */}
+                        <div className="flex items-start justify-between py-2 border-b border-slate-100">
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-full bg-slate-700 text-white flex items-center justify-center text-[11px] font-bold shrink-0">4</span>
+                              <span>OPERASIONAL PER HARI</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium pl-6.5">
+                              (Biaya Operasional + Gaji / Upah Hari Ini)
+                            </div>
+                          </div>
+                          <div className="font-mono font-bold text-slate-800 text-sm sm:text-base text-right">
+                            {formatCurrency(r.operasionalPerHari)}
+                          </div>
+                        </div>
+
+                        {/* 5. Modal Suplaier */}
+                        <div className="flex items-start justify-between py-2">
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-full bg-slate-700 text-white flex items-center justify-center text-[11px] font-bold shrink-0">5</span>
+                              <span>MODAL SUPLAIER</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium pl-6.5">
+                              (Pembelian Ayam / Bahan Masuk dari Supplier)
+                            </div>
+                          </div>
+                          <div className="font-mono font-bold text-slate-800 text-sm sm:text-base text-right">
+                            {formatCurrency(r.modalSuplaier)}
+                          </div>
+                        </div>
+
+                        {/* HASIL LAPORAN HARIAN / OMZET BERSIH (-) */}
+                        <div className="border-t-2 border-slate-400 pt-2 flex items-center justify-between bg-blue-50/80 p-3 rounded-lg border border-blue-200">
+                          <div>
+                            <div className="font-bold text-blue-950 text-xs sm:text-sm uppercase tracking-wide">
+                              (HASIL LAPORAN HARIAN / OMZET BERSIH)
+                            </div>
+                            <div className="text-[10px] text-blue-800">
+                              (TOTAL) - ③ Stok Kemarin - ④ Operasional - ⑤ Modal Suplaier
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-extrabold text-blue-950 text-base sm:text-lg">
+                              {formatCurrency(r.hasilLaporanHarian)}
+                            </span>
+                            <span className="text-xs font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-full border border-rose-300">
+                              (-)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* STEP 6: SISA HUTANG COSTUMER */}
+                      <div className="space-y-2 pt-2">
+                        {/* 6. Sisa Hutang Costumer */}
+                        <div className="flex items-start justify-between py-2">
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[11px] font-bold shrink-0">6</span>
+                              <span>SISA HUTANG COSTUMER</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium pl-6.5">
+                              (Piutang / Sisa Tagihan Pelanggan Belum Bayar)
+                            </div>
+                          </div>
+                          <div className="font-mono font-bold text-slate-900 text-sm sm:text-base text-right">
+                            {formatCurrency(r.sisaHutangCostumer)}
+                          </div>
+                        </div>
+
+                        {/* TOTAL (Hasil + Hutang) (+) */}
+                        <div className="border-t-2 border-slate-400 pt-2 flex items-center justify-between bg-amber-50/70 p-3 rounded-lg border border-amber-200">
+                          <div className="flex items-center gap-2 font-bold text-slate-900 text-xs sm:text-sm">
+                            <span className="text-amber-800 uppercase tracking-wide">(TOTAL)</span>
+                            <span className="text-xs text-slate-500 font-normal">Hasil Omzet Bersih + ⑥ Sisa Hutang</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-extrabold text-slate-900 text-sm sm:text-base">
+                              {formatCurrency(r.totalSetelahHutang)}
+                            </span>
+                            <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                              (+)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* STEP 7: KEMBALIAN / TABUNGAN COSTUMER */}
+                      <div className="space-y-2 pt-2">
+                        {/* 7. Kembalian / Tabungan Costumer */}
+                        <div className="flex items-start justify-between py-2">
+                          <div>
+                            <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-full bg-slate-700 text-white flex items-center justify-center text-[11px] font-bold shrink-0">7</span>
+                              <span>KEMBALIAN / TABUNGAN COSTUMER</span>
+                              <span className="text-[10px] font-bold text-rose-700 bg-rose-100 px-1.5 py-0.2 rounded border border-rose-300">(-)</span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium pl-6.5">
+                              (Deposit / Tabungan Pelanggan & Kelebihan Bayar)
+                            </div>
+                          </div>
+                          <div className="font-mono font-bold text-slate-800 text-sm sm:text-base text-right">
+                            {formatCurrency(r.kembalianTabunganCostumer)}
+                          </div>
+                        </div>
+
+                        {/* FINAL RESULT: (TOTAL KEUANGAN) ✓ */}
+                        <div className="border-t-4 border-emerald-600 pt-3 flex items-center justify-between bg-emerald-950 text-white p-4 sm:p-5 rounded-xl shadow-md">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-white text-base sm:text-lg uppercase tracking-wider">
+                                (TOTAL KEUANGAN)
+                              </span>
+                              <span className="w-6 h-6 rounded-full bg-emerald-500 text-emerald-950 font-black flex items-center justify-center text-sm shadow-xs">
+                                ✓
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-emerald-200 mt-0.5">
+                              (TOTAL) - ⑦ Kembalian / Tabungan Costumer
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono font-black text-amber-300 text-xl sm:text-2xl drop-shadow-xs">
+                              {formatCurrency(r.totalKeuangan)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Thermal Receipt format for Daily Financial Report */
+                <div className="text-center space-y-2 text-[10px]">
+                  <div className="flex justify-center mb-1">
+                    <img src={storeProfile.logoUrl || '/logo_unggas.svg'} alt="Logo" className="w-10 h-10 object-contain" />
+                  </div>
+                  <div className="font-bold text-sm tracking-tight">{storeProfile.name}</div>
+                  <div className="text-[10px] leading-tight text-slate-700">{storeProfile.address}</div>
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  <div className="font-bold uppercase tracking-wider text-[11px] text-slate-900">LAPORAN KEUANGAN HARIAN</div>
+                  <div className="text-slate-500">{formatDate(r.reportDate)}</div>
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  <div className="text-left space-y-1">
+                    <div className="flex justify-between">
+                      <span>1. TAGIHAN PER HARI (NOTA):</span>
+                      <span className="font-mono font-bold">{formatCurrency(r.tagihanPerHari)}</span>
+                    </div>
+                    <div className="text-[9px] text-slate-500">(Tanpa Sisa Hutang & Tabungan)</div>
+
+                    <div className="flex justify-between pt-1">
+                      <span>2. STOK OPNAME PER HARI:</span>
+                      <span className="font-mono font-bold">{formatCurrency(r.stokOpnameHariIni)}</span>
+                    </div>
+
+                    <div className="border-b border-dashed border-slate-300 my-1"></div>
+                    <div className="flex justify-between font-bold text-slate-900">
+                      <span>(TOTAL) (+):</span>
+                      <span className="font-mono">{formatCurrency(r.totalOutput)}</span>
+                    </div>
+
+                    <div className="border-b border-dashed border-slate-300 my-1"></div>
+                    <div className="flex justify-between">
+                      <span>3. STOK OPNAME KEMARIN:</span>
+                      <span className="font-mono font-bold">{formatCurrency(r.stokOpnameKemarin)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>4. OPERASIONAL PER HARI:</span>
+                      <span className="font-mono font-bold">{formatCurrency(r.operasionalPerHari)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>5. MODAL SUPLAIER:</span>
+                      <span className="font-mono font-bold">{formatCurrency(r.modalSuplaier)}</span>
+                    </div>
+
+                    <div className="border-b border-dashed border-slate-300 my-1"></div>
+                    <div className="flex justify-between font-bold text-blue-900">
+                      <span>(HASIL OMZET BERSIH) (-):</span>
+                      <span className="font-mono">{formatCurrency(r.hasilLaporanHarian)}</span>
+                    </div>
+
+                    <div className="border-b border-dashed border-slate-300 my-1"></div>
+                    <div className="flex justify-between">
+                      <span>6. SISA HUTANG COSTUMER:</span>
+                      <span className="font-mono font-bold">{formatCurrency(r.sisaHutangCostumer)}</span>
+                    </div>
+
+                    <div className="border-b border-dashed border-slate-300 my-1"></div>
+                    <div className="flex justify-between font-bold text-slate-900">
+                      <span>(TOTAL) (+):</span>
+                      <span className="font-mono">{formatCurrency(r.totalSetelahHutang)}</span>
+                    </div>
+
+                    <div className="border-b border-dashed border-slate-300 my-1"></div>
+                    <div className="flex justify-between">
+                      <span>7. KEMBALIAN/TABUNGAN (-):</span>
+                      <span className="font-mono font-bold">{formatCurrency(r.kembalianTabunganCostumer)}</span>
+                    </div>
+
+                    <div className="border-b-2 border-slate-900 my-1.5"></div>
+                    <div className="flex justify-between font-extrabold text-xs text-slate-950 pt-0.5">
+                      <span>(TOTAL KEUANGAN) ✓:</span>
+                      <span className="font-mono">{formatCurrency(r.totalKeuangan)}</span>
+                    </div>
+                  </div>
+
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+                  <div className="text-[10px] italic text-slate-600">Dicetak Otomatis dari Sistem {storeProfile.name}</div>
                 </div>
               );
             })()}

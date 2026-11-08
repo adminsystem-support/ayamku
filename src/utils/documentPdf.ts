@@ -6,7 +6,8 @@ import {
   SalarySlip, 
   StoreProfile,
   CustomerPreOrder,
-  Item
+  Item,
+  DailyFinancialReportData
 } from '../types/index.ts';
 import { 
   formatCurrency, 
@@ -46,6 +47,10 @@ export type DocumentPrintData =
         receiptType?: 'BKM' | 'BKK';
         counterpartyType?: string;
       }
+    }
+  | {
+      type: 'daily_financial_report';
+      data: DailyFinancialReportData;
     };
 
 /**
@@ -141,6 +146,32 @@ export function generateWhatsAppMessage(
       `----------------------------------------\n` +
       `*TOTAL KEBUTUHAN ITEM PESANAN:*\n` +
       `${summaryItems}\n` +
+      `----------------------------------------\n` +
+      `_${store.name}_`
+    );
+  }
+
+  if (data.type === 'daily_financial_report') {
+    const r = data.data;
+    return (
+      `*LAPORAN KEUANGAN HARIAN - ${storeName}*\n` +
+      `Tanggal: ${formatDate(r.reportDate)}\n` +
+      `----------------------------------------\n` +
+      `① Tagihan Per Hari (Nota)    : ${formatCurrency(r.tagihanPerHari)}\n` +
+      `② Stok Opname Per Hari       : ${formatCurrency(r.stokOpnameHariIni)}\n` +
+      `   --------------------------- (+)\n` +
+      `   *TOTAL*                    : ${formatCurrency(r.totalOutput)}\n\n` +
+      `③ Stok Opname Kemarin        : ${formatCurrency(r.stokOpnameKemarin)}\n` +
+      `④ Operasional Per Hari       : ${formatCurrency(r.operasionalPerHari)}\n` +
+      `⑤ Modal Suplaier             : ${formatCurrency(r.modalSuplaier)}\n` +
+      `   --------------------------- (-)\n` +
+      `   *HASIL OMZET BERSIH*       : ${formatCurrency(r.hasilLaporanHarian)}\n\n` +
+      `⑥ Sisa Hutang Costumer       : ${formatCurrency(r.sisaHutangCostumer)}\n` +
+      `   --------------------------- (+)\n` +
+      `   *TOTAL*                    : ${formatCurrency(r.totalSetelahHutang)}\n\n` +
+      `⑦ Kembalian/Tabungan Costumer: ${formatCurrency(r.kembalianTabunganCostumer)}\n` +
+      `   --------------------------- (-)\n` +
+      `*TOTAL KEUANGAN: ${formatCurrency(r.totalKeuangan)}* ✓\n` +
       `----------------------------------------\n` +
       `_${store.name}_`
     );
@@ -948,7 +979,7 @@ export function createDocumentPdf(
     doc.text(store.name, 14, 20);
     doc.setFontSize(12);
     doc.setTextColor(217, 119, 6);
-    doc.text('PRE-ORDER PELANGGAN', 196, 20, { align: 'right' });
+    doc.text('DOKUMEN PRE-ORDER (PO)', 196, 20, { align: 'right' });
     doc.setFontSize(9);
     doc.setTextColor(100, 116, 139);
     doc.text(`No. PO: ${po.poNumber}`, 196, 26, { align: 'right' });
@@ -961,31 +992,26 @@ export function createDocumentPdf(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.text(`No. WA: ${po.customerPhone || '-'} | Alamat: ${po.customerAddress || '-'}`, 14, 35);
-    doc.text(`Rencana Ambil: ${formatDate(po.pickupDate)} ${po.pickupTime ? `(Jam ${po.pickupTime})` : ''} | Status: ${po.status}`, 14, 40);
 
     const tableRows = po.items.map((item, idx) => [
       idx + 1,
       item.itemName,
-      `${formatNumber(item.quantity)} ${item.unit}`,
-      item.notes || '-'
+      `${formatNumber(item.quantity)} ${item.unit}`
     ]);
 
     autoTable(doc, {
-      startY: 45,
-      head: [['No', 'Nama Item', 'Jumlah / Qty', 'Catatan Item']],
+      startY: 40,
+      head: [['No', 'Nama Barang / Potongan Ayam', 'Jumlah Pesanan']],
       body: tableRows,
       theme: 'grid',
       headStyles: { fillColor: [245, 158, 11], textColor: [255, 255, 255] },
+      columnStyles: {
+        0: { cellWidth: 15, halign: 'center' },
+        1: { cellWidth: 'auto', halign: 'left' },
+        2: { cellWidth: 45, halign: 'center' }
+      },
       margin: { left: 14, right: 14 }
     });
-
-    const finalY = (doc as any).lastAutoTable?.finalY || 100;
-    if (po.notes) {
-      doc.setFont('helvetica', 'italic');
-      doc.setFontSize(8.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`Catatan PO: ${po.notes}`, 14, finalY + 8);
-    }
 
     return { doc, fileName };
   }
@@ -1055,9 +1081,8 @@ export function createPreOrderMatrixPdf(
   itemDemands: Record<string, number>,
   store: StoreProfile
 ): { doc: jsPDF; fileName: string; summaryText: string } {
-  const isLandscape = items.length > 4;
   const doc = new jsPDF({
-    orientation: isLandscape ? 'landscape' : 'portrait',
+    orientation: 'portrait',
     unit: 'mm',
     format: 'a4'
   });
@@ -1108,7 +1133,7 @@ export function createPreOrderMatrixPdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10.5);
   doc.setTextColor(217, 119, 6); // amber-600
-  doc.text('REKAP PRE-ORDER & KEBUTUHAN POTONG AYAM', pageWidth - 14, 17, { align: 'right' });
+  doc.text('REKAP PRE-ORDER & KEBUTUHAN ITEM', pageWidth - 14, 17, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
@@ -1119,42 +1144,42 @@ export function createPreOrderMatrixPdf(
   doc.setDrawColor(226, 232, 240);
   doc.line(14, 29, pageWidth - 14, 29);
 
-  // Prepare AutoTable data
-  const head = [['Pelanggan', ...items.map(it => it.name)]];
+  // Transposed Table Header: ['No', 'Nama Barang / Potongan Ayam', ...activePreOrders.map(p => p.customerName), 'TOTAL KEBUTUHAN']
+  const head = [['No', 'Nama Barang / Potongan Ayam', ...activePreOrders.map(p => p.customerName), 'TOTAL KEBUTUHAN']];
 
-  // Row 1: STOK ITEM
-  const stockRow = ['STOK ITEM', ...items.map(it => `${formatNumber(it.currentStock)} ${it.unit}`)];
+  // Transposed Table Body: Rows = Items
+  const itemRows = items.map((it, idx) => {
+    const totalItemDemand = activePreOrders.reduce((sum, po) => {
+      const pi = po.items.find((i: any) => i.itemId === it.id || i.itemName?.toLowerCase() === it.name?.toLowerCase());
+      return sum + (pi ? Number(pi.quantity) || 0 : 0);
+    }, 0);
 
-  // Rows 2..N: Customer Orders
-  const customerRows = activePreOrders.map(po => {
     return [
-      po.customerName,
-      ...items.map(it => {
+      idx + 1,
+      it.name,
+      ...activePreOrders.map(po => {
         const pi = po.items.find((i: any) => i.itemId === it.id || i.itemName?.toLowerCase() === it.name?.toLowerCase());
         return pi && pi.quantity > 0 ? `${formatNumber(pi.quantity)} ${it.unit}` : '-';
-      })
+      }),
+      totalItemDemand > 0 ? `${formatNumber(totalItemDemand)} ${it.unit}` : '0'
     ];
   });
 
-  // Footer Row 1: TOTAL PESANAN
-  const totalDemandRow = ['TOTAL PESANAN', ...items.map(it => `${formatNumber(itemDemands[it.id] || 0)} ${it.unit}`)];
-
-  // Footer Row 2: STOK AKHIR
-  const stokAkhirRow = [
-    'STOK AKHIR',
-    ...items.map(it => {
-      const demand = itemDemands[it.id] || 0;
-      const finalStock = it.currentStock - demand;
-      const status = finalStock >= 0 ? 'Cukup' : 'Kurang';
-      return `${formatNumber(finalStock)} ${it.unit}\n${status}`;
-    })
+  const totalDemandRow = [
+    '',
+    'TOTAL PESANAN PER PELANGGAN',
+    ...activePreOrders.map(po => {
+      const totalCustQty = po.items.reduce((sum: number, i: any) => sum + (Number(i.quantity) || 0), 0);
+      return totalCustQty > 0 ? `${formatNumber(totalCustQty)} Item` : '0';
+    }),
+    `${formatNumber(activePreOrders.reduce((sum, po) => sum + po.items.reduce((isum: number, i: any) => isum + (Number(i.quantity) || 0), 0), 0))} Total Qty`
   ];
 
   autoTable(doc, {
     startY: 33,
     head: head,
-    body: [stockRow, ...customerRows],
-    foot: [totalDemandRow, stokAkhirRow],
+    body: itemRows,
+    foot: [totalDemandRow],
     theme: 'grid',
     tableLineWidth: 0.25,
     tableLineColor: [71, 85, 105],
@@ -1184,61 +1209,8 @@ export function createPreOrderMatrixPdf(
       lineColor: [71, 85, 105],
     },
     columnStyles: {
-      0: { halign: 'left', fontStyle: 'bold' }
-    },
-    didParseCell: (data) => {
-      // Pastikan border antar sel di foot dan body terarsir jelas
-      if (data.section === 'foot' || (data.section === 'body' && data.row.index === 0)) {
-        data.cell.styles.lineWidth = 0.25;
-        data.cell.styles.lineColor = [71, 85, 105];
-      }
-
-      // STOK ITEM (row 0 di body): disamakan posisi tengah dan warnanya dengan TOTAL PESANAN & STOK AKHIR
-      if (data.row.index === 0 && data.section === 'body') {
-        data.cell.styles.fillColor = [30, 41, 59];
-        data.cell.styles.fontStyle = 'bold';
-        data.cell.styles.textColor = [253, 230, 138];
-        data.cell.styles.halign = 'center';
-      }
-
-      // Footer Row 0: TOTAL PESANAN
-      if (data.section === 'foot' && data.row.index === 0) {
-        data.cell.styles.fillColor = [30, 41, 59];
-        data.cell.styles.textColor = [253, 230, 138];
-        data.cell.styles.halign = 'center';
-        data.cell.styles.fontStyle = 'bold';
-      }
-
-      // Footer Row 1: STOK AKHIR (hijau untuk cukup, merah untuk kurang, persis tampilan di registrasi PO)
-      if (data.section === 'foot' && data.row.index === 1) {
-        if (data.column.index === 0) {
-          data.cell.styles.fillColor = [30, 41, 59];
-          data.cell.styles.textColor = [253, 230, 138];
-          data.cell.styles.halign = 'center';
-          data.cell.styles.fontStyle = 'bold';
-        } else {
-          const it = items[data.column.index - 1];
-          if (it) {
-            const demand = itemDemands[it.id] || 0;
-            const finalStock = it.currentStock - demand;
-            data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.halign = 'center';
-            if (finalStock < 0) {
-              // Merah: Kurang
-              data.cell.styles.fillColor = [76, 5, 25]; // Dark Rose
-              data.cell.styles.textColor = [254, 202, 202]; // Rose text
-              data.cell.styles.lineColor = [225, 29, 72]; // Rose border
-              data.cell.styles.lineWidth = 0.35;
-            } else {
-              // Ijo: Cukup
-              data.cell.styles.fillColor = [6, 78, 59]; // Dark Emerald
-              data.cell.styles.textColor = [167, 243, 208]; // Emerald text
-              data.cell.styles.lineColor = [16, 185, 129]; // Emerald border
-              data.cell.styles.lineWidth = 0.35;
-            }
-          }
-        }
-      }
+      0: { cellWidth: 10, halign: 'center' },
+      1: { halign: 'left', fontStyle: 'bold' }
     },
     margin: { left: 14, right: 14 }
   });
@@ -1246,9 +1218,7 @@ export function createPreOrderMatrixPdf(
   // Text summary for WhatsApp
   const itemStatusText = items.map(it => {
     const demand = itemDemands[it.id] || 0;
-    const finalStock = it.currentStock - demand;
-    const status = finalStock >= 0 ? `✓ Cukup (+${formatNumber(finalStock)} ${it.unit})` : `⚠ Kurang ${formatNumber(Math.abs(finalStock))} ${it.unit} (Perlu Dipotong)`;
-    return `• *${it.name}*: Pesanan: ${formatNumber(demand)} ${it.unit} | Stok: ${formatNumber(it.currentStock)} ${it.unit} -> ${status}`;
+    return `• *${it.name}*: Total Pesanan: ${formatNumber(demand)} ${it.unit}`;
   }).join('\n');
 
   const customerListText = activePreOrders.map((po, idx) => {
@@ -1257,11 +1227,11 @@ export function createPreOrderMatrixPdf(
   }).join('\n');
 
   const summaryText = 
-    `*REKAP PRE-ORDER & KEBUTUHAN POTONG AYAM - ${store.name.toUpperCase()}*\n` +
+    `*REKAP PRE-ORDER & KEBUTUHAN ITEM - ${store.name.toUpperCase()}*\n` +
     `Waktu: ${formatDateTime(new Date().toISOString())}\n` +
     `Total Pesanan Masuk: ${activePreOrders.length} Pelanggan\n` +
     `----------------------------------------\n` +
-    `*STATUS KEBUTUHAN & KECUKUPAN STOK:* \n` +
+    `*TOTAL KEBUTUHAN ITEM PESANAN:* \n` +
     `${itemStatusText}\n` +
     `----------------------------------------\n` +
     `*RINCIAN PESANAN PELANGGAN:*\n` +

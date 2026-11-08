@@ -44,20 +44,28 @@ export const SESSION_WARNING_MS = 28 * 60 * 1000; // 28 Menit Peringatan (2 meni
 
 export const DEFAULT_USERS: AuthUser[] = [
   {
+    id: 'user-owner',
+    username: 'owner',
+    name: 'H. Suryanto (Owner)',
+    role: 'owner',
+    roleLabel: 'Owner (Full Hak Akses)',
+    password: 'owner',
+  },
+  {
     id: 'user-admin',
     username: 'admin',
-    name: 'H. Suryanto (Owner/Admin)',
+    name: 'Budi Santoso (Admin Operasional)',
     role: 'admin',
-    roleLabel: 'Administrator Usaha',
+    roleLabel: 'Admin (Kecuali Laporan & Pengaturan)',
     password: 'admin',
   },
   {
-    id: 'user-operator',
-    username: 'user',
-    name: 'Siti Rohimah (Kasir & Petugas Gudang)',
-    role: 'user',
-    roleLabel: 'User Operasional (Kasir / Gudang)',
-    password: 'user',
+    id: 'user-kasir',
+    username: 'kasir',
+    name: 'Siti Rohimah (Kasir)',
+    role: 'kasir',
+    roleLabel: 'Kasir Operasional',
+    password: 'kasir',
   },
 ];
 
@@ -748,7 +756,31 @@ export const StorageManager = {
     try {
       const parsed = JSON.parse(data);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        let updated = [...parsed];
+        let hasChanges = false;
+
+        const hasOwner = updated.some(u => u.role === 'owner' || u.username.toLowerCase() === 'owner');
+        if (!hasOwner) {
+          updated = [DEFAULT_USERS[0], ...updated];
+          hasChanges = true;
+        }
+
+        const hasAdmin = updated.some(u => u.role === 'admin' || u.username.toLowerCase() === 'admin');
+        if (!hasAdmin) {
+          updated.push(DEFAULT_USERS[1]);
+          hasChanges = true;
+        }
+
+        const hasKasir = updated.some(u => u.role === 'kasir' || u.username.toLowerCase() === 'kasir');
+        if (!hasKasir) {
+          updated.push(DEFAULT_USERS[2]);
+          hasChanges = true;
+        }
+
+        if (hasChanges) {
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
+        }
+        return updated;
       }
       return DEFAULT_USERS;
     } catch {

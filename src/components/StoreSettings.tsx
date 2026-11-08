@@ -3,7 +3,6 @@ import {
   Settings, 
   Store, 
   Printer, 
-  Download, 
   Upload, 
   RotateCcw, 
   CheckCircle2, 
@@ -20,10 +19,7 @@ import {
   Pencil,
   X,
   Lock,
-  ShieldAlert,
-  Database,
-  Server,
-  RefreshCw
+  ShieldAlert
 } from 'lucide-react';
 import { StoreProfile, AuthUser, UserRole } from '../types/index.ts';
 import { StorageManager } from '../utils/storage.ts';
@@ -33,14 +29,16 @@ interface StoreSettingsProps {
   storeProfile: StoreProfile;
   onUpdateStoreProfile: (profile: StoreProfile) => void;
   onResetData: () => void;
+  onSyncToCloud?: () => void;
+  isSyncingCloud?: boolean;
 }
-
-
 
 export const StoreSettings: React.FC<StoreSettingsProps> = ({
   storeProfile,
   onUpdateStoreProfile,
   onResetData,
+  onSyncToCloud,
+  isSyncingCloud,
 }) => {
   const [name, setName] = useState(storeProfile.name);
   const [phone, setPhone] = useState(storeProfile.phone);
@@ -82,14 +80,14 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
 
   const [formName, setFormName] = useState('');
   const [formUsername, setFormUsername] = useState('');
-  const [formRole, setFormRole] = useState<UserRole>('user');
+  const [formRole, setFormRole] = useState<UserRole>('kasir');
   const [formPin, setFormPin] = useState('');
 
   const handleOpenAddUser = () => {
     setEditingUser(null);
     setFormName('');
     setFormUsername('');
-    setFormRole('user');
+    setFormRole('kasir');
     setFormPin('');
     setIsUserModalOpen(true);
   };
@@ -107,9 +105,11 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
     e.preventDefault();
     if (!formName.trim() || !formUsername.trim()) return;
 
-    const roleLabel = formRole === 'admin' 
-      ? 'Administrator Usaha (Full Akses)' 
-      : 'User Operasional (Kasir / Gudang)';
+    const roleLabel = formRole === 'owner'
+      ? 'Owner (Full Hak Akses)'
+      : formRole === 'admin'
+      ? 'Admin (Kecuali Laporan & Pengaturan)'
+      : 'Kasir Operasional';
 
     let savedUser: AuthUser;
     if (editingUser) {
@@ -484,14 +484,15 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
               {users.map((u) => {
-                const isOwnerAccount = u.username.toLowerCase() === 'admin' || u.id === 'user-admin';
-                const isAdminRole = u.role === 'admin';
+                const isOwnerAccount = u.role === 'owner' || u.username.toLowerCase() === 'owner';
+                const isAdminRole = !isOwnerAccount && u.role === 'admin';
+
                 return (
                   <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-2">
                         <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold ${
-                          isOwnerAccount ? 'bg-amber-600' : isAdminRole ? 'bg-amber-500' : 'bg-slate-700'
+                          isOwnerAccount ? 'bg-amber-600' : isAdminRole ? 'bg-sky-600' : 'bg-slate-700'
                         }`}>
                           {u.name.charAt(0).toUpperCase()}
                         </div>
@@ -500,7 +501,7 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
                             <span>{u.name}</span>
                             {isOwnerAccount && (
                               <span className="px-1.5 py-0.2 bg-amber-500 text-white rounded text-[9px] font-extrabold uppercase shadow-2xs">
-                                Owner Utama
+                                Owner
                               </span>
                             )}
                           </div>
@@ -516,20 +517,20 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
                         isOwnerAccount
                           ? 'bg-amber-100 text-amber-950 border border-amber-400'
                           : isAdminRole 
-                          ? 'bg-amber-100 text-amber-900 border border-amber-300' 
+                          ? 'bg-sky-100 text-sky-900 border border-sky-300' 
                           : 'bg-slate-100 text-slate-800 border border-slate-300'
                       }`}>
-                        {isAdminRole ? <ShieldCheck className="w-3 h-3 text-amber-600" /> : <UserCheck className="w-3 h-3 text-slate-600" />}
-                        <span>{isOwnerAccount ? 'ADMIN (OWNER UTAMA)' : isAdminRole ? 'ADMIN' : 'USER (KASIR)'}</span>
+                        {isOwnerAccount ? <ShieldCheck className="w-3 h-3 text-amber-600" /> : isAdminRole ? <ShieldCheck className="w-3 h-3 text-sky-600" /> : <UserCheck className="w-3 h-3 text-slate-600" />}
+                        <span>{isOwnerAccount ? 'OWNER (FULL AKSES)' : isAdminRole ? 'ADMIN' : 'KASIR'}</span>
                       </span>
                     </td>
                     <td className="py-3 px-3 text-[11px]">
                       {isOwnerAccount ? (
-                        <span className="text-emerald-700 font-bold">✓ Full Akses Pengaturan Toko, Gaji, Laporan & User</span>
+                        <span className="text-emerald-700 font-bold">✓ Full Hak Akses Semua Modul (Termasuk Laporan & Pengaturan)</span>
                       ) : isAdminRole ? (
-                        <span className="text-amber-800 font-semibold">✓ Akses Gaji, Operasional & Laporan (Tanpa Pengaturan)</span>
+                        <span className="text-sky-800 font-semibold">✓ Semua Akses Dibuka KECUALI Laporan & Pengaturan</span>
                       ) : (
-                        <span className="text-slate-600">✓ Kasir POS, Pembelian Stok, Data Ayam & Opname</span>
+                        <span className="text-slate-600">✓ Kasir POS, Item, Stok Opname, Kontak</span>
                       )}
                     </td>
                     <td className="py-3 px-3 font-mono text-[11px] text-slate-600">
@@ -556,7 +557,7 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
                           type="button"
                           disabled
                           className="p-1.5 text-slate-300 cursor-not-allowed opacity-50"
-                          title="Akun Admin (Owner Utama) tidak dapat dihapus"
+                          title="Akun Owner Utama tidak dapat dihapus"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -584,39 +585,62 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
             <ShieldAlert className="w-4 h-4 text-amber-600" />
             <span>Matriks Rincian Hak Akses Sistem:</span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px] pt-1">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[11px] pt-1">
+            {/* 1. OWNER */}
             <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-lg space-y-1">
               <span className="font-bold text-amber-900 flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-                <span>HAK AKSES ROLE ADMIN (OWNER UTAMA):</span>
+                <span>OWNER (FULL AKSES):</span>
               </span>
               <ul className="list-disc list-inside text-slate-700 space-y-0.5 pl-1">
-                <li>Dapat mengakses <strong>seluruh modul sistem termasuk Pengaturan Toko & User</strong>.</li>
-                <li>Dapat mengelola master data produk, HPP, dan harga jual.</li>
-                <li>Dapat mengisi, menghitung, dan mencetak <strong>Absensi & Slip Gaji Mingguan</strong> karyawan.</li>
-                <li>Dapat melihat <strong>Laporan Keuangan Bulanan, Laba/Rugi, & Kas Operasional</strong>.</li>
-                <li>Dapat mengelola <strong>Profil Usaha, Logo Cetak, Backup, dan Akun Pengguna</strong>.</li>
+                <li>Full hak akses ke <strong>seluruh fitur & modul sistem</strong>.</li>
+                <li>Akses eksklusif melihat & mencetak <strong>Laporan Keuangan & Hasil Omzet</strong>.</li>
+                <li>Akses eksklusif menu <strong>Pengaturan Toko & Manajemen Akun User</strong>.</li>
               </ul>
             </div>
 
-            <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-1">
-              <span className="font-bold text-slate-900 flex items-center gap-1">
-                <UserCheck className="w-3.5 h-3.5 text-slate-600" />
-                <span>HAK AKSES ROLE ADMIN NON-OWNER & KASIR:</span>
+            {/* 2. ADMIN */}
+            <div className="p-3 bg-sky-50/80 border border-sky-200 rounded-lg space-y-1">
+              <span className="font-bold text-sky-900 flex items-center gap-1">
+                <UserCheck className="w-3.5 h-3.5 text-sky-600" />
+                <span>ADMIN:</span>
               </span>
               <ul className="list-disc list-inside text-slate-700 space-y-0.5 pl-1">
-                <li>Admin non-owner dapat mengakses Laporan & Operasional (Tetapi <strong>Dilarang Masuk Pengaturan Toko</strong>).</li>
-                <li>User / Kasir bertransaksi di <strong>Kasir POS & Cetak Nota</strong>.</li>
-                <li>User / Kasir mencatat Pembelian Barang & Stok Opname Timbangan.</li>
-                <li className="text-slate-500 italic">
-                  Menu Pengaturan Toko khusus dikunci untuk Owner Utama.
-                </li>
+                <li>Dapat mengakses <strong>semua modul operasional</strong> (Kasir POS, Stok Opname, Item, Kontak, Operasional Harian, Absensi & Gaji Karyawan).</li>
+                <li><strong className="text-rose-600">Dilarang</strong> membuka <strong>Laporan Keuangan</strong>.</li>
+                <li><strong className="text-rose-600">Dilarang</strong> membuka <strong>Pengaturan Toko & User</strong>.</li>
+              </ul>
+            </div>
+
+            {/* 3. KASIR */}
+            <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-1">
+              <span className="font-bold text-slate-900 flex items-center gap-1">
+                <Users className="w-3.5 h-3.5 text-slate-600" />
+                <span>KASIR:</span>
+              </span>
+              <ul className="list-disc list-inside text-slate-700 space-y-0.5 pl-1">
+                <li>Transaksi penjualan di <strong>Kasir POS & Cetak Nota</strong>.</li>
+                <li>Melihat master <strong>Item / Stok Barang</strong> & input <strong>Stok Opname</strong> timbangan fisik.</li>
+                <li>Melihat data <strong>Supplier & Pelanggan</strong>.</li>
+                <li className="text-slate-500 italic">Standar operasional kasir harian.</li>
               </ul>
             </div>
           </div>
         </div>
       </div>
 
+      {/* RESET DATA BAWAAN */}
+      <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 border-t border-slate-200">
+        <span>Mereset data akan mengembalikan seluruh transaksi ke data contoh awal:</span>
+        <button
+          type="button"
+          onClick={handleConfirmReset}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-bold rounded-lg transition-colors cursor-pointer w-fit"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span>Reset Data Bawaan</span>
+        </button>
+      </div>
 
       {/* USER ADD/EDIT MODAL */}
       {isUserModalOpen && (
@@ -669,9 +693,9 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
                 <label className="font-semibold text-slate-700 block mb-1">
                   Peran / Hak Akses (Role):
                 </label>
-                {editingUser && (editingUser.username.toLowerCase() === 'admin' || editingUser.id === 'user-admin') ? (
+                {editingUser && (editingUser.role === 'owner' || editingUser.username.toLowerCase() === 'owner' || editingUser.id === 'user-owner') ? (
                   <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg font-bold text-amber-950 flex items-center justify-between">
-                    <span>Admin (Owner Utama)</span>
+                    <span>Owner (Full Hak Akses)</span>
                     <span className="text-[10px] text-amber-800 bg-amber-200 px-2 py-0.5 rounded font-extrabold">Terkunci</span>
                   </div>
                 ) : (
@@ -680,8 +704,9 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
                     onChange={(e) => setFormRole(e.target.value as UserRole)}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
                   >
-                    <option value="user">User / Kasir Operasional (Kasir POS, Pembelian, Stok & Opname)</option>
-                    <option value="admin">Admin (Akses Gaji & Laporan)</option>
+                    <option value="owner">Owner (Full Hak Akses Semua Modul)</option>
+                    <option value="admin">Admin (Semua Akses kecuali Laporan & Pengaturan)</option>
+                    <option value="kasir">Kasir (Kasir POS, Item, Stok Opname, Kontak)</option>
                   </select>
                 )}
               </div>

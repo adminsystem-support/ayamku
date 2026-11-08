@@ -47,8 +47,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
 }) => {
-  const isAdmin = currentUser.role === 'admin';
-  const isOwner = currentUser.role === 'admin' && (currentUser.username.toLowerCase() === 'admin' || currentUser.id === 'user-admin');
+  const isOwner = currentUser.role === 'owner' || currentUser.username.toLowerCase() === 'owner';
+  const isAdmin = isOwner || currentUser.role === 'admin';
 
   const menuItems: { 
     id: ActiveTab; 
@@ -68,7 +68,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     { id: 'kontak', label: 'Supplier & Pelanggan', icon: Users },
     { id: 'operasional', label: 'Operasional', icon: Calculator, adminOnly: true },
-    { id: 'laporan', label: 'Laporan', icon: BarChart3, adminOnly: true },
+    { id: 'absensi_gaji', label: 'Absensi & Gaji', icon: CalendarCheck, adminOnly: true },
+    { id: 'laporan', label: 'Laporan', icon: BarChart3, ownerOnly: true },
     { id: 'pengaturan', label: 'Pengaturan', icon: Settings, ownerOnly: true },
   ];
 
@@ -133,9 +134,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {currentUser.name}
                   </span>
                   <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded-sm inline-block ${
-                    isOwner ? 'bg-amber-500/20 text-amber-300 font-bold' : isAdmin ? 'bg-amber-500/10 text-amber-200' : 'bg-slate-700 text-slate-300'
+                    isOwner ? 'bg-amber-500/20 text-amber-300 font-bold' : isAdmin ? 'bg-sky-500/20 text-sky-200 font-bold' : 'bg-slate-700 text-slate-300'
                   }`}>
-                    {isOwner ? 'Admin (Owner Utama)' : isAdmin ? 'Admin' : 'User Operasional'}
+                    {isOwner ? 'Owner (Full Akses)' : isAdmin ? 'Admin' : 'Kasir'}
                   </span>
                 </div>
               </div>

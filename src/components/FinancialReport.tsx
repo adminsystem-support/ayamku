@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -17,7 +17,7 @@ import {
   Clock,
   ArrowUpRight,
   ArrowDownLeft,
-  ArrowLeft,
+  ArrowRight,
   ChevronRight,
   ChevronDown,
   ChevronUp,
@@ -30,7 +30,12 @@ import {
   FileText,
   MessageCircle,
   Send,
-  X
+  X,
+  RotateCcw,
+  Edit3,
+  Check,
+  Package,
+  Layers
 } from 'lucide-react';
 import { 
   SaleTransaction, 
@@ -46,7 +51,10 @@ import {
   DebtPayment,
   Customer,
   Supplier,
-  EmployeeKasbonRecord
+  Item,
+  StockOpnameRecord,
+  EmployeeKasbonRecord,
+  DailyFinancialReportData
 } from '../types/index.ts';
 import { 
   formatCurrency, 
@@ -56,7 +64,7 @@ import {
   getMonthYearKey, 
   generateInvoiceCode, 
   formatPhoneNumberForWhatsApp,
-  generateWhatsAppDebtReminderMessage
+  getTodayDateString
 } from '../utils/formatters.ts';
 
 interface FinancialReportProps {
@@ -64,12 +72,14 @@ interface FinancialReportProps {
   purchases: PurchaseTransaction[];
   customers?: Customer[];
   suppliers?: Supplier[];
-  salarySlips: SalarySlip[];
-  attendanceRecords: AttendanceRecord[];
-  expenses: OperationalExpense[];
+  items?: Item[];
+  opnameRecords?: StockOpnameRecord[];
+  salarySlips?: SalarySlip[];
+  attendanceRecords?: AttendanceRecord[];
+  expenses?: OperationalExpense[];
   operationalTransactions?: OperationalTransaction[];
   kasbonRecords?: EmployeeKasbonRecord[];
-  onAddExpense: (expense: OperationalExpense) => void;
+  onAddExpense?: (expense: OperationalExpense) => void;
   onPayPurchaseDebt?: (purchaseId: string, payment: DebtPayment) => void;
   onPayCustomerDebt?: (saleId: string, payment: DebtPayment) => void;
   onPrintDocument?: (printData: any) => void;
@@ -83,9 +93,11 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   purchases,
   customers = [],
   suppliers = [],
-  salarySlips,
-  attendanceRecords,
-  expenses,
+  items = [],
+  opnameRecords = [],
+  salarySlips = [],
+  attendanceRecords = [],
+  expenses = [],
   operationalTransactions = [],
   kasbonRecords = [],
   onAddExpense,
@@ -96,1759 +108,1473 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
   storeProfile,
   userRole,
 }) => {
-  // Report View Sub-tab
-  const [activeReportTab, setActiveReportTab] = useState<'laba_rugi' | 'hutang_piutang'>('laba_rugi');
+  // Main Sub-Tab: 'laporan_harian' (default exact recreation) | 'hutang_piutang'
+  const [activeSubTab, setActiveSubTab] = useState<'laporan_harian' | 'hutang_piutang'>('laporan_harian');
 
-  // Period Filter: 'harian' | 'mingguan' | 'bulanan'
-  const [filterPeriodType, setFilterPeriodType] = useState<'harian' | 'mingguan' | 'bulanan'>('bulanan');
-
-  const today = new Date();
-  const todayStr = today.toISOString().substring(0, 10);
-  const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-
-  const pastWeekDate = new Date(today);
-  pastWeekDate.setDate(today.getDate() - 6);
-  const pastWeekStr = pastWeekDate.toISOString().substring(0, 10);
-
+  // Selected date for Laporan Harian (default: Today)
+  const todayStr = getTodayDateString();
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
-  const [weekStartDate, setWeekStartDate] = useState<string>(pastWeekStr);
-  const [weekEndDate, setWeekEndDate] = useState<string>(todayStr);
-  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
 
-  // Helper filter check
-  const isDateInPeriod = (dateStr?: string) => {
-    if (!dateStr) return false;
-    const d = dateStr.substring(0, 10);
-    if (filterPeriodType === 'harian') {
-      return d === selectedDate;
-    }
-    if (filterPeriodType === 'mingguan') {
-      return d >= weekStartDate && d <= weekEndDate;
-    }
-    return d.startsWith(selectedMonth);
+  // Compute yesterday's date
+  const yesterdayDate = useMemo(() => {
+    if (!selectedDate) return todayStr;
+    const d = new Date(selectedDate + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }, [selectedDate, todayStr]);
+
+  // Expandable row details state for each of the 7 items
+  const [expandedDetails, setExpandedDetails] = useState<Record<string, boolean>>({});
+  const toggleDetail = (key: string) => {
+    setExpandedDetails(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
   };
 
-  const isSlipInPeriod = (slip: SalarySlip) => {
-    const d = (slip.generatedDate || slip.periodEnd).substring(0, 10);
-    if (filterPeriodType === 'harian') {
-      return d === selectedDate;
-    }
-    if (filterPeriodType === 'mingguan') {
-      return slip.periodEnd >= weekStartDate && slip.periodStart <= weekEndDate;
-    }
-    return d.startsWith(selectedMonth);
+  // Manual Overrides state (allows user to override any calculated row directly)
+  const [manualOverrides, setManualOverrides] = useState<Record<string, number | null>>({});
+
+  // Reset manual overrides when date changes
+  const handleResetManualOverrides = () => {
+    setManualOverrides({});
   };
 
-  const periodLabel = useMemo(() => {
-    if (filterPeriodType === 'harian') {
-      return `Harian (${formatDate(selectedDate)})`;
-    }
-    if (filterPeriodType === 'mingguan') {
-      return `Mingguan (${formatDate(weekStartDate)} s/d ${formatDate(weekEndDate)})`;
-    }
-    return `Bulanan (${selectedMonth})`;
-  }, [filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
-  
-  // Expense form modal
-  const [showExpenseModal, setShowExpenseModal] = useState(false);
-  const [expCategory, setExpCategory] = useState<OperationalExpense['category']>('Listrik & Air');
-  const [expDesc, setExpDesc] = useState('');
-  const [expAmount, setExpAmount] = useState<number>(100000);
-  const [expDate, setExpDate] = useState<string>(new Date().toISOString().substring(0, 10));
+  // ----------------------------------------------------
+  // AUTO-CALCULATION FROM SYSTEM DATA
+  // ----------------------------------------------------
 
-  // Hutang & Piutang Filters & States
-  const [debtFilterType, setDebtFilterType] = useState<'all' | 'hutang_pembelian' | 'piutang_penjualan'>('all');
-  const [debtStatusFilter, setDebtStatusFilter] = useState<'unpaid' | 'all' | 'paid'>('unpaid');
+  // 1. TAGIHAN PER HARI (NOTA) - TANPA SISA HUTANG & KEMBALIAN / TABUNGAN
+  const dailySales = useMemo(() => {
+    return sales.filter(s => s.date.substring(0, 10) === selectedDate);
+  }, [sales, selectedDate]);
+
+  const autoTagihanPerHari = useMemo(() => {
+    return dailySales.reduce((sum, s) => {
+      // Pure item total of today's sales
+      const itemsTotal = s.totalBarang !== undefined 
+        ? s.totalBarang 
+        : (s.subtotal || s.items.reduce((isum, item) => isum + item.subtotal, 0));
+      return sum + itemsTotal;
+    }, 0);
+  }, [dailySales]);
+
+  // 2. STOK OPNAME PER HARI (Aset Fisik Stok Akhir Hari Ini)
+  const autoStokOpnameHariIni = useMemo(() => {
+    // Check if there are specific opname records on selectedDate
+    const dateOpnames = opnameRecords.filter(o => o.date.substring(0, 10) === selectedDate);
+    if (dateOpnames.length > 0) {
+      return dateOpnames.reduce((sum, o) => {
+        const it = items.find(i => i.id === o.itemId);
+        const price = it?.baseBuyPrice || 25000;
+        return sum + (o.physicalStock * price);
+      }, 0);
+    }
+    // Fallback: Total inventory asset value from live items
+    return items.reduce((sum, i) => sum + (i.currentStock * i.baseBuyPrice), 0);
+  }, [opnameRecords, items, selectedDate]);
+
+  // 3. STOK OPNAME KEMARIN (Aset Fisik Stok Awal H-1 Kemarin)
+  const autoStokOpnameKemarin = useMemo(() => {
+    const yesterdayOpnames = opnameRecords.filter(o => o.date.substring(0, 10) === yesterdayDate);
+    if (yesterdayOpnames.length > 0) {
+      return yesterdayOpnames.reduce((sum, o) => {
+        const it = items.find(i => i.id === o.itemId);
+        const price = it?.baseBuyPrice || 25000;
+        return sum + (o.physicalStock * price);
+      }, 0);
+    }
+    return 0;
+  }, [opnameRecords, items, yesterdayDate]);
+
+  // 4. OPERASIONAL PER HARI (Biaya Operasional + Gaji / Upah Hari Ini)
+  const dailyExpenses = useMemo(() => {
+    return expenses.filter(e => e.date.substring(0, 10) === selectedDate);
+  }, [expenses, selectedDate]);
+
+  const dailyOperationalTxs = useMemo(() => {
+    return operationalTransactions.filter(tx => 
+      tx.type === 'pengeluaran' && tx.date.substring(0, 10) === selectedDate
+    );
+  }, [operationalTransactions, selectedDate]);
+
+  const dailySalarySlips = useMemo(() => {
+    return salarySlips.filter(s => {
+      const d = (s.periodStart || s.generatedDate || '').substring(0, 10);
+      return d === selectedDate;
+    });
+  }, [salarySlips, selectedDate]);
+
+  const autoOperasionalPerHari = useMemo(() => {
+    const expSum = dailyExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const opTxSum = dailyOperationalTxs.reduce((sum, tx) => sum + tx.amount, 0);
+    const salarySum = dailySalarySlips.reduce((sum, s) => sum + s.netSalary, 0);
+    return expSum + opTxSum + salarySum;
+  }, [dailyExpenses, dailyOperationalTxs, dailySalarySlips]);
+
+  // 5. MODAL SUPLAIER (Pembelian Bahan / Ayam Masuk dari Supplier)
+  const dailyPurchases = useMemo(() => {
+    return purchases.filter(p => p.date.substring(0, 10) === selectedDate);
+  }, [purchases, selectedDate]);
+
+  const autoModalSuplaier = useMemo(() => {
+    return dailyPurchases.reduce((sum, p) => sum + p.grandTotal, 0);
+  }, [dailyPurchases]);
+
+  // 6. SISA HUTANG COSTUMER (Piutang / Sisa Tagihan Pelanggan Belum Bayar)
+  const dailyUnpaidSales = useMemo(() => {
+    return dailySales.filter(s => (s.remainingDebt || 0) > 0 || s.paymentStatus === 'Sebagian');
+  }, [dailySales]);
+
+  const autoSisaHutangCostumer = useMemo(() => {
+    const fromDaily = dailyUnpaidSales.reduce((sum, s) => {
+      return sum + (s.remainingDebt !== undefined ? s.remainingDebt : Math.max(0, s.grandTotal - s.amountPaid));
+    }, 0);
+    return fromDaily;
+  }, [dailyUnpaidSales]);
+
+  // 7. KEMBALIAN / TABUNGAN COSTUMER (Deposit / Tabungan Pelanggan & Kelebihan Bayar)
+  const dailySavingsSales = useMemo(() => {
+    return dailySales.filter(s => (s.newSavingsRecorded && s.newSavingsRecorded > 0) || (s.overpaymentAmount && s.overpaymentAmount > 0));
+  }, [dailySales]);
+
+  const autoKembalianTabunganCostumer = useMemo(() => {
+    const fromDaily = dailySavingsSales.reduce((sum, s) => {
+      return sum + (s.newSavingsRecorded || s.overpaymentAmount || 0);
+    }, 0);
+    return fromDaily;
+  }, [dailySavingsSales]);
+
+  // EFFECTIVE VALUES (USING MANUAL OVERRIDES IF PRESENT, OR AUTO-CALCULATED)
+  const valTagihanPerHari = manualOverrides['tagihan'] !== undefined && manualOverrides['tagihan'] !== null
+    ? manualOverrides['tagihan']
+    : autoTagihanPerHari;
+
+  const valStokOpnameHariIni = manualOverrides['stokHariIni'] !== undefined && manualOverrides['stokHariIni'] !== null
+    ? manualOverrides['stokHariIni']
+    : autoStokOpnameHariIni;
+
+  // STEP 1 + 2: TOTAL OUTPUT
+  const valTotalOutput = valTagihanPerHari + valStokOpnameHariIni;
+
+  const valStokOpnameKemarin = manualOverrides['stokKemarin'] !== undefined && manualOverrides['stokKemarin'] !== null
+    ? manualOverrides['stokKemarin']
+    : autoStokOpnameKemarin;
+
+  const valOperasionalPerHari = manualOverrides['operasional'] !== undefined && manualOverrides['operasional'] !== null
+    ? manualOverrides['operasional']
+    : autoOperasionalPerHari;
+
+  const valModalSuplaier = manualOverrides['modalSuplaier'] !== undefined && manualOverrides['modalSuplaier'] !== null
+    ? manualOverrides['modalSuplaier']
+    : autoModalSuplaier;
+
+  // HASIL LAPORAN HARIAN / OMZET BERSIH = (TOTAL) - 3 - 4 - 5
+  const valHasilLaporanHarian = valTotalOutput - valStokOpnameKemarin - valOperasionalPerHari - valModalSuplaier;
+
+  const valSisaHutangCostumer = manualOverrides['sisaHutang'] !== undefined && manualOverrides['sisaHutang'] !== null
+    ? manualOverrides['sisaHutang']
+    : autoSisaHutangCostumer;
+
+  // TOTAL = HASIL LAPORAN HARIAN + 6
+  const valTotalSetelahHutang = valHasilLaporanHarian + valSisaHutangCostumer;
+
+  const valKembalianTabunganCostumer = manualOverrides['tabungan'] !== undefined && manualOverrides['tabungan'] !== null
+    ? manualOverrides['tabungan']
+    : autoKembalianTabunganCostumer;
+
+  // FINAL: TOTAL KEUANGAN = TOTAL - 7
+  const valTotalKeuangan = valTotalSetelahHutang - valKembalianTabunganCostumer;
+
+  // Prepare full data payload for printing
+  const dailyReportData: DailyFinancialReportData = useMemo(() => {
+    return {
+      reportDate: selectedDate,
+      tagihanPerHari: valTagihanPerHari,
+      stokOpnameHariIni: valStokOpnameHariIni,
+      totalOutput: valTotalOutput,
+      stokOpnameKemarin: valStokOpnameKemarin,
+      operasionalPerHari: valOperasionalPerHari,
+      modalSuplaier: valModalSuplaier,
+      hasilLaporanHarian: valHasilLaporanHarian,
+      sisaHutangCostumer: valSisaHutangCostumer,
+      totalSetelahHutang: valTotalSetelahHutang,
+      kembalianTabunganCostumer: valKembalianTabunganCostumer,
+      totalKeuangan: valTotalKeuangan,
+      salesCount: dailySales.length,
+      purchasesCount: dailyPurchases.length,
+      expenseCount: dailyExpenses.length + dailyOperationalTxs.length + dailySalarySlips.length,
+      unpaidCustomersCount: dailyUnpaidSales.length,
+      depositCustomersCount: dailySavingsSales.length,
+    };
+  }, [
+    selectedDate,
+    valTagihanPerHari,
+    valStokOpnameHariIni,
+    valTotalOutput,
+    valStokOpnameKemarin,
+    valOperasionalPerHari,
+    valModalSuplaier,
+    valHasilLaporanHarian,
+    valSisaHutangCostumer,
+    valTotalSetelahHutang,
+    valKembalianTabunganCostumer,
+    valTotalKeuangan,
+    dailySales.length,
+    dailyPurchases.length,
+    dailyExpenses.length,
+    dailyOperationalTxs.length,
+    dailySalarySlips.length,
+    dailyUnpaidSales.length,
+    dailySavingsSales.length,
+  ]);
+
+  const handlePrintReport = () => {
+    if (onPrintDocument) {
+      onPrintDocument({
+        type: 'daily_financial_report',
+        data: dailyReportData,
+      });
+    }
+  };
+
+  // ----------------------------------------------------
+  // SUB-TAB 2: HUTANG & PIUTANG HANDLERS & MODALS
+  // ----------------------------------------------------
   const [debtSearchQuery, setDebtSearchQuery] = useState('');
-  const [filterByMonthOnly, setFilterByMonthOnly] = useState(false);
-
-  // Pay Purchase Debt Modal State
-  const [debtModalPurchase, setDebtModalPurchase] = useState<(PurchaseTransaction & { computedRemaining: number; computedPaid: number; isLunas: boolean }) | null>(null);
-  const [purchasePayMode, setPurchasePayMode] = useState<'lunas' | 'sebagian'>('lunas');
+  const [debtTypeFilter, setDebtTypeFilter] = useState<'all' | 'hutang_supplier' | 'piutang_pelanggan'>('all');
+  
+  // Pay Purchase Debt Modal
+  const [debtModalPurchase, setDebtModalPurchase] = useState<PurchaseTransaction | null>(null);
   const [purchasePayAmount, setPurchasePayAmount] = useState<number>(0);
   const [purchasePayMethod, setPurchasePayMethod] = useState<'Tunai' | 'Transfer'>('Transfer');
   const [purchasePayNotes, setPurchasePayNotes] = useState('');
 
-  // Pay Customer Debt (Piutang) Modal State
-  const [debtModalSale, setDebtModalSale] = useState<(SaleTransaction & { computedRemaining: number; computedPaid: number; isLunas: boolean }) | null>(null);
-  const [salePayMode, setSalePayMode] = useState<'lunas' | 'sebagian'>('lunas');
+  // Pay Customer Debt Modal
+  const [debtModalSale, setDebtModalSale] = useState<SaleTransaction | null>(null);
   const [salePayAmount, setSalePayAmount] = useState<number>(0);
   const [salePayMethod, setSalePayMethod] = useState<'Tunai' | 'Transfer'>('Tunai');
   const [salePayNotes, setSalePayNotes] = useState('');
 
-  // View Detail Modal State
-  const [selectedDetailModal, setSelectedDetailModal] = useState<{
-    type: 'purchase' | 'sale';
-    id: string;
-  } | null>(null);
+  // Unpaid Purchases & Sales lists
+  const unpaidPurchases = useMemo(() => {
+    return purchases.filter(p => {
+      const remaining = p.remainingDebt !== undefined ? p.remainingDebt : Math.max(0, p.grandTotal - (p.amountPaid || 0));
+      return remaining > 0 && p.paymentStatus !== 'Lunas';
+    }).sort((a, b) => b.date.localeCompare(a.date));
+  }, [purchases]);
 
-  // New Party Detail Modal State
-  const [selectedPartyDetail, setSelectedPartyDetail] = useState<{
-    type: 'purchase' | 'sale';
-    name: string;
-  } | null>(null);
+  const unpaidSales = useMemo(() => {
+    return sales.filter(s => {
+      const remaining = s.remainingDebt !== undefined ? s.remainingDebt : Math.max(0, s.grandTotal - (s.amountPaid || 0));
+      return remaining > 0 && s.paymentStatus !== 'Lunas';
+    }).sort((a, b) => b.date.localeCompare(a.date));
+  }, [sales]);
 
-  // View Debt History Modal
-  const [historyModalData, setHistoryModalData] = useState<{
-    title: string;
-    invoice: string;
-    counterparty: string;
-    total: number;
-    paid: number;
-    remaining: number;
-    payments: DebtPayment[];
-  } | null>(null);
+  const totalOutstandingPurchases = useMemo(() => {
+    return unpaidPurchases.reduce((sum, p) => sum + (p.remainingDebt || Math.max(0, p.grandTotal - (p.amountPaid || 0))), 0);
+  }, [unpaidPurchases]);
 
-  // Expanded table rows for inline payment history
-  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
-  const toggleRowExpand = (id: string) => {
-    setExpandedRows(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
+  const totalOutstandingSales = useMemo(() => {
+    return unpaidSales.reduce((sum, s) => sum + (s.remainingDebt || Math.max(0, s.grandTotal - (s.amountPaid || 0))), 0);
+  }, [unpaidSales]);
 
-  // Filter data by selected period (harian, mingguan, bulanan)
-  const monthlySales = useMemo(() => {
-    return sales.filter(s => isDateInPeriod(s.date));
-  }, [sales, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
-
-  const monthlyPurchases = useMemo(() => {
-    return purchases.filter(p => isDateInPeriod(p.date));
-  }, [purchases, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
-
-  const monthlySlips = useMemo(() => {
-    return salarySlips.filter(s => isSlipInPeriod(s));
-  }, [salarySlips, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
-
-  const monthlyAttendanceWages = useMemo(() => {
-    return attendanceRecords.filter(a => isDateInPeriod(a.date));
-  }, [attendanceRecords, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
-
-  const monthlyExpenses = useMemo(() => {
-    return expenses.filter(e => isDateInPeriod(e.date));
-  }, [expenses, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
-
-  // Calculations for Laba Rugi
-  const totalRevenue = useMemo(() => {
-    return monthlySales.reduce((sum, s) => sum + s.grandTotal, 0);
-  }, [monthlySales]);
-
-  const totalHPP = useMemo(() => {
-    return monthlySales.reduce((sum, s) => sum + s.totalCostHPP, 0);
-  }, [monthlySales]);
-
-  const grossProfit = useMemo(() => {
-    return totalRevenue - totalHPP;
-  }, [totalRevenue, totalHPP]);
-
-  const grossMarginPercent = useMemo(() => {
-    return totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
-  }, [grossProfit, totalRevenue]);
-
-  const totalSalaries = useMemo(() => {
-    if (monthlySlips.length > 0) {
-      return monthlySlips.reduce((sum, s) => sum + s.netSalary, 0);
-    }
-    return monthlyAttendanceWages.reduce((sum, a) => sum + a.wageAmount + (a.overtimePay || 0), 0);
-  }, [monthlySlips, monthlyAttendanceWages]);
-
-  const totalKasbon = useMemo(() => {
-    return kasbonRecords
-      .filter(k => k.type === 'pinjam' && isDateInPeriod(k.date))
-      .reduce((sum, k) => sum + k.amount, 0);
-  }, [kasbonRecords, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
-
-  const totalOtherExpenses = useMemo(() => {
-    const opTxTotal = (operationalTransactions || [])
-      .filter(tx => tx.type === 'pengeluaran' && isDateInPeriod(tx.date))
-      .reduce((sum, tx) => sum + tx.amount, 0);
-    const expTotal = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
-    return opTxTotal + expTotal;
-  }, [operationalTransactions, monthlyExpenses, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
-
-  const totalOperatingCosts = useMemo(() => {
-    return totalSalaries + totalKasbon + totalOtherExpenses;
-  }, [totalSalaries, totalKasbon, totalOtherExpenses]);
-
-  const netProfit = useMemo(() => {
-    return grossProfit - totalOperatingCosts;
-  }, [grossProfit, totalOperatingCosts]);
-
-  const netMarginPercent = useMemo(() => {
-    return totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
-  }, [netProfit, totalRevenue]);
-
-  // ----------------------------------------------------
-  // HUTANG & PIUTANG CALCULATIONS & LISTS
-  // ----------------------------------------------------
-
-  // 1. Purchases with Debt info
-  const processedPurchases = useMemo(() => {
-    let list = purchases;
-    if (filterByMonthOnly) {
-      list = list.filter(p => isDateInPeriod(p.date));
-    }
-
-    return list.map(p => {
-      const amountPaid = p.amountPaid !== undefined ? p.amountPaid : (p.paymentStatus === 'Lunas' ? p.grandTotal : 0);
-      const remainingDebt = p.remainingDebt !== undefined ? p.remainingDebt : Math.max(0, p.grandTotal - amountPaid);
-      const isLunas = remainingDebt === 0 || p.paymentStatus === 'Lunas';
-      return {
-        ...p,
-        computedPaid: amountPaid,
-        computedRemaining: remainingDebt,
-        isLunas,
-      };
-    });
-  }, [purchases, filterByMonthOnly, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
-
-  // 2. Sales with Receivable (Piutang) info
-  const processedSales = useMemo(() => {
-    let list = sales;
-    if (filterByMonthOnly) {
-      list = list.filter(s => isDateInPeriod(s.date));
-    }
-
-    return list.map(s => {
-      const amountPaid = s.amountPaid || 0;
-      const remainingReceivable = Math.max(0, s.grandTotal - amountPaid);
-      const isLunas = remainingReceivable === 0;
-      return {
-        ...s,
-        computedPaid: amountPaid,
-        computedRemaining: remainingReceivable,
-        isLunas,
-      };
-    });
-  }, [sales, filterByMonthOnly, filterPeriodType, selectedDate, weekStartDate, weekEndDate, selectedMonth]);
-
-  // Filtered Purchases list for table
-  const filteredPurchases = useMemo(() => {
-    if (selectedPartyDetail && selectedPartyDetail.type !== 'purchase') return [];
-
-    return processedPurchases.filter(p => {
-      // If a specific party is selected, show all notes and history for that supplier
-      if (selectedPartyDetail && selectedPartyDetail.type === 'purchase') {
-        if (p.supplierName.toLowerCase() !== selectedPartyDetail.name.toLowerCase()) return false;
-        if (debtSearchQuery.trim()) {
-          const q = debtSearchQuery.toLowerCase();
-          return p.invoiceNumber.toLowerCase().includes(q) ||
-                 p.supplierName.toLowerCase().includes(q);
-        }
-        return true;
-      }
-
-      // Status filter
-      if (debtStatusFilter === 'unpaid' && p.isLunas) return false;
-      if (debtStatusFilter === 'paid' && !p.isLunas) return false;
-      // Search query
-      if (debtSearchQuery.trim()) {
-        const q = debtSearchQuery.toLowerCase();
-        return p.invoiceNumber.toLowerCase().includes(q) ||
-               p.supplierName.toLowerCase().includes(q);
-      }
-      return true;
-    });
-  }, [processedPurchases, debtStatusFilter, debtSearchQuery, selectedPartyDetail]);
-
-  // Filtered Sales list for table
-  const filteredSales = useMemo(() => {
-    if (selectedPartyDetail && selectedPartyDetail.type !== 'sale') return [];
-
-    return processedSales.filter(s => {
-      // If a specific party is selected, show all notes and history for that customer
-      if (selectedPartyDetail && selectedPartyDetail.type === 'sale') {
-        if (s.customerName.toLowerCase() !== selectedPartyDetail.name.toLowerCase()) return false;
-        if (debtSearchQuery.trim()) {
-          const q = debtSearchQuery.toLowerCase();
-          return s.invoiceNumber.toLowerCase().includes(q) ||
-                 s.customerName.toLowerCase().includes(q);
-        }
-        return true;
-      }
-
-      // Status filter
-      if (debtStatusFilter === 'unpaid' && s.isLunas) return false;
-      if (debtStatusFilter === 'paid' && !s.isLunas) return false;
-      // Search query
-      if (debtSearchQuery.trim()) {
-        const q = debtSearchQuery.toLowerCase();
-        return s.invoiceNumber.toLowerCase().includes(q) ||
-               s.customerName.toLowerCase().includes(q);
-      }
-      return true;
-    });
-  }, [processedSales, debtStatusFilter, debtSearchQuery, selectedPartyDetail]);
-
-  // Totals
-  const totalUnpaidPurchaseDebt = useMemo(() => {
-    return processedPurchases.reduce((sum, p) => sum + p.computedRemaining, 0);
-  }, [processedPurchases]);
-
-  const totalUnpaidSaleReceivable = useMemo(() => {
-    return processedSales.reduce((sum, s) => sum + s.computedRemaining, 0);
-  }, [processedSales]);
-
-  const countUnpaidPurchases = useMemo(() => {
-    return processedPurchases.filter(p => !p.isLunas).length;
-  }, [processedPurchases]);
-
-  const countUnpaidSales = useMemo(() => {
-    return processedSales.filter(s => !s.isLunas).length;
-  }, [processedSales]);
-
-  // Send WhatsApp Debt Reminder to Customer
-  const handleSendWAReminder = (s: typeof processedSales[0]) => {
-    const matchedCustomer = customers.find(c => c.id === s.customerId || c.name.toLowerCase() === s.customerName.toLowerCase());
-    let rawPhone = matchedCustomer?.phone || '';
-
-    if (!rawPhone) {
-      const userEntered = window.prompt(`Masukkan nomor WhatsApp pelanggan ${s.customerName}:`, '');
-      if (!userEntered) return;
-      rawPhone = userEntered;
-    }
-
-    const formattedPhone = formatPhoneNumberForWhatsApp(rawPhone);
-    const textMsg = generateWhatsAppDebtReminderMessage(
-      s.customerName,
-      s.invoiceNumber,
-      s.date,
-      s.grandTotal,
-      s.computedPaid,
-      s.computedRemaining,
-      storeProfile.name
-    );
-
-    window.open(`https://wa.me/${formattedPhone}?text=${textMsg}`, '_blank');
-  };
-
-  // Handlers for expense
-  const handleSaveExpense = (e: React.FormEvent) => {
+  // Handle Pay Purchase Debt Submit
+  const handleConfirmPurchasePayment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (expAmount <= 0) return;
+    if (!debtModalPurchase || purchasePayAmount <= 0) return;
 
-    const newExp: OperationalExpense = {
-      id: `exp-${Date.now()}`,
-      date: expDate,
-      category: expCategory,
-      description: expDesc.trim(),
-      amount: expAmount,
-      recordedBy: 'Admin Usaha',
-    };
+    const currentPaid = debtModalPurchase.amountPaid || 0;
+    const currentRemaining = debtModalPurchase.remainingDebt !== undefined 
+      ? debtModalPurchase.remainingDebt 
+      : Math.max(0, debtModalPurchase.grandTotal - currentPaid);
 
-    onAddExpense(newExp);
-    setShowExpenseModal(false);
-    setExpDesc('');
-  };
-
-  const handlePrintFinancialStatement = () => {
-    window.print();
-  };
-
-  // Open modal for paying purchase debt
-  const handleOpenPayPurchaseModal = (p: typeof processedPurchases[0]) => {
-    setDebtModalPurchase(p);
-    setPurchasePayMode('lunas');
-    setPurchasePayAmount(p.computedRemaining);
-    setPurchasePayMethod('Transfer');
-    setPurchasePayNotes('');
-  };
-
-  const handleConfirmPayPurchaseDebt = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!debtModalPurchase || !onPayPurchaseDebt || purchasePayAmount <= 0) return;
+    const actualAmount = Math.min(purchasePayAmount, currentRemaining);
+    const newPaid = currentPaid + actualAmount;
+    const remainingAfter = Math.max(0, currentRemaining - actualAmount);
 
     const receiptNo = generateInvoiceCode('BKK');
-    const currentRemaining = debtModalPurchase.computedRemaining;
-    const remainingAfter = Math.max(0, currentRemaining - purchasePayAmount);
-
     const payment: DebtPayment = {
-      id: `dp-pur-${Date.now()}`,
-      date: new Date().toISOString(),
-      amount: purchasePayAmount,
-      paymentMethod: purchasePayMethod,
-      notes: purchasePayNotes || (remainingAfter === 0 ? 'Pelunasan Penuh Hutang Supplier' : 'Cicilan Hutang Supplier'),
-      recordedBy: userRole === 'admin' ? 'Admin Usaha' : 'Kasir',
+      id: `pay-${Date.now()}`,
       receiptNo,
+      date: new Date().toISOString(),
+      amount: actualAmount,
+      paymentMethod: purchasePayMethod,
+      notes: purchasePayNotes.trim() || `Pembayaran hutang ke supplier ${debtModalPurchase.supplierName}`,
+      recordedBy: userRole === 'admin' ? 'Admin Usaha' : 'Kasir',
       remainingAfter,
     };
 
-    onPayPurchaseDebt(debtModalPurchase.id, payment);
+    if (onPayPurchaseDebt) {
+      onPayPurchaseDebt(debtModalPurchase.id, payment);
+    }
 
-    // Trigger official payment receipt (Bukti Kas Keluar) printout
-    onPrintDocument?.({
-      type: 'payment_receipt',
-      data: {
-        receiptType: 'BKK',
-        receiptNo,
-        title: remainingAfter === 0 ? 'BUKTI PELUNASAN KAS KELUAR (BKK)' : 'BUKTI PEMBAYARAN CICILAN KAS KELUAR (BKK)',
-        date: payment.date,
-        invoiceNumber: debtModalPurchase.invoiceNumber,
-        counterpartyName: debtModalPurchase.supplierName,
-        counterpartyType: 'Supplier / Pemasok',
-        totalInvoiceAmount: debtModalPurchase.grandTotal,
-        paymentAmount: purchasePayAmount,
-        amount: purchasePayAmount,
-        remainingDebt: remainingAfter,
-        paymentMethod: purchasePayMethod,
-        notes: payment.notes,
-        recordedBy: payment.recordedBy,
-      }
-    });
+    if (onPrintDocument) {
+      onPrintDocument({
+        type: 'payment_receipt',
+        data: {
+          receiptType: 'BKK',
+          receiptNo,
+          title: remainingAfter === 0 ? 'BUKTI PELUNASAN KAS KELUAR (BKK)' : 'BUKTI PEMBAYARAN CICILAN KAS KELUAR (BKK)',
+          date: payment.date,
+          counterpartyName: debtModalPurchase.supplierName,
+          invoiceNumber: debtModalPurchase.invoiceNumber,
+          totalInvoiceAmount: debtModalPurchase.grandTotal,
+          paymentAmount: actualAmount,
+          remainingDebt: remainingAfter,
+          paymentMethod: purchasePayMethod,
+          notes: payment.notes,
+          recordedBy: payment.recordedBy,
+          counterpartyType: 'Supplier',
+        }
+      });
+    }
 
     setDebtModalPurchase(null);
   };
 
-  // Open modal for paying customer receivable
-  const handleOpenPaySaleModal = (s: typeof processedSales[0]) => {
-    setDebtModalSale(s);
-    setSalePayMode('lunas');
-    setSalePayAmount(s.computedRemaining);
-    setSalePayMethod('Tunai');
-    setSalePayNotes('');
-  };
-
-  const handleConfirmPayCustomerDebt = (e: React.FormEvent) => {
+  // Handle Pay Customer Debt Submit
+  const handleConfirmCustomerPayment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!debtModalSale || !onPayCustomerDebt || salePayAmount <= 0) return;
+    if (!debtModalSale || salePayAmount <= 0) return;
+
+    const currentPaid = debtModalSale.amountPaid || 0;
+    const currentRemaining = debtModalSale.remainingDebt !== undefined 
+      ? debtModalSale.remainingDebt 
+      : Math.max(0, debtModalSale.grandTotal - currentPaid);
+
+    const actualAmount = Math.min(salePayAmount, currentRemaining);
+    const newPaid = currentPaid + actualAmount;
+    const remainingAfter = Math.max(0, currentRemaining - actualAmount);
 
     const receiptNo = generateInvoiceCode('BKM');
-    const currentRemaining = debtModalSale.computedRemaining;
-    const remainingAfter = Math.max(0, currentRemaining - salePayAmount);
-
     const payment: DebtPayment = {
-      id: `dp-sale-${Date.now()}`,
-      date: new Date().toISOString(),
-      amount: salePayAmount,
-      paymentMethod: salePayMethod,
-      notes: salePayNotes || (remainingAfter === 0 ? 'Pelunasan Penuh Piutang Pelanggan' : 'Cicilan Piutang Pelanggan'),
-      recordedBy: userRole === 'admin' ? 'Admin Usaha' : 'Kasir',
+      id: `pay-${Date.now()}`,
       receiptNo,
+      date: new Date().toISOString(),
+      amount: actualAmount,
+      paymentMethod: salePayMethod,
+      notes: salePayNotes.trim() || `Pembayaran piutang dari pelanggan ${debtModalSale.customerName}`,
+      recordedBy: userRole === 'admin' ? 'Admin Usaha' : 'Kasir',
       remainingAfter,
     };
 
-    onPayCustomerDebt(debtModalSale.id, payment);
+    if (onPayCustomerDebt) {
+      onPayCustomerDebt(debtModalSale.id, payment);
+    }
 
-    // Trigger official payment receipt (Bukti Kas Masuk) printout
-    onPrintDocument?.({
-      type: 'payment_receipt',
-      data: {
-        receiptType: 'BKM',
-        receiptNo,
-        title: remainingAfter === 0 ? 'BUKTI PELUNASAN KAS MASUK (BKM)' : 'BUKTI PENERIMAAN CICILAN KAS MASUK (BKM)',
-        date: payment.date,
-        invoiceNumber: debtModalSale.invoiceNumber,
-        counterpartyName: debtModalSale.customerName,
-        counterpartyType: 'Pelanggan',
-        totalInvoiceAmount: debtModalSale.grandTotal,
-        paymentAmount: salePayAmount,
-        amount: salePayAmount,
-        remainingDebt: remainingAfter,
-        paymentMethod: salePayMethod,
-        notes: payment.notes,
-        recordedBy: payment.recordedBy,
-      }
-    });
+    if (onPrintDocument) {
+      onPrintDocument({
+        type: 'payment_receipt',
+        data: {
+          receiptType: 'BKM',
+          receiptNo,
+          title: remainingAfter === 0 ? 'BUKTI PELUNASAN KAS MASUK (BKM)' : 'BUKTI PENERIMAAN CICILAN KAS MASUK (BKM)',
+          date: payment.date,
+          counterpartyName: debtModalSale.customerName,
+          invoiceNumber: debtModalSale.invoiceNumber,
+          totalInvoiceAmount: debtModalSale.grandTotal,
+          paymentAmount: actualAmount,
+          remainingDebt: remainingAfter,
+          paymentMethod: salePayMethod,
+          notes: payment.notes,
+          recordedBy: payment.recordedBy,
+          counterpartyType: 'Customer',
+        }
+      });
+    }
 
     setDebtModalSale(null);
   };
 
   return (
-    <div className="space-y-5">
-      {/* Top Header & Month Filter */}
-      <div className="bg-white/80 backdrop-blur-md p-4 rounded-xl border border-white/60 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-amber-600" />
-            <span>Ringkasan Keuangan & Catatan Bon Toko</span>
-          </h2>
+    <div className="space-y-4 animate-in fade-in duration-150">
+      
+      {/* 1. TOP HEADER & SUB-TAB NAVIGATION */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-amber-500/10 text-amber-600 rounded-xl">
+            <FileSpreadsheet className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-slate-900 tracking-tight">
+              LAPORAN KEUANGAN
+            </h2>
+            <p className="text-xs text-slate-500">
+              Rekap keuangan harian dan buku hutang piutang
+            </p>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Segmented Filter Period: Harian, Mingguan, Bulanan */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setFilterPeriodType('harian')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                filterPeriodType === 'harian'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Harian
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterPeriodType('mingguan')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                filterPeriodType === 'mingguan'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Mingguan
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterPeriodType('bulanan')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                filterPeriodType === 'bulanan'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Bulanan
-            </button>
-          </div>
-
-          {/* Date Picker Input */}
-          <div className="flex items-center gap-2 bg-slate-50/80 border border-slate-200/80 px-3 py-1.5 rounded-lg text-xs">
-            <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-            {filterPeriodType === 'harian' && (
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="bg-transparent font-semibold text-slate-900 focus:outline-hidden cursor-pointer"
-              />
-            )}
-            {filterPeriodType === 'mingguan' && (
-              <div className="flex items-center gap-1.5 font-semibold text-slate-900">
-                <input
-                  type="date"
-                  value={weekStartDate}
-                  onChange={(e) => setWeekStartDate(e.target.value)}
-                  className="bg-transparent focus:outline-hidden cursor-pointer"
-                />
-                <span className="text-slate-400 font-normal">s/d</span>
-                <input
-                  type="date"
-                  value={weekEndDate}
-                  onChange={(e) => setWeekEndDate(e.target.value)}
-                  className="bg-transparent focus:outline-hidden cursor-pointer"
-                />
-              </div>
-            )}
-            {filterPeriodType === 'bulanan' && (
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-transparent font-semibold text-slate-900 focus:outline-hidden cursor-pointer"
-              />
-            )}
-          </div>
+        {/* Tab Switcher Controls */}
+        <div className="flex items-center bg-slate-100 p-1 rounded-xl text-xs font-semibold shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('laporan_harian')}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeSubTab === 'laporan_harian'
+                ? 'bg-amber-500 text-white shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>1. Laporan Harian</span>
+          </button>
 
           <button
             type="button"
-            onClick={handlePrintFinancialStatement}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-            title="Cetak Laporan"
+            onClick={() => setActiveSubTab('hutang_piutang')}
+            className={`px-3.5 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeSubTab === 'hutang_piutang'
+                ? 'bg-slate-900 text-amber-300 shadow-xs font-bold'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
           >
-            <Printer className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Cetak Laporan</span>
+            <Wallet className="w-3.5 h-3.5" />
+            <span>2. Hutang & Piutang</span>
+            {(unpaidPurchases.length > 0 || unpaidSales.length > 0) && (
+              <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-1">
+                {unpaidPurchases.length + unpaidSales.length}
+              </span>
+            )}
           </button>
         </div>
       </div>
 
-      {/* Sub-tab Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-200/80 pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveReportTab('laba_rugi')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeReportTab === 'laba_rugi'
-              ? 'bg-amber-600 text-white shadow-xs'
-              : 'bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900'
-          }`}
-        >
-          <PieChart className="w-4 h-4" />
-          <span>Untung Rugi & Biaya Toko</span>
-        </button>
+      {/* 2. SUB-TAB 1: LAPORAN HARIAN SESUAI CATATAN BUKU */}
+      {activeSubTab === 'laporan_harian' && (
+        <div className="space-y-4">
+          
+          {/* Top Filter Bar: Date Selector & Quick Buttons */}
+          <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 shrink-0">
+                <Calendar className="w-4 h-4 text-amber-600" />
+                <span>Pilih Tanggal:</span>
+              </span>
 
-        <button
-          type="button"
-          onClick={() => setActiveReportTab('hutang_piutang')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer relative ${
-            activeReportTab === 'hutang_piutang'
-              ? 'bg-amber-600 text-white shadow-xs'
-              : 'bg-white/80 text-slate-600 hover:bg-white hover:text-slate-900'
-          }`}
-        >
-          <CreditCard className="w-4 h-4" />
-          <span>Catatan Bon & Tagihan</span>
-          {(countUnpaidPurchases + countUnpaidSales) > 0 && (
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-              activeReportTab === 'hutang_piutang'
-                ? 'bg-white text-amber-700'
-                : 'bg-rose-500 text-white'
-            }`}>
-              {countUnpaidPurchases + countUnpaidSales}
-            </span>
-          )}
-        </button>
-      </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDate(todayStr)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  selectedDate === todayStr 
+                    ? 'bg-amber-500 text-white shadow-xs' 
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Hari Ini
+              </button>
 
-      {/* ========================================================================= */}
-      {/* 1. VIEW TAB: UNTUNG RUGI & BIAYA PENGELUARAN TOKO                         */}
-      {/* ========================================================================= */}
-      {activeReportTab === 'laba_rugi' && (
-        <>
-          {/* 4 TOP KPI CARDS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Revenue */}
-            <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-white/80 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Penjualan (Omset)</span>
-                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
-                  <DollarSign className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
-                {formatCurrency(totalRevenue)}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Dari <span className="font-semibold text-slate-800">{monthlySales.length}</span> nota penjualan periode ini
-              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDate(yesterdayDate)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  selectedDate === yesterdayDate 
+                    ? 'bg-amber-500 text-white shadow-xs' 
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Kemarin
+              </button>
+
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-hidden cursor-pointer"
+              />
+
+              <span className="text-xs font-bold text-amber-900 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200">
+                {formatDate(selectedDate)}
+              </span>
             </div>
 
-            {/* HPP */}
-            <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-white/80 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Modal Belanja Ayam (HPP)</span>
-                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
-                  <TrendingDown className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
-                {formatCurrency(totalHPP)}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Modal pokok ayam hidup & logistik
-              </div>
-            </div>
-
-            {/* Gross Profit */}
-            <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-white/80 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Keuntungan Kotor</span>
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="text-xl font-bold font-mono text-blue-700 mt-2 tabular-nums">
-                {formatCurrency(grossProfit)}
-              </div>
-              <div className="text-[11px] text-blue-700 font-medium mt-1">
-                (Penjualan dikurangi Modal Ayam)
-              </div>
-            </div>
-
-            {/* Net Profit */}
-            <div className={`p-4 rounded-xl border shadow-2xs backdrop-blur-xs ${
-              netProfit >= 0 ? 'bg-emerald-50/80 border-emerald-300' : 'bg-rose-50/80 border-rose-300'
-            }`}>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Keuntungan Bersih Toko</span>
-                <div className={`p-2 rounded-lg ${netProfit >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-              </div>
-              <div className={`text-2xl font-bold font-mono mt-2 tabular-nums ${
-                netProfit >= 0 ? 'text-emerald-800' : 'text-rose-800'
-              }`}>
-                {formatCurrency(netProfit)}
-              </div>
-              <div className="text-[11px] font-semibold mt-1 text-slate-600">
-                Uang untung bersih setelah potong gaji & operasional
-              </div>
-            </div>
-          </div>
-
-          {/* FORMAL LABA RUGI STATEMENT */}
-          <div className="bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden max-w-4xl">
-            <div className="p-4 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between">
-              <div>
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  Rincian Untung Rugi
-                </h3>
-                <p className="text-[11px] text-slate-500">Periode: {periodLabel}</p>
-              </div>
-            </div>
-
-            <div className="p-4 sm:p-5 space-y-4 text-xs">
-              {/* 1. TOTAL PENJUALAN */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between font-bold text-slate-900 text-sm pb-1 border-b border-slate-200">
-                  <span>1. Total Penjualan</span>
-                  <span className="font-mono tabular-nums">{formatCurrency(totalRevenue)}</span>
-                </div>
-                <div className="flex justify-between text-slate-600 pl-3">
-                  <span>Penjualan Daging Ayam ({monthlySales.length} transaksi)</span>
-                  <span className="font-mono tabular-nums text-slate-800">{formatCurrency(totalRevenue)}</span>
-                </div>
-              </div>
-
-              {/* 2. MODAL BELANJA AYAM (HPP) */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between font-bold text-slate-900 text-sm pb-1 border-b border-slate-200">
-                  <span>2. Modal Belanja Ayam (HPP)</span>
-                  <span className="font-mono text-rose-700 tabular-nums">({formatCurrency(totalHPP)})</span>
-                </div>
-                <div className="flex justify-between text-slate-600 pl-3">
-                  <span>Harga Beli Ayam</span>
-                  <span className="font-mono tabular-nums text-slate-800">{formatCurrency(totalHPP)}</span>
-                </div>
-              </div>
-
-              {/* KEUNTUNGAN KOTOR ROW */}
-              <div className="p-3 bg-slate-50 rounded-lg flex justify-between font-bold text-sm text-slate-900 border border-slate-200">
-                <span>KEUNTUNGAN KOTOR (PENJUALAN DIKURANGI MODAL):</span>
-                <span className="font-mono tabular-nums text-blue-700">{formatCurrency(grossProfit)}</span>
-              </div>
-
-              {/* 3. BIAYA PENGELUARAN GAJI & OPERASIONAL */}
-              <div className="space-y-1.5 pt-2">
-                <div className="flex justify-between font-bold text-slate-900 text-sm pb-1 border-b border-slate-200">
-                  <span>3. Biaya Pengeluaran Gaji & Operasional</span>
-                  <span className="font-mono text-rose-700 tabular-nums">({formatCurrency(totalOperatingCosts)})</span>
-                </div>
-                
-                <div className="flex justify-between text-slate-700 pl-3 py-1">
-                  <span className="font-medium">Total Gaji</span>
-                  <span className="font-mono tabular-nums font-semibold text-slate-900">{formatCurrency(totalSalaries)}</span>
-                </div>
-
-                <div className="flex justify-between text-slate-700 pl-3 py-1">
-                  <span className="font-medium">Total Kasbon</span>
-                  <span className="font-mono tabular-nums font-semibold text-slate-900">{formatCurrency(totalKasbon)}</span>
-                </div>
-
-                <div className="flex justify-between text-slate-700 pl-3 py-1">
-                  <span className="font-medium">Biaya Operasional</span>
-                  <span className="font-mono tabular-nums font-semibold text-slate-900">{formatCurrency(totalOtherExpenses)}</span>
-                </div>
-              </div>
-
-              {/* KEUNTUNGAN BERSIH FINAL */}
-              <div className={`p-4 rounded-xl flex justify-between items-center text-base font-bold border shadow-xs ${
-                netProfit >= 0 ? 'bg-emerald-500 text-white border-emerald-600' : 'bg-rose-500 text-white border-rose-600'
-              }`}>
-                <span className="uppercase tracking-wide font-extrabold">Keuntungan Bersih</span>
-                <span className="font-mono text-xl tabular-nums font-extrabold">{formatCurrency(netProfit)}</span>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* ========================================================================= */}
-      {/* 2. VIEW TAB: LAPORAN HUTANG & PIUTANG USAHA (PEMBELIAN & PENJUALAN)      */}
-      {/* ========================================================================= */}
-      {activeReportTab === 'hutang_piutang' && (
-        <div className="space-y-5">
-          {/* 4 TOP SUMMARY CARDS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Total Hutang Usaha (ke Pemasok) */}
-                <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-rose-200/80 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">HUTANG KE SUPPLIER</span>
-                    <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
-                      <ArrowUpRight className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="text-xl font-bold font-mono text-rose-700 mt-2 tabular-nums">
-                    {formatCurrency(totalUnpaidPurchaseDebt)}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{countUnpaidPurchases} belanjaan ayam ke supplier belum kita bayar</span>
-                  </div>
-                </div>
-
-                {/* Total Piutang Usaha (dari Pelanggan) */}
-                <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-amber-200/80 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">BON / TAGIHAN PELANGGAN</span>
-                    <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
-                      <ArrowDownLeft className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="text-xl font-bold font-mono text-amber-700 mt-2 tabular-nums">
-                    {formatCurrency(totalUnpaidSaleReceivable)}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{countUnpaidSales} nota pembeli yang belum dibayar ke kita</span>
-                  </div>
-                </div>
-
-                {/* Posisi Bersih (Piutang - Hutang) */}
-                <div className={`bg-white/85 backdrop-blur-xs p-4 rounded-xl border shadow-2xs ${
-                  (totalUnpaidSaleReceivable - totalUnpaidPurchaseDebt) >= 0 
-                    ? 'border-emerald-200/80' 
-                    : 'border-orange-200/80'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">SELISIH TAGIHAN & HUTANG</span>
-                    <div className="p-2 bg-slate-100 text-slate-700 rounded-lg">
-                      <Wallet className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className={`text-xl font-bold font-mono mt-2 tabular-nums ${
-                    (totalUnpaidSaleReceivable - totalUnpaidPurchaseDebt) >= 0 
-                      ? 'text-emerald-700' 
-                      : 'text-orange-700'
-                  }`}>
-                    {formatCurrency(totalUnpaidSaleReceivable - totalUnpaidPurchaseDebt)}
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1">
-                    {(totalUnpaidSaleReceivable - totalUnpaidPurchaseDebt) >= 0 
-                      ? 'Uang tagihan pelanggan lebih banyak dari hutang kita' 
-                      : 'Hutang kita ke supplier lebih besar dari tagihan pelanggan'}
-                  </div>
-                </div>
-
-                {/* Total Transaksi Bermasalah / Butuh Tindakan */}
-                <div className="bg-white/85 backdrop-blur-xs p-4 rounded-xl border border-white/80 shadow-2xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">NOTA BELUM LUNAS</span>
-                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                      <AlertCircle className="w-4 h-4" />
-                    </div>
-                  </div>
-                  <div className="text-xl font-bold font-mono text-slate-900 mt-2 tabular-nums">
-                    {countUnpaidPurchases + countUnpaidSales} <span className="text-xs font-normal text-slate-500">transaksi</span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1">
-                    Perlu ditagih atau dibayar cicilannya
-                  </div>
-                </div>
-              </div>
-
-              {/* Filter Bar */}
-              <div className="bg-white/80 backdrop-blur-md p-4 rounded-xl border border-white/60 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-                {/* Filter Type Pills */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-slate-500 mr-1">Tampilkan:</span>
-                  <button
-                    type="button"
-                    onClick={() => setDebtFilterType('all')}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer ${
-                      debtFilterType === 'all'
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    Semua ({processedPurchases.length + processedSales.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDebtFilterType('hutang_pembelian')}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                      debtFilterType === 'hutang_pembelian'
-                        ? 'bg-rose-700 text-white'
-                        : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                    }`}
-                  >
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span>Hutang ke Supplier ({countUnpaidPurchases} sisa)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDebtFilterType('piutang_penjualan')}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                      debtFilterType === 'piutang_penjualan'
-                        ? 'bg-amber-600 text-white'
-                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                    }`}
-                  >
-                    <Users className="w-3.5 h-3.5" />
-                    <span>Bon Pelanggan ({countUnpaidSales} sisa)</span>
-                  </button>
-                </div>
-
-                {/* Status & Search */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <label className="text-slate-600 font-medium">Status:</label>
-                    <select
-                      value={debtStatusFilter}
-                      onChange={(e) => setDebtStatusFilter(e.target.value as any)}
-                      className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 font-semibold focus:outline-hidden"
-                    >
-                      <option value="unpaid">Belum Lunas / Masih Ada Sisa</option>
-                      <option value="all">Semua Nota</option>
-                      <option value="paid">Sudah Lunas</option>
-                    </select>
-                  </div>
-
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                    <input
-                      type="text"
-                      placeholder="Cari nomor nota atau nama..."
-                      value={debtSearchQuery}
-                      onChange={(e) => setDebtSearchQuery(e.target.value)}
-                      className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-hidden w-48"
-                    />
-                  </div>
-
-                  <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 select-none">
-                    <input
-                      type="checkbox"
-                      checked={filterByMonthOnly}
-                      onChange={(e) => setFilterByMonthOnly(e.target.checked)}
-                      className="rounded border-slate-300 text-amber-600 focus:ring-0"
-                    />
-                    <span>Hanya Bulan Ini</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* 1. TABLE: SUMMARY VIEW (Grouping by Supplier) */}
-              {(debtFilterType === 'all' || debtFilterType === 'hutang_pembelian') && (
-                <div className="bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden">
-                  <div className="p-4 border-b border-slate-200/80 bg-rose-50/50">
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                      Daftar Hutang ke Supplier (Belum Kita Bayar)
-                    </h3>
-                  </div>
-                  <table className="w-full text-xs text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
-                        <th className="py-2.5 px-3">Nama Supplier / Pemasok</th>
-                        <th className="py-2.5 px-3 text-right">Sisa Hutang Belum Dibayar</th>
-                        <th className="py-2.5 px-3 text-center">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {Object.entries(processedPurchases.reduce((acc, p) => {
-                        if (!p.isLunas) {
-                          acc[p.supplierName] = (acc[p.supplierName] || 0) + p.computedRemaining;
-                        }
-                        return acc;
-                      }, {} as Record<string, number>)).map(([supplier, total]) => (
-                        <tr key={supplier} className="hover:bg-slate-50/60">
-                          <td className="py-2.5 px-3 font-semibold text-slate-900">{supplier}</td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600">{formatCurrency(total)}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedPartyDetail({ type: 'purchase', name: supplier });
-                                setTimeout(() => {
-                                  document.getElementById('daftar-semua-nota-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                }, 60);
-                              }}
-                              className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
-                            >
-                              Lihat Rincian Nota
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* 2. SUMMARY VIEW: PIUTANG PENJUALAN */}
-              {(debtFilterType === 'all' || debtFilterType === 'piutang_penjualan') && (
-                <div className="bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden">
-                  <div className="p-4 border-b border-slate-200/80 bg-amber-50/50">
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                      Daftar Bon Pelanggan (Belum Dibayar ke Kita)
-                    </h3>
-                  </div>
-                  <table className="w-full text-xs text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
-                        <th className="py-2.5 px-3">Nama Pembeli / Pelanggan</th>
-                        <th className="py-2.5 px-3 text-right">Sisa Bon Belum Dibayar</th>
-                        <th className="py-2.5 px-3 text-center">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {Object.entries(processedSales.reduce((acc, s) => {
-                        if (!s.isLunas) {
-                          acc[s.customerName] = (acc[s.customerName] || 0) + s.computedRemaining;
-                        }
-                        return acc;
-                      }, {} as Record<string, number>)).map(([customer, total]) => (
-                        <tr key={customer} className="hover:bg-slate-50/60">
-                          <td className="py-2.5 px-3 font-semibold text-slate-900">{customer}</td>
-                          <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-700">{formatCurrency(total)}</td>
-                          <td className="py-2.5 px-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedPartyDetail({ type: 'sale', name: customer });
-                                setTimeout(() => {
-                                  document.getElementById('daftar-semua-nota-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                }, 60);
-                              }}
-                              className="px-3 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
-                            >
-                              Lihat Rincian Nota
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* 3. TABLE: DAFTAR RINCIAN TRANSAKSI (SESUAI FILTER & PENCARIAN) */}
-              {selectedPartyDetail && (() => {
-                const isPur = selectedPartyDetail.type === 'purchase';
-                const partyName = selectedPartyDetail.name;
-                const listSales = isPur ? [] : processedSales.filter(s => s.customerName.toLowerCase() === partyName.toLowerCase());
-                const listPurchases = isPur ? processedPurchases.filter(p => p.supplierName.toLowerCase() === partyName.toLowerCase()) : [];
-                const totalBill = isPur ? listPurchases.reduce((sum, p) => sum + p.grandTotal, 0) : listSales.reduce((sum, s) => sum + s.grandTotal, 0);
-                const totalPaid = isPur ? listPurchases.reduce((sum, p) => sum + p.computedPaid, 0) : listSales.reduce((sum, s) => sum + s.computedPaid, 0);
-                const totalRemaining = isPur ? listPurchases.reduce((sum, p) => sum + p.computedRemaining, 0) : listSales.reduce((sum, s) => sum + s.computedRemaining, 0);
-                const countInvoices = isPur ? listPurchases.length : listSales.length;
-
-                return (
-                  <div className="bg-white/90 backdrop-blur-md border border-amber-200/90 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3 animate-in fade-in duration-200">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2.5 rounded-xl ${isPur ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                          {isPur ? <Building2 className="w-5 h-5" /> : <Users className="w-5 h-5" />}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                              Rincian Semua Nota Bon & Tagihan: <span className="text-amber-800">{partyName}</span>
-                            </h3>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isPur ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'}`}>
-                              {isPur ? 'Supplier' : 'Pelanggan'}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            Menampilkan seluruh riwayat {countInvoices} nota belanja & riwayat cicilan di tabel bawah
-                          </p>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPartyDetail(null)}
-                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 self-start sm:self-auto shadow-2xs"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                        <span>Tampilkan Semua Nota</span>
-                      </button>
-                    </div>
-
-                    {/* Summary KPI 3 Cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase block tracking-wider">Total Transaksi</span>
-                        <span className="font-mono font-bold text-slate-900 text-base">{formatCurrency(totalBill)}</span>
-                      </div>
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase block tracking-wider">Sudah Dibayar</span>
-                        <span className="font-mono font-bold text-emerald-700 text-base">{formatCurrency(totalPaid)}</span>
-                      </div>
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase block tracking-wider">
-                          {isPur ? 'Sisa Hutang Kita' : 'Sisa Tagihan Pelanggan'}
-                        </span>
-                        <span className={`font-mono font-bold text-base ${totalRemaining > 0 ? (isPur ? 'text-rose-700' : 'text-amber-700') : 'text-emerald-700'}`}>
-                          {formatCurrency(totalRemaining)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <div id="daftar-semua-nota-section" className="bg-white/80 backdrop-blur-md rounded-xl border border-white/60 shadow-xs overflow-hidden scroll-mt-20">
-                <div className="p-4 border-b border-slate-200/80 bg-slate-50/70 flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-slate-600" />
-                    <span>
-                      {selectedPartyDetail 
-                        ? `Rincian Semua Nota: ${selectedPartyDetail.name} (${filteredPurchases.length + filteredSales.length} nota)`
-                        : `Daftar Semua Nota Belanja & Penjualan (${debtFilterType === 'hutang_pembelian' ? filteredPurchases.length : debtFilterType === 'piutang_penjualan' ? filteredSales.length : filteredPurchases.length + filteredSales.length} nota)`
-                      }
-                    </span>
-                  </h3>
-                  {selectedPartyDetail ? (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedPartyDetail(null)}
-                      className="text-[11px] font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md cursor-pointer"
-                    >
-                      ✕ Tampilkan Semua
-                    </button>
-                  ) : (
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      {debtStatusFilter === 'unpaid' ? 'Belum Lunas / Ada Sisa' : debtStatusFilter === 'paid' ? 'Sudah Lunas' : 'Semua Nota'}
-                    </span>
-                  )}
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-semibold">
-                        <th className="py-2.5 px-3 whitespace-nowrap min-w-[95px]">Jenis</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">No. Nota</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Tanggal</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap">Nama Supplier / Pembeli</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Total Belanja</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Sudah Dibayar</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Sisa Belum Bayar</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">Status</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {/* Purchases */}
-                      {(debtFilterType === 'all' || debtFilterType === 'hutang_pembelian') &&
-                        filteredPurchases.map((p) => {
-                          const isExpanded = !!expandedRows[p.id];
-                          const historyPayments: DebtPayment[] = p.debtPayments && p.debtPayments.length > 0
-                            ? p.debtPayments
-                            : ((p.amountPaid || 0) > 0 ? [{
-                                id: `init-pur-${p.id}`,
-                                receiptNo: `BKK-${p.invoiceNumber.replace('PUR-', '')}-1`,
-                                date: p.date,
-                                amount: p.amountPaid || 0,
-                                paymentMethod: (p.paymentMethod || 'Transfer') as any,
-                                notes: p.isLunas ? 'Pembayaran Lunas Saat Pembelian' : 'DP / Pembayaran Awal',
-                                recordedBy: p.createdBy || 'Petugas',
-                                remainingAfter: p.computedRemaining,
-                              }] : []);
-
-                          return (
-                            <React.Fragment key={`pur-${p.id}`}>
-                              <tr className={`hover:bg-slate-50/60 transition-colors ${isExpanded ? 'bg-rose-50/30' : ''}`}>
-                                <td className="py-2.5 px-3 whitespace-nowrap">
-                                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-100 text-rose-800 whitespace-nowrap inline-block">
-                                    Hutang Beli
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">{p.invoiceNumber}</td>
-                                <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">{formatDate(p.date)}</td>
-                                <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{p.supplierName}</td>
-                                <td className="py-2.5 px-3 text-right font-mono whitespace-nowrap">{formatCurrency(p.grandTotal)}</td>
-                                <td 
-                                  onClick={() => toggleRowExpand(p.id)}
-                                  className="py-2.5 px-3 text-right cursor-pointer hover:bg-emerald-50/70 transition-colors select-none group"
-                                  title="Klik untuk membuka/menutup riwayat pembayaran & kwitansi"
-                                >
-                                  <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                                    <span className="font-mono font-bold text-emerald-700 group-hover:underline">
-                                      {formatCurrency(p.computedPaid)}
-                                    </span>
-                                    {historyPayments.length > 0 && (
-                                      <span className="text-[10px] text-slate-400 group-hover:text-emerald-700">
-                                        {isExpanded ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />}
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-700 whitespace-nowrap">{formatCurrency(p.computedRemaining)}</td>
-                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    p.isLunas ? 'bg-emerald-100 text-emerald-800' : p.computedPaid > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                                  }`}>
-                                    {p.isLunas ? 'Lunas' : p.computedPaid > 0 ? 'Ada Sisa' : 'Belum Lunas'}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    {/* Tombol Cetak Faktur Langsung */}
-                                    <button
-                                      type="button"
-                                      onClick={() => onPrintDocument?.({ type: 'purchase', data: p })}
-                                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                                      title="Cetak Faktur Pembelian (Beserta Riwayat Pembayaran & Status)"
-                                    >
-                                      <Printer className="w-3 h-3 text-white" />
-                                      <span>Cetak</span>
-                                    </button>
-
-                                    {/* Tombol Bayar Hutang */}
-                                    {!p.isLunas && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenPayPurchaseModal(p)}
-                                        className="px-2.5 py-1 bg-rose-700 hover:bg-rose-800 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
-                                      >
-                                        Bayar
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-
-                              {/* Accordion: Riwayat Pembayaran Pembelian */}
-                              {isExpanded && (
-                                <tr className="bg-rose-50/40 border-b border-rose-200">
-                                  <td colSpan={9} className="p-3">
-                                    <div className="bg-white rounded-lg border border-rose-200 p-3 shadow-xs">
-                                      <div className="flex items-center justify-between pb-2 border-b border-slate-200 mb-2">
-                                        <div className="flex items-center gap-2">
-                                          <History className="w-4 h-4 text-rose-600" />
-                                          <span className="font-bold text-slate-900 text-xs">
-                                            Riwayat Pembayaran Hutang Supplier: <span className="font-mono">{p.invoiceNumber}</span> ({p.supplierName})
-                                          </span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                            p.isLunas ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                                          }`}>
-                                            {p.isLunas ? 'LUNAS' : `Sisa Hutang: ${formatCurrency(p.computedRemaining)}`}
-                                          </span>
-                                          <button
-                                            type="button"
-                                            onClick={() => onPrintDocument?.({ type: 'purchase', data: p })}
-                                            className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold rounded flex items-center gap-1 cursor-pointer"
-                                          >
-                                            <Printer className="w-3 h-3 text-amber-400" />
-                                            <span>Cetak Faktur Lengkap</span>
-                                          </button>
-                                        </div>
-                                      </div>
-
-                                      <div className="overflow-x-auto">
-                                        <table className="w-full text-[11px] text-left">
-                                          <thead>
-                                            <tr className="text-slate-500 border-b border-slate-100 font-semibold bg-slate-50/80">
-                                              <th className="py-1.5 px-2">No</th>
-                                              <th className="py-1.5 px-2">Waktu Pembayaran</th>
-                                              <th className="py-1.5 px-2">No. Bukti Kas (BKK)</th>
-                                              <th className="py-1.5 px-2">Metode</th>
-                                              <th className="py-1.5 px-2">Keterangan / Catatan</th>
-                                              <th className="py-1.5 px-2 text-right">Nominal Dibayar</th>
-                                              <th className="py-1.5 px-2 text-right">Sisa Hutang</th>
-                                              <th className="py-1.5 px-2 text-center">Cetak Bukti</th>
-                                            </tr>
-                                          </thead>
-                                          <tbody className="divide-y divide-slate-100">
-                                            {historyPayments.map((pay, pIdx) => {
-                                              const receiptCode = pay.receiptNo || `BKK-${p.invoiceNumber.replace('PUR-', '')}-${pIdx + 1}`;
-                                              const remainingAfter = pay.remainingAfter !== undefined ? pay.remainingAfter : Math.max(0, p.grandTotal - (p.amountPaid || 0));
-                                              return (
-                                                <tr key={pay.id || pIdx} className="hover:bg-slate-50/80">
-                                                  <td className="py-1.5 px-2 font-mono text-slate-500">{pIdx + 1}</td>
-                                                  <td className="py-1.5 px-2 text-slate-700">{formatDateTime(pay.date)}</td>
-                                                  <td className="py-1.5 px-2 font-mono font-bold text-slate-900">{receiptCode}</td>
-                                                  <td className="py-1.5 px-2">
-                                                    <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-bold text-slate-700">
-                                                      {pay.paymentMethod || 'Transfer'}
-                                                    </span>
-                                                  </td>
-                                                  <td className="py-1.5 px-2 text-slate-700">{pay.notes || (pIdx === 0 ? 'DP Pembelian' : 'Cicilan Hutang')}</td>
-                                                  <td className="py-1.5 px-2 text-right font-mono font-bold text-rose-700">
-                                                    -{formatCurrency(pay.amount)}
-                                                  </td>
-                                                  <td className="py-1.5 px-2 text-right font-mono text-slate-700">
-                                                    {formatCurrency(remainingAfter)}
-                                                  </td>
-                                                  <td className="py-1.5 px-2 text-center">
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => onPrintDocument?.({
-                                                        type: 'payment_receipt',
-                                                        data: {
-                                                          receiptType: 'BKK',
-                                                          receiptNo: receiptCode,
-                                                          title: 'BUKTI PENGELUARAN KAS (BKK) - PEMBAYARAN HUTANG SUPPLIER',
-                                                          date: pay.date,
-                                                          invoiceNumber: p.invoiceNumber,
-                                                          counterpartyName: p.supplierName,
-                                                          counterpartyType: 'Supplier',
-                                                          totalInvoiceAmount: p.grandTotal,
-                                                          paymentAmount: pay.amount,
-                                                          remainingDebt: remainingAfter,
-                                                          paymentMethod: pay.paymentMethod || 'Transfer',
-                                                          notes: pay.notes || 'Pembayaran Hutang Supplier',
-                                                          recordedBy: pay.recordedBy || 'Admin Usaha',
-                                                        }
-                                                      })}
-                                                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold rounded flex items-center gap-1 mx-auto cursor-pointer"
-                                                      title="Cetak Bukti Kas Keluar (BKK)"
-                                                    >
-                                                      <Printer className="w-2.5 h-2.5 text-rose-600" />
-                                                      <span>BKK</span>
-                                                    </button>
-                                                  </td>
-                                                </tr>
-                                              );
-                                            })}
-                                          </tbody>
-                                        </table>
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </React.Fragment>
-                          );
-                        })}
-
-                      {/* Sales */}
-                      {(debtFilterType === 'all' || debtFilterType === 'piutang_penjualan') &&
-                        filteredSales.map((s) => {
-                          const isExpanded = !!expandedRows[s.id];
-                          const historyPayments: DebtPayment[] = s.customerDebtPayments && s.customerDebtPayments.length > 0
-                            ? s.customerDebtPayments
-                            : (s.amountPaid > 0 ? [{
-                                id: `init-sal-${s.id}`,
-                                receiptNo: `BKM-${s.invoiceNumber.replace('INV-', '')}-1`,
-                                date: s.date,
-                                amount: s.amountPaid,
-                                paymentMethod: (s.paymentMethod || 'Tunai') as any,
-                                notes: s.isLunas ? 'Pembayaran Lunas Saat Transaksi' : 'Uang Muka (DP) Transaksi Awal',
-                                recordedBy: 'Kasir',
-                                remainingAfter: s.computedRemaining,
-                              }] : []);
-
-                          return (
-                            <React.Fragment key={`sal-${s.id}`}>
-                              <tr className={`hover:bg-slate-50/60 transition-colors ${isExpanded ? 'bg-amber-50/30' : ''}`}>
-                                <td className="py-2.5 px-3 whitespace-nowrap">
-                                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 whitespace-nowrap inline-block">
-                                    Bon Jual
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-3 font-mono font-bold text-slate-900 whitespace-nowrap">{s.invoiceNumber}</td>
-                                <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">{formatDate(s.date)}</td>
-                                <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">{s.customerName}</td>
-                                <td className="py-2.5 px-3 text-right font-mono whitespace-nowrap">{formatCurrency(s.grandTotal)}</td>
-                                <td 
-                                  onClick={() => toggleRowExpand(s.id)}
-                                  className="py-2.5 px-3 text-right cursor-pointer hover:bg-emerald-50/70 transition-colors select-none group"
-                                  title="Klik untuk membuka/menutup riwayat pembayaran & kwitansi"
-                                >
-                                  <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                                    <span className="font-mono font-bold text-emerald-700 group-hover:underline">
-                                      {formatCurrency(s.computedPaid)}
-                                    </span>
-                                    {historyPayments.length > 0 && (
-                                      <span className="text-[10px] text-slate-400 group-hover:text-emerald-700">
-                                        {isExpanded ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />}
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-700 whitespace-nowrap">{formatCurrency(s.computedRemaining)}</td>
-                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    s.isLunas ? 'bg-emerald-100 text-emerald-800' : s.computedPaid > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                                  }`}>
-                                    {s.isLunas ? 'Lunas' : s.computedPaid > 0 ? 'Ada Sisa' : 'Belum Lunas'}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    {/* Tombol Cetak Nota Langsung */}
-                                    <button
-                                      type="button"
-                                      onClick={() => onPrintDocument?.({ type: 'sale', data: s })}
-                                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                                      title="Cetak Nota Penjualan (Beserta Riwayat Pembayaran & Watermark Lunas)"
-                                    >
-                                      <Printer className="w-3 h-3 text-white" />
-                                      <span>Cetak</span>
-                                    </button>
-
-                                    {/* Tombol Terima Pembayaran */}
-                                    {!s.isLunas && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleOpenPaySaleModal(s)}
-                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg cursor-pointer transition-colors shadow-2xs"
-                                      >
-                                        Terima
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-
-                              {/* Accordion: Riwayat Pembayaran Penjualan */}
-                              {isExpanded && (
-                                <tr className="bg-amber-50/40 border-b border-amber-200">
-                                  <td colSpan={9} className="p-3">
-                                    <div className="bg-white rounded-lg border border-amber-200 p-3 shadow-xs">
-                                      <div className="flex items-center justify-between pb-2 border-b border-slate-200 mb-2">
-                                        <div className="flex items-center gap-2">
-                                          <History className="w-4 h-4 text-amber-600" />
-                                          <span className="font-bold text-slate-900 text-xs">
-                                            Riwayat Pembayaran & Pelunasan Nota: <span className="font-mono">{s.invoiceNumber}</span> ({s.customerName})
-                                          </span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                            s.isLunas ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                                          }`}>
-                                            {s.isLunas ? 'LUNAS' : `Sisa Tagihan: ${formatCurrency(s.computedRemaining)}`}
-                                          </span>
-                                          <button
-                                            type="button"
-                                            onClick={() => onPrintDocument?.({ type: 'sale', data: s })}
-                                            className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold rounded flex items-center gap-1 cursor-pointer"
-                                          >
-                                            <Printer className="w-3 h-3 text-amber-400" />
-                                            <span>Cetak Nota Lengkap</span>
-                                          </button>
-                                        </div>
-                                      </div>
-
-                                      <div className="overflow-x-auto">
-                                        <table className="w-full text-[11px] text-left">
-                                          <thead>
-                                            <tr className="text-slate-500 border-b border-slate-100 font-semibold bg-slate-50/80">
-                                              <th className="py-1.5 px-2">No</th>
-                                              <th className="py-1.5 px-2">Waktu Pembayaran</th>
-                                              <th className="py-1.5 px-2">No. Kuitansi (BKM)</th>
-                                              <th className="py-1.5 px-2">Metode</th>
-                                              <th className="py-1.5 px-2">Keterangan / Catatan</th>
-                                              <th className="py-1.5 px-2 text-right">Nominal Masuk</th>
-                                              <th className="py-1.5 px-2 text-right">Sisa Tagihan</th>
-                                              <th className="py-1.5 px-2 text-center">Cetak Bukti</th>
-                                            </tr>
-                                          </thead>
-                                          <tbody className="divide-y divide-slate-100">
-                                            {historyPayments.map((pay, pIdx) => {
-                                              const receiptCode = pay.receiptNo || `BKM-${s.invoiceNumber.replace('INV-', '')}-${pIdx + 1}`;
-                                              const remainingAfter = pay.remainingAfter !== undefined ? pay.remainingAfter : Math.max(0, s.grandTotal - s.amountPaid);
-                                              return (
-                                                <tr key={pay.id || pIdx} className="hover:bg-slate-50/80">
-                                                  <td className="py-1.5 px-2 font-mono text-slate-500">{pIdx + 1}</td>
-                                                  <td className="py-1.5 px-2 text-slate-700">{formatDateTime(pay.date)}</td>
-                                                  <td className="py-1.5 px-2 font-mono font-bold text-slate-900">{receiptCode}</td>
-                                                  <td className="py-1.5 px-2">
-                                                    <span className="px-1.5 py-0.5 bg-slate-100 rounded text-[10px] font-bold text-slate-700">
-                                                      {pay.paymentMethod || 'Tunai'}
-                                                    </span>
-                                                  </td>
-                                                  <td className="py-1.5 px-2 text-slate-700">{pay.notes || (pIdx === 0 ? 'DP Pembayaran' : 'Cicilan Tagihan')}</td>
-                                                  <td className="py-1.5 px-2 text-right font-mono font-bold text-emerald-700">
-                                                    +{formatCurrency(pay.amount)}
-                                                  </td>
-                                                  <td className="py-1.5 px-2 text-right font-mono text-slate-700">
-                                                    {formatCurrency(remainingAfter)}
-                                                  </td>
-                                                  <td className="py-1.5 px-2 text-center">
-                                                    <button
-                                                      type="button"
-                                                      onClick={() => onPrintDocument?.({
-                                                        type: 'payment_receipt',
-                                                        data: {
-                                                          receiptType: 'BKM',
-                                                          receiptNo: receiptCode,
-                                                          title: 'BUKTI PENERIMAAN KAS (BKM) - PIUTANG PELANGGAN',
-                                                          date: pay.date,
-                                                          invoiceNumber: s.invoiceNumber,
-                                                          counterpartyName: s.customerName,
-                                                          counterpartyType: 'Pelanggan',
-                                                          totalInvoiceAmount: s.grandTotal,
-                                                          paymentAmount: pay.amount,
-                                                          remainingDebt: remainingAfter,
-                                                          paymentMethod: pay.paymentMethod || 'Tunai',
-                                                          notes: pay.notes || 'Penerimaan Piutang Pelanggan',
-                                                          recordedBy: pay.recordedBy || 'Admin',
-                                                        }
-                                                      })}
-                                                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold rounded flex items-center gap-1 mx-auto cursor-pointer"
-                                                      title="Cetak Kuitansi / Bukti Kas Masuk"
-                                                    >
-                                                      <Printer className="w-2.5 h-2.5 text-amber-600" />
-                                                      <span>Kuitansi</span>
-                                                    </button>
-                                                  </td>
-                                                </tr>
-                                              );
-                                            })}
-                                          </tbody>
-                                        </table>
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </React.Fragment>
-                          );
-                        })}
-
-                      {filteredPurchases.length === 0 && filteredSales.length === 0 && (
-                        <tr>
-                          <td colSpan={9} className="py-8 text-center text-slate-400">
-                            Tidak ditemukan transaksi dengan filter yang dipilih.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODALS SECTION                                                            */}
-      {/* ========================================================================= */}
-
-      {/* 1. RECORD OPERATIONAL EXPENSE MODAL */}
-      {showExpenseModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <h3 className="text-sm font-bold text-slate-900">Catat Biaya Operasional Baru</h3>
-              <button onClick={() => setShowExpenseModal(false)} className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer">✕</button>
-            </div>
-
-            <form onSubmit={handleSaveExpense} className="space-y-3.5 pt-3 text-xs">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Kategori Biaya:</label>
-                <select
-                  value={expCategory}
-                  onChange={(e) => setExpCategory(e.target.value as any)}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-medium"
-                >
-                  <option value="Listrik & Air">Listrik & Air (Cold Storage / Freezer)</option>
-                  <option value="Bahan Bakar & Kendaraan">Bahan Bakar Armada & Service Motor/Pick up</option>
-                  <option value="Plastik & Kemasan">Plastik & Kemasan Daging Ayam</option>
-                  <option value="Sewa Tempat & Cold Storage">Sewa Tempat / Kios / Ruang Pendingin</option>
-                  <option value="Perawatan Peralatan">Perawatan Pisau, Timbangan, Talenan</option>
-                  <option value="Lain-lain">Lain-lain</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Tanggal Pengeluaran:</label>
-                <input
-                  type="date"
-                  required
-                  value={expDate}
-                  onChange={(e) => setExpDate(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Keterangan Biaya:</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Misal: Beli token listrik freezer 500rb"
-                  value={expDesc}
-                  onChange={(e) => setExpDesc(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Nominal (Rp):</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-2.5 font-bold text-slate-400 text-xs">Rp</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    required
-                    value={expAmount === 0 ? '' : expAmount.toLocaleString('id-ID')}
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/\./g, '').replace(/,/g, '');
-                      setExpAmount(raw === '' ? 0 : Math.max(0, parseInt(raw) || 0));
-                    }}
-                    className="w-full pl-9 p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold text-slate-900"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+            <div className="flex items-center gap-2 w-full md:w-auto justify-end">
+              {Object.keys(manualOverrides).length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setShowExpenseModal(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg cursor-pointer"
+                  onClick={handleResetManualOverrides}
+                  className="px-3 py-2 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Kembalikan semua baris yang diedit manual ke hitungan otomatis data sistem"
                 >
-                  Batal
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset ke Otomatis Sistem</span>
                 </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg cursor-pointer"
-                >
-                  Simpan Pengeluaran
-                </button>
-              </div>
-            </form>
+              )}
+
+              <button
+                type="button"
+                onClick={handlePrintReport}
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 transition-all cursor-pointer"
+                title="Cetak Laporan Harian resmi sesuai format"
+              >
+                <Printer className="w-4 h-4 text-amber-400" />
+                <span>Cetak Laporan</span>
+              </button>
+            </div>
           </div>
+
+          {/* MAIN JOURNAL CARD CONTAINER: EXACT MATCH WITH NOTEBOOK */}
+          <div className="bg-white rounded-3xl border border-slate-300 shadow-xl max-w-4xl mx-auto overflow-hidden">
+            
+            {/* Header Title inside card */}
+            <div className="bg-slate-900 text-white p-5 sm:p-6 border-b border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex items-center gap-3.5 sm:gap-4">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl border border-slate-700 bg-white p-1 flex items-center justify-center shrink-0 shadow-xs overflow-hidden">
+                  <img
+                    src={storeProfile.logoUrl || '/logo_unggas.svg'}
+                    alt={storeProfile.name}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+                <div>
+                  <div className="text-amber-400 font-extrabold text-xs sm:text-sm tracking-wider uppercase">
+                    {storeProfile.name}
+                  </div>
+                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-2 mt-0.5">
+                    <span>LAPORAN</span>
+                    <span className="text-sm sm:text-base font-extrabold text-amber-300 bg-slate-800 px-2.5 py-0.5 rounded-lg border border-slate-700 tracking-normal">
+                      KEUANGAN
+                    </span>
+                  </h1>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Alur Perhitungan Harian Murni Sesuai Buku Catatan Operasional
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-left sm:text-right bg-slate-800/80 px-4 py-2.5 rounded-2xl border border-slate-700 shrink-0">
+                <span className="text-[11px] font-semibold text-slate-400 block">Tanggal:</span>
+                <span className="font-mono font-bold text-base sm:text-lg text-amber-300 block">
+                  {formatDate(selectedDate)}
+                </span>
+                <span className="text-[10px] text-slate-400 block">
+                  (H-1 Kemarin: {formatDate(yesterdayDate)})
+                </span>
+              </div>
+            </div>
+
+            {/* 7 ROWS AND INTERMEDIATE TOTALS (EXACT HANDWRITTEN MATCH) */}
+            <div className="p-5 sm:p-8 space-y-6 text-xs">
+              
+              {/* ======================================================== */}
+              {/* SECTION 1: OUTPUT (1. TAGIHAN + 2. STOK OPNAME HARI INI) */}
+              {/* ======================================================== */}
+              <div className="space-y-3">
+                
+                {/* 1. TAGIHAN PER HARI (NOTA) */}
+                <div className="p-4 bg-slate-50/70 hover:bg-slate-50 rounded-2xl border border-slate-200 transition-all">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                          1
+                        </span>
+                        <span className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">
+                          TAGIHAN PER HARI (NOTA)
+                        </span>
+                      </div>
+                      <div className="text-[11px] font-bold text-slate-500 pl-9">
+                        (TANPA SISA HUTANG & KEMBALIAN / TABUNGAN)
+                      </div>
+                      <div className="pl-9 pt-1 flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500">
+                          Total {dailySales.length} Nota Penjualan
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleDetail('tagihan')}
+                          className="text-[10px] text-amber-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          {expandedDetails['tagihan'] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          <span>{expandedDetails['tagihan'] ? 'Tutup Rincian' : 'Lihat Rincian Nota'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Value Input / Display */}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <span className="text-slate-400 font-mono font-bold text-base">=</span>
+                      <div className="flex items-center bg-white border border-slate-300 rounded-xl px-3 py-1.5 shadow-2xs">
+                        <span className="text-xs text-slate-400 font-mono mr-1">Rp</span>
+                        <input
+                          type="number"
+                          value={valTagihanPerHari}
+                          onChange={(e) => setManualOverrides(prev => ({ ...prev, tagihan: parseFloat(e.target.value) || 0 }))}
+                          className="w-36 sm:w-44 font-mono font-black text-slate-900 text-right text-base focus:outline-hidden"
+                          title="Ubah nominal Tagihan Per Hari (Nota)"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Detail Accordion for Tagihan */}
+                  {expandedDetails['tagihan'] && (
+                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                      <span className="font-bold text-[11px] text-slate-700 block">Daftar Nota Penjualan Tanggal {formatDate(selectedDate)}:</span>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 text-xs">
+                        {dailySales.map((s, idx) => (
+                          <div key={s.id} className="py-1.5 flex justify-between items-center text-[11px]">
+                            <div>
+                              <strong className="text-slate-900">{idx + 1}. {s.customerName}</strong> ({s.invoiceNumber})
+                            </div>
+                            <div className="font-mono font-bold text-slate-800">
+                              {formatCurrency(s.totalBarang !== undefined ? s.totalBarang : s.grandTotal)}
+                            </div>
+                          </div>
+                        ))}
+                        {dailySales.length === 0 && (
+                          <div className="text-slate-400 py-2 italic text-center">Belum ada transaksi penjualan pada tanggal ini.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. STOK OPNAME PER HARI */}
+                <div className="p-4 bg-slate-50/70 hover:bg-slate-50 rounded-2xl border border-slate-200 transition-all">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                          2
+                        </span>
+                        <span className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">
+                          STOK OPNAME PER HARI
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium pl-9">
+                        (Aset Fisik Stok Akhir Hari Ini)
+                      </div>
+                      <div className="pl-9 pt-1 flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500">
+                          {items.length} Item Katalog Terdaftar
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleDetail('stokHariIni')}
+                          className="text-[10px] text-amber-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          {expandedDetails['stokHariIni'] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          <span>{expandedDetails['stokHariIni'] ? 'Tutup Rincian' : 'Lihat Rincian Stok'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Value Input / Display */}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <span className="text-slate-400 font-mono font-bold text-base">=</span>
+                      <div className="flex items-center bg-white border border-slate-300 rounded-xl px-3 py-1.5 shadow-2xs">
+                        <span className="text-xs text-slate-400 font-mono mr-1">Rp</span>
+                        <input
+                          type="number"
+                          value={valStokOpnameHariIni}
+                          onChange={(e) => setManualOverrides(prev => ({ ...prev, stokHariIni: parseFloat(e.target.value) || 0 }))}
+                          className="w-36 sm:w-44 font-mono font-black text-slate-900 text-right text-base focus:outline-hidden"
+                          title="Ubah nominal Stok Opname Hari Ini"
+                        />
+                      </div>
+                      <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 font-black text-sm flex items-center justify-center shrink-0 border border-emerald-300" title="Ditambahkan (+)">
+                        (+)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Detail Accordion for Stok Hari Ini */}
+                  {expandedDetails['stokHariIni'] && (
+                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                      <span className="font-bold text-[11px] text-slate-700 block">Rincian Estimasi Nilai Stok Hari Ini:</span>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 text-xs">
+                        {items.map((it, idx) => (
+                          <div key={it.id} className="py-1.5 flex justify-between items-center text-[11px]">
+                            <div>
+                              <strong className="text-slate-900">{idx + 1}. {it.name}</strong>: {formatNumber(it.currentStock)} {it.unit} @ {formatCurrency(it.baseBuyPrice)}
+                            </div>
+                            <div className="font-mono font-bold text-slate-800">
+                              {formatCurrency(it.currentStock * it.baseBuyPrice)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* INTERMEDIATE RESULT 1: (TOTAL) */}
+                <div className="bg-amber-500/10 border-2 border-amber-400 p-4 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs sm:text-sm font-black text-amber-950 uppercase tracking-wider">
+                      (TOTAL)
+                    </span>
+                    <span className="text-[11px] text-amber-800 font-semibold bg-amber-200/80 px-2 py-0.5 rounded-md">
+                      ① Tagihan + ② Stok Hari Ini
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-black text-slate-900 text-lg sm:text-xl">
+                      {formatCurrency(valTotalOutput)}
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* ======================================================== */}
+              {/* SECTION 2: INPUTS / PENGELUARAN & MODAL (3, 4, 5)        */}
+              {/* ======================================================== */}
+              <div className="space-y-3 pt-2">
+                
+                {/* 3. STOK OPNAME KEMARIN */}
+                <div className="p-4 bg-slate-50/70 hover:bg-slate-50 rounded-2xl border border-slate-200 transition-all">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-full bg-slate-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                          3
+                        </span>
+                        <span className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">
+                          STOK OPNAME KEMARIN
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium pl-9">
+                        (Aset Fisik Stok Awal H-1 Kemarin: {formatDate(yesterdayDate)})
+                      </div>
+                    </div>
+
+                    {/* Value Input / Display */}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <span className="text-slate-400 font-mono font-bold text-base">=</span>
+                      <div className="flex items-center bg-white border border-slate-300 rounded-xl px-3 py-1.5 shadow-2xs">
+                        <span className="text-xs text-slate-400 font-mono mr-1">Rp</span>
+                        <input
+                          type="number"
+                          value={valStokOpnameKemarin}
+                          onChange={(e) => setManualOverrides(prev => ({ ...prev, stokKemarin: parseFloat(e.target.value) || 0 }))}
+                          className="w-36 sm:w-44 font-mono font-black text-slate-900 text-right text-base focus:outline-hidden"
+                          title="Ubah nominal Stok Opname Kemarin"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. OPERASIONAL PER HARI */}
+                <div className="p-4 bg-slate-50/70 hover:bg-slate-50 rounded-2xl border border-slate-200 transition-all">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-full bg-slate-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                          4
+                        </span>
+                        <span className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">
+                          OPERASIONAL PER HARI
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium pl-9">
+                        (Biaya Operasional Usaha + Upah Gaji Harian)
+                      </div>
+                      <div className="pl-9 pt-1 flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500">
+                          {dailyExpenses.length + dailyOperationalTxs.length} Pengeluaran • {dailySalarySlips.length} Slip Gaji
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleDetail('operasional')}
+                          className="text-[10px] text-amber-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          {expandedDetails['operasional'] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          <span>{expandedDetails['operasional'] ? 'Tutup Rincian' : 'Lihat Rincian Biaya'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Value Input / Display */}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <span className="text-slate-400 font-mono font-bold text-base">=</span>
+                      <div className="flex items-center bg-white border border-slate-300 rounded-xl px-3 py-1.5 shadow-2xs">
+                        <span className="text-xs text-slate-400 font-mono mr-1">Rp</span>
+                        <input
+                          type="number"
+                          value={valOperasionalPerHari}
+                          onChange={(e) => setManualOverrides(prev => ({ ...prev, operasional: parseFloat(e.target.value) || 0 }))}
+                          className="w-36 sm:w-44 font-mono font-black text-slate-900 text-right text-base focus:outline-hidden"
+                          title="Ubah nominal Operasional Per Hari"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Detail Accordion for Operasional */}
+                  {expandedDetails['operasional'] && (
+                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                      <span className="font-bold text-[11px] text-slate-700 block">Rincian Operasional & Upah Tanggal {formatDate(selectedDate)}:</span>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 text-xs">
+                        {dailyExpenses.map(e => (
+                          <div key={e.id} className="py-1.5 flex justify-between items-center text-[11px]">
+                            <div><strong className="text-slate-900">{e.category}</strong>: {e.description}</div>
+                            <div className="font-mono font-bold text-slate-800">{formatCurrency(e.amount)}</div>
+                          </div>
+                        ))}
+                        {dailyOperationalTxs.map(tx => (
+                          <div key={tx.id} className="py-1.5 flex justify-between items-center text-[11px]">
+                            <div><strong className="text-slate-900">Operasional ({tx.type})</strong>: {tx.description}</div>
+                            <div className="font-mono font-bold text-slate-800">{formatCurrency(tx.amount)}</div>
+                          </div>
+                        ))}
+                        {dailySalarySlips.map(s => (
+                          <div key={s.id} className="py-1.5 flex justify-between items-center text-[11px]">
+                            <div><strong className="text-slate-900">Slip Gaji</strong>: {s.employeeName} ({s.slipNumber})</div>
+                            <div className="font-mono font-bold text-slate-800">{formatCurrency(s.netSalary)}</div>
+                          </div>
+                        ))}
+                        {dailyExpenses.length === 0 && dailyOperationalTxs.length === 0 && dailySalarySlips.length === 0 && (
+                          <div className="text-slate-400 py-2 italic text-center">Belum ada catatan pengeluaran/gaji pada tanggal ini.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. MODAL SUPLAIER */}
+                <div className="p-4 bg-slate-50/70 hover:bg-slate-50 rounded-2xl border border-slate-200 transition-all">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-full bg-slate-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                          5
+                        </span>
+                        <span className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">
+                          MODAL SUPLAIER
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium pl-9">
+                        (Pembelian Ayam / Bahan Masuk dari Supplier)
+                      </div>
+                      <div className="pl-9 pt-1 flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500">
+                          Total {dailyPurchases.length} Faktur Pembelian Supplier
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleDetail('modalSuplaier')}
+                          className="text-[10px] text-amber-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          {expandedDetails['modalSuplaier'] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          <span>{expandedDetails['modalSuplaier'] ? 'Tutup Rincian' : 'Lihat Rincian Faktur'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Value Input / Display */}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <span className="text-slate-400 font-mono font-bold text-base">=</span>
+                      <div className="flex items-center bg-white border border-slate-300 rounded-xl px-3 py-1.5 shadow-2xs">
+                        <span className="text-xs text-slate-400 font-mono mr-1">Rp</span>
+                        <input
+                          type="number"
+                          value={valModalSuplaier}
+                          onChange={(e) => setManualOverrides(prev => ({ ...prev, modalSuplaier: parseFloat(e.target.value) || 0 }))}
+                          className="w-36 sm:w-44 font-mono font-black text-slate-900 text-right text-base focus:outline-hidden"
+                          title="Ubah nominal Modal Suplaier"
+                        />
+                      </div>
+                      <span className="w-7 h-7 rounded-full bg-rose-100 text-rose-800 font-black text-sm flex items-center justify-center shrink-0 border border-rose-300" title="Dikurangkan (-)">
+                        (-)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Detail Accordion for Modal Suplaier */}
+                  {expandedDetails['modalSuplaier'] && (
+                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                      <span className="font-bold text-[11px] text-slate-700 block">Daftar Pembelian Supplier Tanggal {formatDate(selectedDate)}:</span>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 text-xs">
+                        {dailyPurchases.map((p, idx) => (
+                          <div key={p.id} className="py-1.5 flex justify-between items-center text-[11px]">
+                            <div>
+                              <strong className="text-slate-900">{idx + 1}. {p.supplierName}</strong> ({p.invoiceNumber})
+                            </div>
+                            <div className="font-mono font-bold text-slate-800">
+                              {formatCurrency(p.grandTotal)}
+                            </div>
+                          </div>
+                        ))}
+                        {dailyPurchases.length === 0 && (
+                          <div className="text-slate-400 py-2 italic text-center">Belum ada faktur pembelian supplier pada tanggal ini.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* INTERMEDIATE RESULT 2: (HASIL LAPORAN HARIAN / OMZET BERSIH) */}
+                <div className="bg-blue-600 text-white p-4.5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-sm">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm sm:text-base font-black text-white uppercase tracking-wider">
+                        (HASIL LAPORAN HARIAN / OMZET BERSIH)
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-blue-100 mt-0.5">
+                      (TOTAL) - ③ Stok Kemarin - ④ Operasional - ⑤ Modal Suplaier
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 self-end sm:self-center">
+                    <span className="font-mono font-black text-amber-300 text-xl sm:text-2xl drop-shadow-xs">
+                      {formatCurrency(valHasilLaporanHarian)}
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* ======================================================== */}
+              {/* SECTION 3: SISA HUTANG COSTUMER (6)                      */}
+              {/* ======================================================== */}
+              <div className="space-y-3 pt-2">
+                
+                {/* 6. SISA HUTANG COSTUMER */}
+                <div className="p-4 bg-slate-50/70 hover:bg-slate-50 rounded-2xl border border-slate-200 transition-all">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                          6
+                        </span>
+                        <span className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">
+                          SISA HUTANG COSTUMER
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium pl-9">
+                        (Piutang / Sisa Tagihan Pelanggan Belum Bayar Hari Ini)
+                      </div>
+                      <div className="pl-9 pt-1 flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500">
+                          {dailyUnpaidSales.length} Pelanggan Belum Lunas
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleDetail('sisaHutang')}
+                          className="text-[10px] text-amber-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          {expandedDetails['sisaHutang'] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          <span>{expandedDetails['sisaHutang'] ? 'Tutup Rincian' : 'Lihat Rincian Hutang'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Value Input / Display */}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <span className="text-slate-400 font-mono font-bold text-base">=</span>
+                      <div className="flex items-center bg-white border border-slate-300 rounded-xl px-3 py-1.5 shadow-2xs">
+                        <span className="text-xs text-slate-400 font-mono mr-1">Rp</span>
+                        <input
+                          type="number"
+                          value={valSisaHutangCostumer}
+                          onChange={(e) => setManualOverrides(prev => ({ ...prev, sisaHutang: parseFloat(e.target.value) || 0 }))}
+                          className="w-36 sm:w-44 font-mono font-black text-slate-900 text-right text-base focus:outline-hidden"
+                          title="Ubah nominal Sisa Hutang Costumer"
+                        />
+                      </div>
+                      <span className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 font-black text-sm flex items-center justify-center shrink-0 border border-emerald-300" title="Ditambahkan (+)">
+                        (+)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Detail Accordion for Sisa Hutang */}
+                  {expandedDetails['sisaHutang'] && (
+                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                      <span className="font-bold text-[11px] text-slate-700 block">Daftar Sisa Tagihan Pelanggan Tanggal {formatDate(selectedDate)}:</span>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 text-xs">
+                        {dailyUnpaidSales.map((s, idx) => (
+                          <div key={s.id} className="py-1.5 flex justify-between items-center text-[11px]">
+                            <div>
+                              <strong className="text-slate-900">{idx + 1}. {s.customerName}</strong> ({s.invoiceNumber})
+                            </div>
+                            <div className="font-mono font-bold text-rose-600">
+                              {formatCurrency(s.remainingDebt !== undefined ? s.remainingDebt : Math.max(0, s.grandTotal - s.amountPaid))}
+                            </div>
+                          </div>
+                        ))}
+                        {dailyUnpaidSales.length === 0 && (
+                          <div className="text-slate-400 py-2 italic text-center">Semua penjualan hari ini lunas (tidak ada sisa hutang).</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* INTERMEDIATE RESULT 3: (TOTAL) */}
+                <div className="bg-amber-500/10 border-2 border-amber-400 p-4 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs sm:text-sm font-black text-amber-950 uppercase tracking-wider">
+                      (TOTAL)
+                    </span>
+                    <span className="text-[11px] text-amber-800 font-semibold bg-amber-200/80 px-2 py-0.5 rounded-md">
+                      Hasil Omzet Bersih + ⑥ Sisa Hutang
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono font-black text-slate-900 text-lg sm:text-xl">
+                      {formatCurrency(valTotalSetelahHutang)}
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* ======================================================== */}
+              {/* SECTION 4: KEMBALIAN / TABUNGAN (7) & TOTAL KEUANGAN      */}
+              {/* ======================================================== */}
+              <div className="space-y-3 pt-2">
+                
+                {/* 7. KEMBALIAN / TABUNGAN COSTUMER */}
+                <div className="p-4 bg-slate-50/70 hover:bg-slate-50 rounded-2xl border border-slate-200 transition-all">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-full bg-slate-700 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                          7
+                        </span>
+                        <span className="font-extrabold text-sm sm:text-base text-slate-900 tracking-tight">
+                          KEMBALIAN / TABUNGAN COSTUMER
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-medium pl-9">
+                        (Deposit / Tabungan Pelanggan & Kelebihan Bayar Hari Ini)
+                      </div>
+                      <div className="pl-9 pt-1 flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500">
+                          {dailySavingsSales.length} Transaksi Menambah Tabungan
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleDetail('tabungan')}
+                          className="text-[10px] text-amber-700 font-bold hover:underline cursor-pointer flex items-center gap-1"
+                        >
+                          {expandedDetails['tabungan'] ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          <span>{expandedDetails['tabungan'] ? 'Tutup Rincian' : 'Lihat Rincian Tabungan'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Value Input / Display */}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <span className="text-slate-400 font-mono font-bold text-base">=</span>
+                      <div className="flex items-center bg-white border border-slate-300 rounded-xl px-3 py-1.5 shadow-2xs">
+                        <span className="text-xs text-slate-400 font-mono mr-1">Rp</span>
+                        <input
+                          type="number"
+                          value={valKembalianTabunganCostumer}
+                          onChange={(e) => setManualOverrides(prev => ({ ...prev, tabungan: parseFloat(e.target.value) || 0 }))}
+                          className="w-36 sm:w-44 font-mono font-black text-slate-900 text-right text-base focus:outline-hidden"
+                          title="Ubah nominal Kembalian / Tabungan Costumer"
+                        />
+                      </div>
+                      <span className="w-7 h-7 rounded-full bg-rose-100 text-rose-800 font-black text-sm flex items-center justify-center shrink-0 border border-rose-300" title="Dikurangkan (-)">
+                        (-)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Detail Accordion for Tabungan */}
+                  {expandedDetails['tabungan'] && (
+                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                      <span className="font-bold text-[11px] text-slate-700 block">Daftar Kelebihan Bayar / Tabungan Tanggal {formatDate(selectedDate)}:</span>
+                      <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 text-xs">
+                        {dailySavingsSales.map((s, idx) => (
+                          <div key={s.id} className="py-1.5 flex justify-between items-center text-[11px]">
+                            <div>
+                              <strong className="text-slate-900">{idx + 1}. {s.customerName}</strong> ({s.invoiceNumber})
+                            </div>
+                            <div className="font-mono font-bold text-emerald-700">
+                              +{formatCurrency(s.newSavingsRecorded || s.overpaymentAmount || 0)}
+                            </div>
+                          </div>
+                        ))}
+                        {dailySavingsSales.length === 0 && (
+                          <div className="text-slate-400 py-2 italic text-center">Tidak ada transaksi yang menambah tabungan pada tanggal ini.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* FINAL RESULT: (TOTAL KEUANGAN) ✓ */}
+                <div className="bg-emerald-950 text-white p-5 sm:p-6 rounded-3xl border-4 border-emerald-500 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-lg sm:text-2xl font-black text-white tracking-wider uppercase">
+                        (TOTAL KEUANGAN)
+                      </span>
+                      <span className="w-8 h-8 rounded-full bg-emerald-400 text-emerald-950 font-black text-lg flex items-center justify-center shrink-0 shadow-md">
+                        ✓
+                      </span>
+                    </div>
+                    <div className="text-xs text-emerald-200">
+                      Formula: (TOTAL) - ⑦ Kembalian / Tabungan Costumer
+                    </div>
+                    <div className="text-[11px] text-emerald-300/80 font-mono">
+                      Status Laporan: Valid & Siap Dicetak
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 self-end sm:self-center">
+                    <span className="font-mono font-black text-amber-300 text-2xl sm:text-3xl drop-shadow-md">
+                      {formatCurrency(valTotalKeuangan)}
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* Bottom Footer Actions inside Card */}
+            <div className="bg-slate-100 p-4 border-t border-slate-300 flex items-center justify-end">
+              <button
+                type="button"
+                onClick={handlePrintReport}
+                className="w-full sm:w-auto px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Printer className="w-4 h-4 text-white" />
+                <span>Cetak Lembar Laporan</span>
+              </button>
+            </div>
+
+          </div>
+
         </div>
       )}
 
-      {/* 2. MODAL BAYAR HUTANG PEMBELIAN KE SUPPLIER */}
+      {/* 3. SUB-TAB 2: BUKU HUTANG & PIUTANG (PELUNASAN HUTANG SUPPLIER & PIUTANG PELANGGAN) */}
+      {activeSubTab === 'hutang_piutang' && (
+        <div className="space-y-4">
+          
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-rose-200 shadow-xs flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                  Total Hutang ke Supplier
+                </span>
+                <span className="text-2xl font-black font-mono text-rose-600 mt-1 block">
+                  {formatCurrency(totalOutstandingPurchases)}
+                </span>
+                <span className="text-xs text-slate-500 mt-0.5 block">
+                  {unpaidPurchases.length} Faktur belum lunas
+                </span>
+              </div>
+              <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
+                <Building2 className="w-6 h-6" />
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-xs flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                  Total Piutang Pelanggan (Customer)
+                </span>
+                <span className="text-2xl font-black font-mono text-amber-600 mt-1 block">
+                  {formatCurrency(totalOutstandingSales)}
+                </span>
+                <span className="text-xs text-slate-500 mt-0.5 block">
+                  {unpaidSales.length} Nota belum lunas
+                </span>
+              </div>
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
+                <Users className="w-6 h-6" />
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => setDebtTypeFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  debtTypeFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                Semua ({unpaidPurchases.length + unpaidSales.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDebtTypeFilter('hutang_supplier')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  debtTypeFilter === 'hutang_supplier' ? 'bg-rose-600 text-white' : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                }`}
+              >
+                Hutang Supplier ({unpaidPurchases.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDebtTypeFilter('piutang_pelanggan')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  debtTypeFilter === 'piutang_pelanggan' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                }`}
+              >
+                Piutang Pelanggan ({unpaidSales.length})
+              </button>
+            </div>
+
+            <div className="relative w-full sm:w-72">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Cari nama supplier / pelanggan..."
+                value={debtSearchQuery}
+                onChange={(e) => setDebtSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-hidden"
+              />
+            </div>
+          </div>
+
+          {/* Tables: Supplier Debt */}
+          {(debtTypeFilter === 'all' || debtTypeFilter === 'hutang_supplier') && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="p-3.5 bg-rose-50/70 border-b border-rose-200 flex justify-between items-center">
+                <span className="font-bold text-xs text-rose-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <Building2 className="w-4 h-4 text-rose-600" />
+                  <span>Daftar Hutang ke Supplier ({unpaidPurchases.length})</span>
+                </span>
+                <span className="font-mono font-bold text-xs text-rose-700">
+                  Total: {formatCurrency(totalOutstandingPurchases)}
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-3">No. Faktur & Tanggal</th>
+                      <th className="py-2.5 px-3">Supplier</th>
+                      <th className="py-2.5 px-3 text-right">Total Pembelian</th>
+                      <th className="py-2.5 px-3 text-right">Telah Dibayar</th>
+                      <th className="py-2.5 px-3 text-right">Sisa Hutang</th>
+                      <th className="py-2.5 px-3 text-center">Aksi Pelunasan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {unpaidPurchases
+                      .filter(p => !debtSearchQuery.trim() || p.supplierName.toLowerCase().includes(debtSearchQuery.toLowerCase()) || p.invoiceNumber.toLowerCase().includes(debtSearchQuery.toLowerCase()))
+                      .map((p) => {
+                        const paid = p.amountPaid || 0;
+                        const remaining = p.remainingDebt !== undefined ? p.remainingDebt : Math.max(0, p.grandTotal - paid);
+
+                        return (
+                          <tr key={p.id} className="hover:bg-slate-50/70">
+                            <td className="py-2.5 px-3">
+                              <span className="font-mono font-bold text-slate-900 block">{p.invoiceNumber}</span>
+                              <span className="text-[10px] text-slate-500">{formatDate(p.date)}</span>
+                            </td>
+                            <td className="py-2.5 px-3 font-bold text-slate-900">
+                              {p.supplierName}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-800">
+                              {formatCurrency(p.grandTotal)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700">
+                              {formatCurrency(paid)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-rose-600">
+                              {formatCurrency(remaining)}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDebtModalPurchase(p);
+                                  setPurchasePayAmount(remaining);
+                                  setPurchasePayNotes('');
+                                }}
+                                className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                              >
+                                Bayar Hutang
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    {unpaidPurchases.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-400">
+                          Tidak ada hutang supplier yang belum lunas.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Tables: Customer Debt (Piutang) */}
+          {(debtTypeFilter === 'all' || debtTypeFilter === 'piutang_pelanggan') && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="p-3.5 bg-amber-50/70 border-b border-amber-200 flex justify-between items-center">
+                <span className="font-bold text-xs text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-amber-600" />
+                  <span>Daftar Piutang Pelanggan ({unpaidSales.length})</span>
+                </span>
+                <span className="font-mono font-bold text-xs text-amber-700">
+                  Total: {formatCurrency(totalOutstandingSales)}
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-3">No. Nota & Tanggal</th>
+                      <th className="py-2.5 px-3">Pelanggan</th>
+                      <th className="py-2.5 px-3 text-right">Total Belanja</th>
+                      <th className="py-2.5 px-3 text-right">Telah Dibayar</th>
+                      <th className="py-2.5 px-3 text-right">Sisa Piutang</th>
+                      <th className="py-2.5 px-3 text-center">Aksi Penerimaan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {unpaidSales
+                      .filter(s => !debtSearchQuery.trim() || s.customerName.toLowerCase().includes(debtSearchQuery.toLowerCase()) || s.invoiceNumber.toLowerCase().includes(debtSearchQuery.toLowerCase()))
+                      .map((s) => {
+                        const paid = s.amountPaid || 0;
+                        const remaining = s.remainingDebt !== undefined ? s.remainingDebt : Math.max(0, s.grandTotal - paid);
+
+                        return (
+                          <tr key={s.id} className="hover:bg-slate-50/70">
+                            <td className="py-2.5 px-3">
+                              <span className="font-mono font-bold text-slate-900 block">{s.invoiceNumber}</span>
+                              <span className="text-[10px] text-slate-500">{formatDate(s.date)}</span>
+                            </td>
+                            <td className="py-2.5 px-3 font-bold text-slate-900">
+                              {s.customerName}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-800">
+                              {formatCurrency(s.grandTotal)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-emerald-700">
+                              {formatCurrency(paid)}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-amber-600">
+                              {formatCurrency(remaining)}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDebtModalSale(s);
+                                  setSalePayAmount(remaining);
+                                  setSalePayNotes('');
+                                }}
+                                className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                              >
+                                Terima Bayar
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    {unpaidSales.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-400">
+                          Tidak ada piutang pelanggan yang belum lunas.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* MODAL BAYAR HUTANG SUPPLIER (BKK) */}
       {debtModalPurchase && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-rose-600" />
-                <h3 className="text-sm font-bold text-slate-900">Catat Pembayaran Hutang Supplier</h3>
-              </div>
-              <button onClick={() => setDebtModalPurchase(null)} className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer">✕</button>
-            </div>
-
-            <div className="mt-3 p-3 bg-rose-50 rounded-xl border border-rose-100 text-xs space-y-1">
-              <div className="flex justify-between text-slate-600">
-                <span>Faktur Pembelian:</span>
-                <span className="font-mono font-bold text-slate-900">{debtModalPurchase.invoiceNumber}</span>
-              </div>
-              <div className="flex justify-between text-slate-600">
-                <span>Supplier:</span>
-                <span className="font-semibold text-slate-900">{debtModalPurchase.supplierName}</span>
-              </div>
-              <div className="flex justify-between text-slate-600">
-                <span>Total Nilai Faktur:</span>
-                <span className="font-mono">{formatCurrency(debtModalPurchase.grandTotal)}</span>
-              </div>
-              <div className="flex justify-between text-rose-700 font-bold pt-1 border-t border-rose-200/60">
-                <span>Sisa Hutang Saat Ini:</span>
-                <span className="font-mono text-sm">{formatCurrency(debtModalPurchase.computedRemaining)}</span>
-              </div>
-            </div>
-
-            <form onSubmit={handleConfirmPayPurchaseDebt} className="space-y-3.5 pt-3 text-xs">
-              {/* Opsi Pembayaran: Lunas Penuh vs Bayar Sebagian (Cicilan) */}
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <label className="font-semibold text-slate-700 block mb-1.5">Jenis Pembayaran Hutang:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPurchasePayMode('lunas');
-                      setPurchasePayAmount(debtModalPurchase.computedRemaining);
-                    }}
-                    className={`py-2 px-2.5 rounded-lg font-bold border transition-colors cursor-pointer text-center ${
-                      purchasePayMode === 'lunas'
-                        ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    Pelunasan Penuh (Lunas)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPurchasePayMode('sebagian');
-                      if (purchasePayAmount >= debtModalPurchase.computedRemaining) {
-                        setPurchasePayAmount(Math.round(debtModalPurchase.computedRemaining / 2));
-                      }
-                    }}
-                    className={`py-2 px-2.5 rounded-lg font-bold border transition-colors cursor-pointer text-center ${
-                      purchasePayMode === 'sebagian'
-                        ? 'bg-rose-600 text-white border-rose-700 shadow-xs'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    Bayar Sebagian (Cicilan)
-                  </button>
+                <h3 className="text-base font-bold text-slate-900">Bayar Hutang Supplier</h3>
+                <p className="text-xs text-slate-500">{debtModalPurchase.supplierName} • {debtModalPurchase.invoiceNumber}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDebtModalPurchase(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmPurchasePayment} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Sisa Hutang Saat Ini:</label>
+                <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl font-mono font-bold text-rose-700 text-sm">
+                  {formatCurrency(debtModalPurchase.remainingDebt !== undefined ? debtModalPurchase.remainingDebt : Math.max(0, debtModalPurchase.grandTotal - (debtModalPurchase.amountPaid || 0)))}
                 </div>
               </div>
 
-              {/* Input Nominal Pembayaran */}
               <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="font-semibold text-slate-700">
-                    {purchasePayMode === 'lunas' ? 'Nominal Pelunasan Penuh (Rp):' : 'Nominal yang Dibayarkan (Rp):'}
-                  </label>
-                  {purchasePayMode === 'sebagian' && (
-                    <span className="text-[10px] text-slate-400">Maks: {formatCurrency(debtModalPurchase.computedRemaining)}</span>
-                  )}
-                </div>
+                <label className="font-semibold text-slate-700 block mb-1">Nominal yang Akan Dibayar (Rp):</label>
                 <input
-                  type="text"
-                  inputMode="numeric"
+                  type="number"
+                  min="1000"
+                  max={debtModalPurchase.remainingDebt !== undefined ? debtModalPurchase.remainingDebt : Math.max(0, debtModalPurchase.grandTotal - (debtModalPurchase.amountPaid || 0))}
+                  value={purchasePayAmount}
+                  onChange={(e) => setPurchasePayAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono font-bold text-slate-900 text-sm focus:outline-hidden"
                   required
-                  disabled={purchasePayMode === 'lunas'}
-                  value={purchasePayAmount === 0 ? '' : purchasePayAmount.toLocaleString('id-ID')}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/\./g, '').replace(',', '.');
-                    setPurchasePayAmount(raw === '' ? 0 : Math.min(debtModalPurchase.computedRemaining, parseFloat(raw) || 0));
-                  }}
-                  className={`w-full p-2.5 border rounded-lg font-mono font-bold text-base ${
-                    purchasePayMode === 'lunas' 
-                      ? 'bg-slate-100 text-slate-700 border-slate-200 cursor-not-allowed'
-                      : 'bg-white text-slate-900 border-amber-400 focus:outline-hidden focus:ring-2 focus:ring-amber-500'
-                  }`}
                 />
-                {purchasePayMode === 'sebagian' && (
-                  <div className="flex justify-between items-center mt-1.5 p-2 bg-slate-50 rounded-md border border-slate-200 text-[11px]">
-                    <span className="text-slate-600">Sisa Hutang Setelah Bayar:</span>
-                    <span className="font-mono font-bold text-rose-700">
-                      {formatCurrency(Math.max(0, debtModalPurchase.computedRemaining - purchasePayAmount))}
-                    </span>
-                  </div>
-                )}
               </div>
 
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">Metode Pembayaran:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPurchasePayMethod('Transfer')}
-                    className={`py-2 px-3 rounded-lg font-bold border transition-colors cursor-pointer ${
-                      purchasePayMethod === 'Transfer'
-                        ? 'bg-amber-500 text-white border-amber-600'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    Transfer Bank
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPurchasePayMethod('Tunai')}
-                    className={`py-2 px-3 rounded-lg font-bold border transition-colors cursor-pointer ${
-                      purchasePayMethod === 'Tunai'
-                        ? 'bg-amber-500 text-white border-amber-600'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    Uang Tunai
-                  </button>
-                </div>
+                <select
+                  value={purchasePayMethod}
+                  onChange={(e) => setPurchasePayMethod(e.target.value as 'Tunai' | 'Transfer')}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-900 focus:outline-hidden"
+                >
+                  <option value="Transfer">Transfer Bank</option>
+                  <option value="Tunai">Tunai (Kas Toko)</option>
+                </select>
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Catatan Bukti / Keterangan:</label>
+                <label className="font-semibold text-slate-700 block mb-1">Catatan Tambahan (Opsional):</label>
                 <input
                   type="text"
-                  placeholder="Misal: Cicilan ke-2 via BCA Admin"
+                  placeholder="e.g. Pembayaran via rekening BCA..."
                   value={purchasePayNotes}
                   onChange={(e) => setPurchasePayNotes(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
+                  className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-hidden"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setDebtModalPurchase(null)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg cursor-pointer"
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 font-semibold cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={purchasePayAmount <= 0}
-                  className={`px-5 py-2 font-bold rounded-lg shadow-xs transition-colors ${
-                    purchasePayAmount <= 0
-                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                      : 'bg-rose-600 hover:bg-rose-700 text-white cursor-pointer'
-                  }`}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
                 >
-                  Simpan Pembayaran Hutang
+                  Konfirmasi Pembayaran
                 </button>
               </div>
             </form>
@@ -1856,497 +1582,87 @@ export const FinancialReport: React.FC<FinancialReportProps> = ({
         </div>
       )}
 
-      {/* 3. MODAL TERIMA PELUNASAN PIUTANG PELANGGAN */}
+      {/* MODAL TERIMA BAYAR PIUTANG PELANGGAN (BKM) */}
       {debtModalSale && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-emerald-600" />
-                <h3 className="text-sm font-bold text-slate-900">Terima Pelunasan / Cicilan Piutang Pelanggan</h3>
-              </div>
-              <button onClick={() => setDebtModalSale(null)} className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer">✕</button>
-            </div>
-
-            <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-100 text-xs space-y-1">
-              <div className="flex justify-between text-slate-600">
-                <span>Nota Penjualan:</span>
-                <span className="font-mono font-bold text-slate-900">{debtModalSale.invoiceNumber}</span>
-              </div>
-              <div className="flex justify-between text-slate-600">
-                <span>Pelanggan:</span>
-                <span className="font-semibold text-slate-900">{debtModalSale.customerName} ({debtModalSale.customerType})</span>
-              </div>
-              <div className="flex justify-between text-slate-600">
-                <span>Total Belanja:</span>
-                <span className="font-mono">{formatCurrency(debtModalSale.grandTotal)}</span>
-              </div>
-              <div className="flex justify-between text-amber-800 font-bold pt-1 border-t border-amber-200/60">
-                <span>Sisa Piutang Saat Ini:</span>
-                <span className="font-mono text-sm">{formatCurrency(debtModalSale.computedRemaining)}</span>
-              </div>
-            </div>
-
-            <form onSubmit={handleConfirmPayCustomerDebt} className="space-y-3.5 pt-3 text-xs">
-              {/* Opsi Penerimaan: Lunas Penuh vs Sebagian / Cicilan */}
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <label className="font-semibold text-slate-700 block mb-1.5">Jenis Penerimaan Piutang:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSalePayMode('lunas');
-                      setSalePayAmount(debtModalSale.computedRemaining);
-                    }}
-                    className={`py-2 px-2.5 rounded-lg font-bold border transition-colors cursor-pointer text-center ${
-                      salePayMode === 'lunas'
-                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    Pelunasan Penuh (Lunas)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSalePayMode('sebagian');
-                      if (salePayAmount >= debtModalSale.computedRemaining) {
-                        setSalePayAmount(Math.round(debtModalSale.computedRemaining / 2));
-                      }
-                    }}
-                    className={`py-2 px-2.5 rounded-lg font-bold border transition-colors cursor-pointer text-center ${
-                      salePayMode === 'sebagian'
-                        ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    Bayar Sebagian (Cicilan)
-                  </button>
+                <h3 className="text-base font-bold text-slate-900">Terima Pembayaran Piutang</h3>
+                <p className="text-xs text-slate-500">{debtModalSale.customerName} • {debtModalSale.invoiceNumber}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDebtModalSale(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmCustomerPayment} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-slate-700 block mb-1">Sisa Piutang Saat Ini:</label>
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl font-mono font-bold text-amber-700 text-sm">
+                  {formatCurrency(debtModalSale.remainingDebt !== undefined ? debtModalSale.remainingDebt : Math.max(0, debtModalSale.grandTotal - (debtModalSale.amountPaid || 0)))}
                 </div>
               </div>
 
-              {/* Input Nominal Penerimaan */}
               <div>
-                <div className="flex justify-between items-center mb-1">
-                  <label className="font-semibold text-slate-700">
-                    {salePayMode === 'lunas' ? 'Nominal Pelunasan Penuh (Rp):' : 'Nominal yang Diterima (Rp):'}
-                  </label>
-                  {salePayMode === 'sebagian' && (
-                    <span className="text-[10px] text-slate-400">Maks: {formatCurrency(debtModalSale.computedRemaining)}</span>
-                  )}
-                </div>
+                <label className="font-semibold text-slate-700 block mb-1">Nominal yang Diterima (Rp):</label>
                 <input
-                  type="text"
-                  inputMode="numeric"
+                  type="number"
+                  min="1000"
+                  max={debtModalSale.remainingDebt !== undefined ? debtModalSale.remainingDebt : Math.max(0, debtModalSale.grandTotal - (debtModalSale.amountPaid || 0))}
+                  value={salePayAmount}
+                  onChange={(e) => setSalePayAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-mono font-bold text-slate-900 text-sm focus:outline-hidden"
                   required
-                  disabled={salePayMode === 'lunas'}
-                  value={salePayAmount === 0 ? '' : salePayAmount.toLocaleString('id-ID')}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/\./g, '').replace(',', '.');
-                    setSalePayAmount(raw === '' ? 0 : Math.min(debtModalSale.computedRemaining, parseFloat(raw) || 0));
-                  }}
-                  className={`w-full p-2.5 border rounded-lg font-mono font-bold text-base ${
-                    salePayMode === 'lunas' 
-                      ? 'bg-slate-100 text-slate-700 border-slate-200 cursor-not-allowed'
-                      : 'bg-white text-slate-900 border-emerald-500 focus:outline-hidden focus:ring-2 focus:ring-emerald-500'
-                  }`}
                 />
-                {salePayMode === 'sebagian' && (
-                  <div className="flex justify-between items-center mt-1.5 p-2 bg-slate-50 rounded-md border border-slate-200 text-[11px]">
-                    <span className="text-slate-600">Sisa Piutang Setelah Diterima:</span>
-                    <span className="font-mono font-bold text-amber-700">
-                      {formatCurrency(Math.max(0, debtModalSale.computedRemaining - salePayAmount))}
-                    </span>
-                  </div>
-                )}
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Metode Penerimaan:</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSalePayMethod('Tunai')}
-                    className={`py-2 px-3 rounded-lg font-bold border transition-colors cursor-pointer ${
-                      salePayMethod === 'Tunai'
-                        ? 'bg-emerald-600 text-white border-emerald-700'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    Uang Tunai
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSalePayMethod('Transfer')}
-                    className={`py-2 px-3 rounded-lg font-bold border transition-colors cursor-pointer ${
-                      salePayMethod === 'Transfer'
-                        ? 'bg-emerald-600 text-white border-emerald-700'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    Transfer Bank
-                  </button>
-                </div>
+                <label className="font-semibold text-slate-700 block mb-1">Metode Pembayaran:</label>
+                <select
+                  value={salePayMethod}
+                  onChange={(e) => setSalePayMethod(e.target.value as 'Tunai' | 'Transfer')}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-900 focus:outline-hidden"
+                >
+                  <option value="Tunai">Tunai (Cash)</option>
+                  <option value="Transfer">Transfer Bank</option>
+                </select>
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Keterangan / Referensi:</label>
+                <label className="font-semibold text-slate-700 block mb-1">Catatan Tambahan (Opsional):</label>
                 <input
                   type="text"
-                  placeholder="Misal: Titip bayar via kasir sore"
+                  placeholder="e.g. Pembayaran tunai saat pengantaran..."
                   value={salePayNotes}
                   onChange={(e) => setSalePayNotes(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900"
+                  className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-hidden"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setDebtModalSale(null)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg cursor-pointer"
+                  className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 font-semibold cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  disabled={salePayAmount <= 0}
-                  className={`px-5 py-2 font-bold rounded-lg shadow-xs transition-colors ${
-                    salePayAmount <= 0
-                      ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
-                  }`}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold shadow-xs cursor-pointer"
                 >
-                  Konfirmasi Penerimaan Piutang
+                  Konfirmasi Penerimaan
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
-      {/* 4. MODAL RIWAYAT CICILAN */}
-      {historyModalData && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-amber-600" />
-                <h3 className="text-sm font-bold text-slate-900">{historyModalData.title}</h3>
-              </div>
-              <button onClick={() => setHistoryModalData(null)} className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer">✕</button>
-            </div>
-
-            <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Nomor Dokumen:</span>
-                <span className="font-mono font-bold text-slate-900">{historyModalData.invoice}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Pihak Terkait:</span>
-                <span className="font-semibold text-slate-900">{historyModalData.counterparty}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Total Transaksi:</span>
-                <span className="font-mono">{formatCurrency(historyModalData.total)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Sudah Terbayar:</span>
-                <span className="font-mono text-emerald-700 font-bold">{formatCurrency(historyModalData.paid)}</span>
-              </div>
-              <div className="flex justify-between pt-1 border-t border-slate-200">
-                <span className="text-slate-700 font-semibold">Sisa Tagihan / Hutang:</span>
-                <span className="font-mono text-rose-700 font-bold">{formatCurrency(historyModalData.remaining)}</span>
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
-                Daftar Pembayaran Cicilan:
-              </h4>
-
-              <div className="space-y-2 max-h-56 overflow-y-auto">
-                {historyModalData.payments.map((p, idx) => (
-                  <div key={p.id || idx} className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-slate-900">
-                        {p.notes || `Pembayaran ke-${idx + 1}`}
-                      </div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">
-                        {formatDateTime(p.date)} • Metode: {p.paymentMethod} • Dicatat: {p.recordedBy}
-                      </div>
-                    </div>
-                    <span className="font-mono font-bold text-emerald-700">
-                      {formatCurrency(p.amount)}
-                    </span>
-                  </div>
-                ))}
-
-                {historyModalData.payments.length === 0 && (
-                  <div className="py-6 text-center text-slate-400 text-xs">
-                    Belum ada riwayat cicilan tercatat.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-4 border-t border-slate-200 mt-4">
-              <button
-                type="button"
-                onClick={() => setHistoryModalData(null)}
-                className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-bold cursor-pointer"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 5. MODAL DETAIL NOTA TRANSAKSI & DAFTAR NOTA PEMBAYARAN (BKM / BKK) */}
-      {selectedDetailModal && (() => {
-        const targetPurchase = selectedDetailModal.type === 'purchase'
-          ? processedPurchases.find(p => p.id === selectedDetailModal.id)
-          : null;
-        const targetSale = selectedDetailModal.type === 'sale'
-          ? processedSales.find(s => s.id === selectedDetailModal.id)
-          : null;
-
-        if (!targetPurchase && !targetSale) return null;
-
-        const isPurchase = selectedDetailModal.type === 'purchase';
-        const invoiceNo = isPurchase ? targetPurchase!.invoiceNumber : targetSale!.invoiceNumber;
-        const dateStr = isPurchase ? targetPurchase!.date : targetSale!.date;
-        const counterparty = isPurchase ? targetPurchase!.supplierName : `${targetSale!.customerName} (${targetSale!.customerType})`;
-        const grandTotal = isPurchase ? targetPurchase!.grandTotal : targetSale!.grandTotal;
-        const paidAmount = isPurchase ? targetPurchase!.computedPaid : targetSale!.computedPaid;
-        const remainingAmount = isPurchase ? targetPurchase!.computedRemaining : targetSale!.computedRemaining;
-        const isLunas = isPurchase ? targetPurchase!.isLunas : targetSale!.isLunas;
-        const paymentsList = isPurchase 
-          ? (targetPurchase!.debtPayments || []) 
-          : (targetSale!.customerDebtPayments || []);
-
-        return (
-          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl max-w-xl w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 my-auto max-h-[92vh] flex flex-col">
-              
-              {/* Modal Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 shrink-0">
-                <div className="flex items-center gap-2.5">
-                  <div className={`p-2 rounded-xl ${isPurchase ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {isPurchase ? <Building2 className="w-5 h-5" /> : <Users className="w-5 h-5" />}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-slate-900 font-mono">{invoiceNo}</h3>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        isLunas ? 'bg-emerald-100 text-emerald-800' : paidAmount > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
-                      }`}>
-                        {isLunas ? 'Lunas' : paidAmount > 0 ? 'Pembayaran Sebagian' : 'Belum Lunas'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      {isPurchase ? 'Supplier:' : 'Pelanggan:'} <strong className="text-slate-800">{counterparty}</strong> • {formatDate(dateStr)}
-                    </p>
-                  </div>
-                </div>
-                <button 
-                  onClick={() => setSelectedDetailModal(null)} 
-                  className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Modal Body Scrollable */}
-              <div className="py-4 space-y-4 overflow-y-auto flex-1 text-xs">
-                
-                {/* 1. Kartu Ringkasan Informasi Nota & Tombol Cetak Nota Utama */}
-                <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-200/80 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-amber-200/60">
-                    <span className="font-bold text-amber-900 uppercase text-[11px] tracking-wider">
-                      Informasi Ringkas Nota {isPurchase ? 'Pembelian' : 'Penjualan'}
-                    </span>
-                    
-                    <div className="flex items-center gap-2">
-                      {!isPurchase && !isLunas && (
-                        <button
-                          type="button"
-                          onClick={() => handleSendWAReminder(targetSale!)}
-                          className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 text-[11px]"
-                          title="Kirim Pesan WA Pengingat Tagihan"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          <span>Kirim WA Tagihan</span>
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (isPurchase) {
-                            onPrintDocument?.({ type: 'purchase', data: targetPurchase });
-                          } else {
-                            onPrintDocument?.({ type: 'sale', data: targetSale });
-                          }
-                        }}
-                        className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 text-[11px]"
-                        title="Cetak Nota Transaksi Original"
-                      >
-                        <Printer className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Cetak Nota {isPurchase ? 'Pembelian' : 'Penjualan'}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1 text-slate-700">
-                    <div>
-                      <span className="text-[10px] text-slate-500 block uppercase font-bold">Total Belanja</span>
-                      <span className="font-mono font-bold text-slate-900 text-sm tabular-nums">{formatCurrency(grandTotal)}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 block uppercase font-bold">Uang Sudah Masuk</span>
-                      <span className="font-mono font-bold text-emerald-700 text-sm tabular-nums">{formatCurrency(paidAmount)}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-500 block uppercase font-bold">
-                        {isPurchase ? 'Sisa Hutang' : 'Sisa Tagihan'}
-                      </span>
-                      <span className={`font-mono font-bold text-sm tabular-nums ${remainingAmount > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                        {formatCurrency(remainingAmount)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Detail Informasi Nota Pembayaran (Bukti Kas BKM / BKK) */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                      <Receipt className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>
-                        {isPurchase ? 'Daftar Nota Pembayaran Supplier (Bukti Pengeluaran Uang)' : 'Daftar Nota Pembayaran Pelanggan (Bukti Penerimaan Uang)'}
-                      </span>
-                    </h4>
-                    <span className="text-[10px] text-slate-500 font-medium">
-                      {paymentsList.length} nota bayar
-                    </span>
-                  </div>
-
-                  <div className="space-y-2">
-                    {paymentsList.map((dp, idx) => {
-                      const receiptCode = dp.receiptNo || (isPurchase ? `BKK-${dp.id}` : `BKM-${dp.id}`);
-                      const remainingAfterVal = dp.remainingAfter !== undefined ? dp.remainingAfter : Math.max(0, remainingAmount);
-
-                      return (
-                        <div key={dp.id || idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
-                                {receiptCode}
-                              </span>
-                              <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-700 text-[10px] font-bold rounded">
-                                {dp.paymentMethod}
-                              </span>
-                              <span className="text-slate-400 text-[10px]">{formatDateTime(dp.date)}</span>
-                            </div>
-                            <div className="text-[11px] text-slate-600">
-                              Keterangan: <strong className="text-slate-800">{dp.notes || 'Pembayaran Cicilan'}</strong> • Petugas: {dp.recordedBy}
-                            </div>
-                            <div className="text-[11px] text-slate-500 font-mono">
-                              Sisa {isPurchase ? 'Hutang' : 'Tagihan'} Setelah Bayar: <strong className="text-slate-800">{formatCurrency(remainingAfterVal)}</strong>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
-                            <div className="text-right">
-                              <span className="text-[10px] text-slate-400 block uppercase font-bold">Nominal</span>
-                              <span className="font-mono font-bold text-emerald-700 text-sm">{formatCurrency(dp.amount)}</span>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                onPrintDocument?.({
-                                  type: 'payment_receipt',
-                                  data: {
-                                    receiptType: isPurchase ? 'BKK' : 'BKM',
-                                    receiptNo: receiptCode,
-                                    title: isPurchase ? 'BUKTI PENGELUARAN KAS (BKK) - PEMBAYARAN HUTANG SUPPLIER' : 'BUKTI PENERIMAAN KAS (BKM) - PIUTANG PELANGGAN',
-                                    date: dp.date,
-                                    invoiceNumber: invoiceNo,
-                                    counterpartyName: isPurchase ? targetPurchase!.supplierName : targetSale!.customerName,
-                                    counterpartyType: isPurchase ? 'Supplier / Pemasok' : 'Pelanggan',
-                                    totalInvoiceAmount: grandTotal,
-                                    paymentAmount: dp.amount,
-                                    paymentMethod: dp.paymentMethod,
-                                    remainingDebt: remainingAfterVal,
-                                    notes: dp.notes,
-                                    recordedBy: dp.recordedBy,
-                                  }
-                                });
-                              }}
-                              className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-[11px]"
-                              title="Cetak Bukti Pembayaran Ini"
-                            >
-                              <Printer className="w-3.5 h-3.5 text-amber-400" />
-                              <span>Cetak Bukti Pembayaran</span>
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {paymentsList.length === 0 && (
-                      <div className="py-6 text-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-                        Belum ada nota pembayaran yang tercatat untuk transaksi ini.
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Modal Footer */}
-              <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
-                {!isLunas ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedDetailModal(null);
-                      if (isPurchase) {
-                        handleOpenPayPurchaseModal(targetPurchase!);
-                      } else {
-                        handleOpenPaySaleModal(targetSale!);
-                      }
-                    }}
-                    className={`px-4 py-2 font-bold text-white rounded-lg transition-colors cursor-pointer text-xs shadow-2xs flex items-center gap-1.5 ${
-                      isPurchase ? 'bg-rose-600 hover:bg-rose-700' : 'bg-emerald-600 hover:bg-emerald-700'
-                    }`}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>{isPurchase ? 'Bayar / Cicil Hutang Ini' : 'Bayar / Cicil Tagihan Ini'}</span>
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Nota Sudah Lunas Sepenuhnya</span>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedDetailModal(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold cursor-pointer transition-colors"
-                >
-                  Tutup
-                </button>
-              </div>
-
-            </div>
-          </div>
-        );
-      })()}
 
     </div>
   );

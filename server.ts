@@ -12,7 +12,9 @@ import {
   salarySlipsTable, 
   operationalTransactionsTable, 
   stockOpnameTable, 
-  storeProfileTable 
+  storeProfileTable,
+  usersTable,
+  kasbonTable
 } from './src/db/schema.ts';
 import dotenv from 'dotenv';
 
@@ -47,8 +49,8 @@ app.get('/api/sql/status', async (req, res) => {
 // API: Migrasi / Sync seluruh data aplikasi ke PostgreSQL
 app.post('/api/sql/migrate', async (req, res) => {
   try {
-    const { items, customers, suppliers, sales, purchases, employees, attendance, salarySlips, operationalTxs, opnames, profile } = req.body;
-    let counts = { items: 0, customers: 0, suppliers: 0, sales: 0 };
+    const { items, customers, suppliers, sales, purchases, employees, attendance, salarySlips, operationalTxs, opnames, profile, users, kasbon } = req.body;
+    let counts = { items: 0, customers: 0, suppliers: 0, sales: 0, users: 0, kasbon: 0 };
 
     // 1. Items
     if (Array.isArray(items) && items.length > 0) {
@@ -177,6 +179,49 @@ app.post('/api/sql/migrate', async (req, res) => {
           address: profile.address
         }
       });
+    }
+
+    // 6. Users
+    if (Array.isArray(users) && users.length > 0) {
+      for (const u of users) {
+        await db.insert(usersTable).values({
+          id: u.id,
+          username: u.username,
+          name: u.name,
+          role: u.role,
+          roleLabel: u.roleLabel,
+          password: u.password || null,
+          pin: u.pin || null,
+        }).onConflictDoUpdate({
+          target: usersTable.username,
+          set: {
+            name: u.name,
+            role: u.role,
+            roleLabel: u.roleLabel,
+            password: u.password || null,
+            pin: u.pin || null,
+          }
+        });
+        counts.users++;
+      }
+    }
+
+    // 7. Kasbon Karyawan
+    if (Array.isArray(kasbon) && kasbon.length > 0) {
+      for (const k of kasbon) {
+        await db.insert(kasbonTable).values({
+          id: k.id,
+          employeeId: k.employeeId,
+          employeeName: k.employeeName,
+          date: k.date,
+          amount: Number(k.amount) || 0,
+          type: k.type,
+          notes: k.notes || null,
+          createdAt: k.createdAt,
+          balanceAfter: Number(k.balanceAfter) || 0,
+        }).onConflictDoNothing();
+        counts.kasbon++;
+      }
     }
 
     res.json({ 

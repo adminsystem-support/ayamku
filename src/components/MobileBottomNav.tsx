@@ -66,18 +66,18 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                 <span className="text-xs">Stok Opname</span>
               </button>
 
-              <button
-                onClick={() => handleSelectTab('operasional')}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
-                  activeTab === 'operasional' ? 'border-amber-500 bg-amber-50 text-amber-900 font-bold' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <BarChart3 className="w-5 h-5 mb-1.5 text-orange-600" />
-                <span className="text-xs">Kas Operasional</span>
-              </button>
-
-              {userRole === 'admin' && (
+              {(userRole === 'admin' || userRole === 'owner') && (
                 <>
+                  <button
+                    onClick={() => handleSelectTab('operasional')}
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
+                      activeTab === 'operasional' ? 'border-amber-500 bg-amber-50 text-amber-900 font-bold' : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <BarChart3 className="w-5 h-5 mb-1.5 text-orange-600" />
+                    <span className="text-xs">Kas Operasional</span>
+                  </button>
+
                   <button
                     onClick={() => handleSelectTab('absensi_gaji')}
                     className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
@@ -87,7 +87,11 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
                     <CalendarCheck className="w-5 h-5 mb-1.5 text-blue-600" />
                     <span className="text-xs">Absensi & Gaji</span>
                   </button>
+                </>
+              )}
 
+              {userRole === 'owner' && (
+                <>
                   <button
                     onClick={() => handleSelectTab('laporan')}
                     className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
