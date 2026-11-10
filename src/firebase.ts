@@ -200,6 +200,14 @@ export async function syncSaveEmployee(emp: Employee) {
   }
 }
 
+export async function syncDeleteEmployee(empId: string) {
+  try {
+    await deleteDoc(doc(db, COLLECTIONS.EMPLOYEES, empId));
+  } catch (err) {
+    console.error('Firestore delete employee failed:', err);
+  }
+}
+
 export async function syncSaveAttendanceRecord(record: AttendanceRecord) {
   try {
     await setDoc(doc(db, COLLECTIONS.ATTENDANCE, record.id), cleanForFirestore(record));

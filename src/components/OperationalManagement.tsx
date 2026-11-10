@@ -47,6 +47,7 @@ interface OperationalManagementProps {
   onDeleteSalarySlip: (slipId: string) => void;
   onPrintSalarySlip: (slip: SalarySlip) => void;
   onSaveEmployee: (emp: Employee) => void;
+  onDeleteEmployee?: (id: string) => void;
   onSaveKasbon: (record: EmployeeKasbonRecord) => void;
   onDeleteKasbon: (id: string) => void;
   userRole: UserRole;
@@ -69,6 +70,7 @@ export const OperationalManagement: React.FC<OperationalManagementProps> = ({
   onDeleteSalarySlip,
   onPrintSalarySlip,
   onSaveEmployee,
+  onDeleteEmployee,
   onSaveKasbon,
   onDeleteKasbon,
   userRole,
@@ -623,6 +625,7 @@ export const OperationalManagement: React.FC<OperationalManagementProps> = ({
           onDeleteSalarySlip={onDeleteSalarySlip}
           onPrintSalarySlip={onPrintSalarySlip}
           onSaveEmployee={onSaveEmployee}
+          onDeleteEmployee={onDeleteEmployee}
           onSaveKasbon={onSaveKasbon}
           onDeleteKasbon={onDeleteKasbon}
           userRole={userRole}

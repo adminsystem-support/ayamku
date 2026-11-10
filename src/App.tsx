@@ -57,6 +57,7 @@ import {
   syncDeletePreOrder,
   syncSaveOpname,
   syncSaveEmployee,
+  syncDeleteEmployee,
   syncSaveAttendanceRecord,
   syncSaveSalarySlip,
   syncDeleteSalarySlip,
@@ -851,6 +852,15 @@ export default function App() {
     showToast(`Data karyawan ${emp.name} berhasil disimpan!`);
   };
 
+  const handleDeleteEmployee = (id: string) => {
+    const emp = employees.find((e) => e.id === id);
+    const updated = employees.filter((e) => e.id !== id);
+    setEmployees(updated);
+    StorageManager.saveEmployees(updated);
+    syncDeleteEmployee(id);
+    showToast(`Data karyawan ${emp?.name || ''} berhasil dihapus.`);
+  };
+
   // 10. Operational Expenses & Manual Cash Transactions
   const handleAddExpense = (expense: OperationalExpense) => {
     const updated = [expense, ...expenses];
@@ -1153,6 +1163,7 @@ export default function App() {
               onDeleteSalarySlip={handleDeleteSalarySlip}
               onPrintSalarySlip={handlePrintSalarySlip}
               onSaveEmployee={handleSaveEmployee}
+              onDeleteEmployee={handleDeleteEmployee}
               onSaveKasbon={handleSaveKasbon}
               onDeleteKasbon={handleDeleteKasbon}
               userRole={currentUser.role}

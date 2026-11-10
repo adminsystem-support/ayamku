@@ -731,400 +731,229 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   : 'w-[360px] p-5 text-[12px] font-mono border border-slate-300 rounded-lg print:p-0 print:border-none print:shadow-none print:w-[80mm] print:max-w-[80mm]'
             }`}
           >
-            {/* 1. SALE TRANSACTION TEMPLATE (BUKTI TRANSAKSI ELEKTRONIK SAH TANPA TTD BASAH) */}
+            {/* 1. SALE TRANSACTION TEMPLATE (STRUK SIMPEL SOLARIA STYLE) */}
             {printData.type === 'sale' && (
-              printFormat === 'a4' ? (
-                // A4 Sale Invoice styled like Salary Slip
-                <div className="space-y-5 relative">
-                  {/* WATERMARK LUNAS RESMI PADA SEMUA PREVIEW, PRINT & DOWNLOAD PDF */}
-                  {Boolean(saleCustomerInfo?.isFullyLunas) && (
-                    <div 
-                      className="absolute inset-0 pointer-events-none flex items-center justify-center z-20 select-none overflow-hidden" 
-                      aria-hidden="true"
-                    >
-                      <div className="transform -rotate-25 border-8 border-emerald-600/25 text-emerald-600/20 font-black text-6xl sm:text-7xl md:text-8xl tracking-widest uppercase px-8 py-4 sm:px-12 sm:py-6 rounded-3xl select-none text-center">
-                        <div className="leading-none drop-shadow-xs">L U N A S</div>
-                        <div className="text-xs sm:text-sm font-extrabold tracking-widest text-emerald-700/30 mt-2 border-t-2 border-emerald-600/20 pt-1">
-                          SUDAH DIBAYAR LUNAS • DIVERIFIKASI SISTEM
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Header with Store Logo */}
-                  <div className="flex justify-between items-start border-b border-slate-300 pb-4">
-                    <div className="flex items-start gap-3.5">
-                      <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white flex items-center justify-center p-1.5 shrink-0 shadow-xs">
-                        <img src={storeProfile.logoUrl || '/logo_unggas.svg'} alt="Logo" className="max-w-full max-h-full object-contain" />
-                      </div>
-                      <div>
-                        <h1 className="text-lg font-bold text-slate-900 tracking-tight">{storeProfile.name}</h1>
-                        <p className="text-xs text-slate-600 mt-0.5 max-w-sm">{storeProfile.address}</p>
-                        <p className="text-xs text-slate-600 mt-0.5">Telp/WA: {storeProfile.phone}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <h2 className="text-base font-bold font-mono text-slate-900">{printData.data.invoiceNumber}</h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Tanggal: {formatDateTime(printData.data.date)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Customer Details Card */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
-                    <div className="flex items-start gap-3.5">
-                      <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-900 font-bold flex items-center justify-center text-lg border border-amber-200/80 shrink-0 mt-0.5">
-                        {printData.data.customerName.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="space-y-1">
-                        <h3 className="font-bold text-slate-900 text-base leading-tight">{printData.data.customerName}</h3>
-                        <div className="text-xs text-slate-700 space-y-0.5">
-                          <p>
-                            <span className="font-semibold text-slate-500">Alamat:</span> {saleCustomerInfo?.customerAddress || '-'}
-                          </p>
-                          <p>
-                            <span className="font-semibold text-slate-500">No. Handphone:</span> {saleCustomerInfo?.customerPhone || '-'}
-                          </p>
-                        </div>
-                        {printData.data.customerType && (
-                          <p className="text-[11px] font-medium text-slate-400">Tipe Pelanggan: {printData.data.customerType}</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Items Table Section */}
-                  <div className="bg-white rounded-xl border border-slate-300 overflow-hidden shadow-2xs">
-                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-amber-600" />
-                        <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
-                          RINCIAN BARANG & DETAIL DIBELI ({printData.data.items.length} ITEM)
-                        </h4>
-                      </div>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
-                          <tr>
-                            <th className="py-2.5 px-3 border-r border-slate-300 w-10 text-center">No</th>
-                            <th className="py-2.5 px-3 text-right border-r border-slate-300 w-32 whitespace-nowrap">Jumlah</th>
-                            <th className="py-2.5 px-3 border-r border-slate-300">Nama Item</th>
-                            <th className="py-2.5 px-3 text-right border-r border-slate-300 w-32 whitespace-nowrap">Harga Satuan</th>
-                            <th className="py-2.5 px-3 text-right w-36 whitespace-nowrap">Subtotal</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200 font-medium text-xs">
-                          {printData.data.items.map((item, idx) => (
-                            <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                              <td className="py-2 px-3 text-slate-500 border-r border-slate-200 text-center">{idx + 1}</td>
-                              <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 font-semibold text-slate-900 whitespace-nowrap">
-                                {formatNumber(item.quantity)} {item.unit}
-                              </td>
-                              <td className="py-2 px-3 font-medium text-slate-800 border-r border-slate-200">{item.itemName}</td>
-                              <td className="py-2 px-3 text-right font-mono tabular-nums border-r border-slate-200 text-slate-700 whitespace-nowrap">{formatCurrency(item.sellPrice)}</td>
-                              <td className="py-2 px-3 text-right font-mono font-bold tabular-nums text-slate-900 whitespace-nowrap">{formatCurrency(item.subtotal)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot className="bg-amber-50/80 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
-                          <tr>
-                            <td colSpan={2} className="py-2.5 px-4 text-left font-bold text-slate-800 border-r border-slate-200 whitespace-nowrap">
-                              Total Qty
-                            </td>
-                            <td colSpan={3} className="py-2.5 px-4 text-left font-mono font-bold text-slate-900 whitespace-nowrap">
-                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 whitespace-nowrap">
-                                {Object.entries(
-                                  printData.data.items.reduce((acc, item) => {
-                                    acc[item.unit] = (acc[item.unit] || 0) + item.quantity;
-                                    return acc;
-                                  }, {} as Record<string, number>)
-                                ).map(([unit, qty]) => (
-                                  <span key={unit} className="whitespace-nowrap font-mono text-slate-900 font-bold">
-                                    {formatNumber(qty)} {unit}
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Calculations Breakdown Box */}
-                  <div className="bg-white border border-slate-300 rounded-xl overflow-hidden shadow-2xs text-xs">
-                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
-                      <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
-                        RINCIAN PERHITUNGAN NOTA
-                      </h4>
-                    </div>
-                    
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <tbody className="divide-y divide-slate-200 font-medium text-xs">
-                          <tr className="hover:bg-slate-50/50">
-                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200 font-bold">TOTAL BARANG:</td>
-                            <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-900">{formatCurrency(saleCustomerInfo?.itemSubtotal ?? printData.data.subtotal)}</td>
-                          </tr>
-                          {printData.data.discountEnabled !== false && printData.data.discount > 0 && (
-                            <tr className="hover:bg-slate-50/50">
-                              <td className="py-2.5 px-3.5 text-rose-700 font-semibold border-r border-slate-200">Diskon Potongan Harga:</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-600">-{formatCurrency(printData.data.discount)}</td>
-                            </tr>
-                          )}
-                          {printData.data.taxEnabled && printData.data.tax && printData.data.tax > 0 && (
-                            <tr className="hover:bg-slate-50/50">
-                              <td className="py-2.5 px-3.5 text-slate-700 font-semibold border-r border-slate-200">Pajak{printData.data.taxType === 'percent' ? ` (${printData.data.taxValue}%)` : ''}:</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-800">+{formatCurrency(printData.data.tax)}</td>
-                            </tr>
-                          )}
-                          {printData.data.shippingEnabled && printData.data.shippingCost && printData.data.shippingCost > 0 && (
-                            <tr className="hover:bg-slate-50/50">
-                              <td className="py-2.5 px-3.5 text-slate-700 font-semibold border-r border-slate-200">Ongkos Kirim:</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-800">+{formatCurrency(printData.data.shippingCost)}</td>
-                            </tr>
-                          )}
-                          {printData.data.otherCostEnabled && printData.data.otherCost && printData.data.otherCost > 0 && (
-                            <tr className="hover:bg-slate-50/50">
-                              <td className="py-2.5 px-3.5 text-slate-700 font-semibold border-r border-slate-200">Biaya Lain-lain{printData.data.otherCostNote ? ` (${printData.data.otherCostNote})` : ''}:</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-800">+{formatCurrency(printData.data.otherCost)}</td>
-                            </tr>
-                          )}
-
-                          {/* SISA HUTANG ATAU TABUNGAN */}
-                          {saleCustomerInfo?.hasTabungan ? (
-                            <>
-                              <tr className="bg-emerald-50/60 text-emerald-900 font-semibold">
-                                <td className="py-2.5 px-3.5 border-r border-emerald-200">TABUNGAN:</td>
-                                <td className="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-700">{formatCurrency(saleCustomerInfo.previousSavings)}</td>
-                              </tr>
-                              <tr className="bg-amber-50/60 text-slate-900 font-bold">
-                                <td className="py-2.5 px-3.5 border-r border-amber-200">TOTAL BARANG - TABUNGAN:</td>
-                                <td className="py-2.5 px-3.5 text-right font-mono font-extrabold text-slate-900">{formatCurrency(saleCustomerInfo.totalBarangPlusMinus)}</td>
-                              </tr>
-                            </>
-                          ) : (
-                            <>
-                              <tr className="bg-rose-50/60 text-rose-900 font-semibold">
-                                <td className="py-2.5 px-3.5 border-r border-rose-200">SISA HUTANG:</td>
-                                <td className="py-2.5 px-3.5 text-right font-mono font-bold text-rose-700">{formatCurrency(saleCustomerInfo?.previousDebt || 0)}</td>
-                              </tr>
-                              <tr className="bg-amber-50/60 text-slate-900 font-bold">
-                                <td className="py-2.5 px-3.5 border-r border-amber-200">TOTAL BARANG + HUTANG:</td>
-                                <td className="py-2.5 px-3.5 text-right font-mono font-extrabold text-slate-900">{formatCurrency(saleCustomerInfo?.totalBarangPlusMinus || printData.data.grandTotal)}</td>
-                              </tr>
-                            </>
-                          )}
-
-                          <tr className="hover:bg-slate-50/50">
-                            <td className="py-2.5 px-3.5 text-slate-800 border-r border-slate-200 font-bold">BAYAR:</td>
-                            <td className="py-2.5 px-3.5 text-right font-mono font-bold text-slate-900">{formatCurrency(printData.data.amountPaid)}</td>
-                          </tr>
-
-                          {/* TABUNGAN BARU JIKA KELEBIHAN BAYAR */}
-                          {Boolean(saleCustomerInfo && (saleCustomerInfo.newSavings > 0 || (printData.data.overpaymentAmount && printData.data.overpaymentAmount > 0))) && (
-                            <tr className="bg-emerald-50/90 text-emerald-950 font-bold">
-                              <td className="py-2.5 px-3.5 border-r border-emerald-200">KELEBIHAN BAYAR (TABUNGAN):</td>
-                              <td className="py-2.5 px-3.5 text-right font-mono font-extrabold text-emerald-700">
-                                +{formatCurrency(saleCustomerInfo?.newSavings || printData.data.overpaymentAmount || 0)}
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                        <tfoot className="bg-slate-900 font-bold border-t-2 border-slate-800 text-white text-xs sm:text-sm">
-                          <tr>
-                            <td className="py-3 px-3.5 text-white font-extrabold border-r border-slate-800">TOTAL KESELURUHAN:</td>
-                            <td className="py-3 px-3.5 text-right font-mono text-amber-300 text-sm sm:text-base font-extrabold">
-                              {formatCurrency(saleCustomerInfo?.totalKeseluruhan ?? 0)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </div>
-
-                  {printData.data.notes && (
-                    <p className="text-xs text-slate-500 italic">Catatan: {printData.data.notes}</p>
-                  )}
-                </div>
-              ) : (
-                // Thermal Sale Receipt (58mm / 80mm)
-                <div className="text-center space-y-2">
+              <div className={`mx-auto p-4 sm:p-6 bg-white font-mono text-xs text-slate-900 space-y-3 ${printFormat === 'a4' ? 'max-w-[440px] border border-slate-300 rounded-xl' : 'w-full'}`}>
+                {/* Header with Store Logo */}
+                <div className="text-center space-y-1">
                   <div className="flex justify-center mb-1">
                     <img 
                       src={storeProfile.logoUrl || '/logo_unggas.svg'} 
                       alt="Logo" 
-                      className="w-10 h-10 object-contain"
+                      className="w-12 h-12 object-contain"
                       onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo_unggas.svg'; }} 
                     />
                   </div>
-                  <div className="font-bold text-sm tracking-tight">{storeProfile.name}</div>
-                  <div className="text-[10px] leading-tight text-slate-700">{storeProfile.address}</div>
-                  <div className="text-[10px] text-slate-700">Telp: {storeProfile.phone}</div>
-                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+                  <div className="font-bold text-sm sm:text-base tracking-tight">{storeProfile.name}</div>
+                  <div className="text-[10px] leading-tight text-slate-600">{storeProfile.address}</div>
+                  <div className="text-[10px] text-slate-600">Telp: {storeProfile.phone}</div>
+                </div>
 
-                  <div className="text-left text-[10px] space-y-0.5">
-                    <div className="flex justify-between">
-                      <span>No:</span>
-                      <span className="font-bold">{printData.data.invoiceNumber}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Tgl:</span>
-                      <span>{formatDateTime(printData.data.date)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Pelanggan:</span>
-                      <span className="truncate max-w-[150px] font-bold">{printData.data.customerName}</span>
-                    </div>
-                    {saleCustomerInfo?.customerPhone && (
-                      <div className="flex justify-between">
-                        <span>Telp/WA:</span>
-                        <span>{saleCustomerInfo.customerPhone}</span>
-                      </div>
-                    )}
-                    {saleCustomerInfo?.customerAddress && (
-                      <div className="flex justify-between items-start">
-                        <span className="shrink-0 mr-2">Alamat:</span>
-                        <span className="text-right line-clamp-2">{saleCustomerInfo.customerAddress}</span>
-                      </div>
-                    )}
+                <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                {/* Header Meta Info */}
+                <div className="text-left text-[11px] space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>DATE:</span>
+                    <span>{formatDateTime(printData.data.date)}</span>
                   </div>
-
-                  <div className="border-b border-dashed border-slate-400 my-2"></div>
-
-                  {/* Items in thermal list */}
-                  <div className="text-left space-y-2 text-[10px]">
-                    {printData.data.items.map((item, idx) => (
-                      <div key={idx} className="space-y-0.5">
-                        <div className="font-medium">{item.itemName}</div>
-                        <div className="flex justify-between text-slate-600">
-                          <span>
-                            {formatNumber(item.quantity)} {item.unit} x {formatNumber(item.sellPrice)}
-                          </span>
-                          <span className="font-bold text-slate-900">{formatCurrency(item.subtotal)}</span>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="flex justify-between">
+                    <span>Receipt No :</span>
+                    <span className="font-bold">{printData.data.invoiceNumber}</span>
                   </div>
-
-                  {/* Total Qty in thermal */}
-                  <div className="text-left text-[10px] py-1 border-t border-dashed border-slate-300 flex justify-between items-start whitespace-nowrap">
-                    <span className="font-semibold text-slate-600 whitespace-nowrap">Total Qty:</span>
-                    <div className="font-bold text-slate-900 text-right flex flex-col items-end whitespace-nowrap">
-                      {Object.entries(
-                        printData.data.items.reduce((acc, item) => {
-                          acc[item.unit] = (acc[item.unit] || 0) + item.quantity;
-                          return acc;
-                        }, {} as Record<string, number>)
-                      ).map(([unit, qty]) => (
-                        <span key={unit} className="whitespace-nowrap">{formatNumber(qty)} {unit}</span>
-                      ))}
-                    </div>
+                  <div className="flex justify-between">
+                    <span>CHASIER :</span>
+                    <span className="font-bold">{printData.data.createdBy || 'Admin'}</span>
                   </div>
-
-                  <div className="border-b border-dashed border-slate-400 my-2"></div>
-
-                  {/* Calculations */}
-                  <div className="text-left space-y-1 text-[10px]">
-                    <div className="flex justify-between">
-                      <span>TOTAL BARANG:</span>
-                      <span className="font-bold">{formatCurrency(saleCustomerInfo?.itemSubtotal ?? printData.data.subtotal)}</span>
-                    </div>
-                    {printData.data.discountEnabled !== false && printData.data.discount > 0 && (
-                      <div className="flex justify-between text-rose-600">
-                        <span>Diskon:</span>
-                        <span>-{formatCurrency(printData.data.discount)}</span>
-                      </div>
-                    )}
-                    {printData.data.taxEnabled && printData.data.tax && printData.data.tax > 0 && (
-                      <div className="flex justify-between text-slate-700">
-                        <span>Pajak{printData.data.taxType === 'percent' ? ` (${printData.data.taxValue}%)` : ''}:</span>
-                        <span>+{formatCurrency(printData.data.tax)}</span>
-                      </div>
-                    )}
-                    {printData.data.shippingEnabled && printData.data.shippingCost && printData.data.shippingCost > 0 && (
-                      <div className="flex justify-between text-slate-700">
-                        <span>Ongkos Kirim:</span>
-                        <span>+{formatCurrency(printData.data.shippingCost)}</span>
-                      </div>
-                    )}
-                    {printData.data.otherCostEnabled && printData.data.otherCost && printData.data.otherCost > 0 && (
-                      <div className="flex justify-between text-slate-700">
-                        <span>Lain-lain{printData.data.otherCostNote ? ` (${printData.data.otherCostNote})` : ''}:</span>
-                        <span>+{formatCurrency(printData.data.otherCost)}</span>
-                      </div>
-                    )}
-
-                    {/* SISA HUTANG ATAU TABUNGAN */}
-                    {saleCustomerInfo?.hasTabungan ? (
-                      <>
-                        <div className="flex justify-between text-emerald-700 font-semibold pt-1 border-t border-slate-300">
-                          <span>TABUNGAN:</span>
-                          <span className="font-bold">{formatCurrency(saleCustomerInfo.previousSavings)}</span>
-                        </div>
-                        <div className="flex justify-between font-bold text-slate-900">
-                          <span>TOTAL BARANG - TABUNGAN:</span>
-                          <span>{formatCurrency(saleCustomerInfo.totalBarangPlusMinus)}</span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex justify-between text-rose-700 font-semibold pt-1 border-t border-slate-300">
-                          <span>SISA HUTANG:</span>
-                          <span className="font-bold">{formatCurrency(saleCustomerInfo?.previousDebt || 0)}</span>
-                        </div>
-                        <div className="flex justify-between font-bold text-slate-900">
-                          <span>TOTAL BARANG + HUTANG:</span>
-                          <span>{formatCurrency(saleCustomerInfo?.totalBarangPlusMinus || printData.data.grandTotal)}</span>
-                        </div>
-                      </>
-                    )}
-
-                    {/* BAYAR */}
-                    <div className="flex justify-between font-bold pt-0.5">
-                      <span>BAYAR:</span>
-                      <span>{formatCurrency(printData.data.amountPaid)}</span>
-                    </div>
-
-                    {/* TABUNGAN BARU JIKA KELEBIHAN BAYAR */}
-                    {Boolean(saleCustomerInfo && (saleCustomerInfo.newSavings > 0 || (printData.data.overpaymentAmount && printData.data.overpaymentAmount > 0))) && (
-                      <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 p-1 rounded border border-emerald-300 mt-1">
-                        <span>KELEBIHAN BAYAR (TABUNGAN):</span>
-                        <span>+{formatCurrency(saleCustomerInfo?.newSavings || printData.data.overpaymentAmount || 0)}</span>
-                      </div>
-                    )}
-
-                    {/* TOTAL KESELURUHAN */}
-                    <div className="flex justify-between font-extrabold text-xs pt-1 border-t-2 border-slate-900 text-slate-900">
-                      <span>TOTAL KESELURUHAN:</span>
-                      <span>{formatCurrency(saleCustomerInfo?.totalKeseluruhan ?? 0)}</span>
-                    </div>
+                  <div className="flex justify-between">
+                    <span>Pelanggan :</span>
+                    <span className="font-bold truncate max-w-[170px]">{printData.data.customerName}</span>
                   </div>
-
-                  {/* BADGE LUNAS ATAU BELUM LUNAS DI NOTA THERMAL */}
-                  {saleCustomerInfo?.isFullyLunas ? (
-                    <div className="my-2 border-2 border-dashed border-emerald-700 bg-emerald-50/70 py-1.5 px-2 text-center rounded">
-                      <div className="font-extrabold text-xs tracking-widest text-emerald-800">*** L U N A S ***</div>
-                      <div className="text-[9px] text-emerald-700 font-semibold">SUDAH DIBAYAR LUNAS</div>
-                    </div>
-                  ) : (
-                    <div className="my-2 border-2 border-dashed border-rose-600 bg-rose-50/70 py-1.5 px-2 text-center rounded">
-                      <div className="font-extrabold text-xs tracking-widest text-rose-800">*** BELUM LUNAS ***</div>
-                      <div className="text-[9px] text-rose-700 font-semibold">
-                        SISA TAGIHAN: {formatCurrency(printData.data.grandTotal - printData.data.amountPaid)}
-                      </div>
+                  {saleCustomerInfo?.customerPhone && (
+                    <div className="flex justify-between text-slate-600 text-[10px]">
+                      <span>No. HP :</span>
+                      <span>{saleCustomerInfo.customerPhone}</span>
                     </div>
                   )}
-
-                  <div className="border-b border-dashed border-slate-400 my-2.5"></div>
-                  <div className="text-[10px] italic text-slate-600 leading-tight">
-                    {printData.data.notes || storeProfile.footerNote}
-                  </div>
+                  {saleCustomerInfo?.customerAddress && (
+                    <div className="flex justify-between items-start text-slate-600 text-[10px]">
+                      <span className="shrink-0 mr-2">Alamat :</span>
+                      <span className="text-right truncate max-w-[200px]">{saleCustomerInfo.customerAddress}</span>
+                    </div>
+                  )}
                 </div>
-              )
+
+                <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                {/* Items List (Solaria Style) */}
+                <div className="text-left space-y-2 text-[11px]">
+                  {printData.data.items.map((item, idx) => (
+                    <div key={idx} className="space-y-0.5">
+                      <div className="font-bold text-slate-900">{item.itemName}</div>
+                      <div className="flex justify-between text-slate-700">
+                        <span>
+                          {formatNumber(item.quantity)} {item.unit} x {formatNumber(item.sellPrice)}
+                        </span>
+                        <span className="font-bold text-slate-900">{formatCurrency(item.subtotal)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Separated Units Total Qty Breakdown (Stacked vertically if multiple) */}
+                {(() => {
+                  const unitBreakdown = printData.data.items.reduce((acc, item) => {
+                    const u = item.unit || 'Kg';
+                    acc[u] = (acc[u] || 0) + (Number(item.quantity) || 0);
+                    return acc;
+                  }, {} as Record<string, number>);
+
+                  const entries = Object.entries(unitBreakdown);
+
+                  return (
+                    <div className="text-[11px] font-mono text-slate-700 pt-1 pb-0.5 flex justify-between items-start border-t border-dashed border-slate-300">
+                      <span>Total Qty :</span>
+                      <div className="text-right font-bold flex flex-col items-end">
+                        {entries.length > 0 ? (
+                          entries.map(([unit, qty], i) => (
+                            <span key={i}>{formatNumber(qty)} {unit}</span>
+                          ))
+                        ) : (
+                          <span>-</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                {/* Calculations Breakdown */}
+                {(() => {
+                  const totalBarang = saleCustomerInfo?.netBarang ?? printData.data.grandTotal;
+                  const sisaHutang = saleCustomerInfo?.previousDebt || 0;
+                  const tabunganLama = saleCustomerInfo?.previousSavings || 0;
+                  const hasTabungan = tabunganLama > 0;
+
+                  // Total barang + hutang atau barang - tabungan
+                  const totalBarangPlusMinus = hasTabungan 
+                    ? Math.max(0, totalBarang - tabunganLama)
+                    : totalBarang + sisaHutang;
+
+                  const bayar = printData.data.amountPaid || 0;
+                  const totalKeseluruhan = Math.max(0, totalBarangPlusMinus - bayar);
+                  const kelebihanBayar = bayar > totalBarangPlusMinus ? bayar - totalBarangPlusMinus : 0;
+
+                  return (
+                    <>
+                      <div className="text-left space-y-1.5 text-[11px] font-mono">
+                        {printData.data.discountEnabled !== false && printData.data.discount > 0 && (
+                          <div className="flex justify-between text-rose-600 text-[10px]">
+                            <span>Diskon Potongan:</span>
+                            <span>-{formatCurrency(printData.data.discount)}</span>
+                          </div>
+                        )}
+
+                        {printData.data.taxEnabled && printData.data.tax && printData.data.tax > 0 && (
+                          <div className="flex justify-between text-slate-700 text-[10px]">
+                            <span>Pajak ({printData.data.taxValue}%):</span>
+                            <span>+{formatCurrency(printData.data.tax)}</span>
+                          </div>
+                        )}
+
+                        {printData.data.shippingEnabled && printData.data.shippingCost && printData.data.shippingCost > 0 && (
+                          <div className="flex justify-between text-slate-700 text-[10px]">
+                            <span>Ongkos Kirim:</span>
+                            <span>+{formatCurrency(printData.data.shippingCost)}</span>
+                          </div>
+                        )}
+
+                        <div className="border-t border-dashed border-slate-300 pt-1"></div>
+
+                        {/* Total Barang */}
+                        <div className="flex justify-between font-bold text-slate-900">
+                          <span>TOTAL BARANG</span>
+                          <span className="text-right">{formatCurrency(totalBarang)}</span>
+                        </div>
+
+                        {/* Kondisi Hutang atau Tabungan */}
+                        {hasTabungan ? (
+                          <>
+                            <div className="flex justify-between font-bold text-emerald-700">
+                              <span>TABUNGAN</span>
+                              <span>{formatCurrency(tabunganLama)}</span>
+                            </div>
+                            <div className="flex justify-between font-extrabold text-slate-900 text-xs py-0.5">
+                              <span>TOTAL BARANG - TABUNGAN</span>
+                              <span>{formatCurrency(totalBarangPlusMinus)}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex justify-between font-bold text-rose-700">
+                              <span>SISA HUTANG</span>
+                              <span>{formatCurrency(sisaHutang)}</span>
+                            </div>
+                            <div className="flex justify-between font-extrabold text-slate-900 text-xs py-0.5">
+                              <span>TOTAL BARANG + HUTANG</span>
+                              <span>{formatCurrency(totalBarangPlusMinus)}</span>
+                            </div>
+                          </>
+                        )}
+
+                        {/* BAYAR */}
+                        <div className="flex justify-between font-bold text-slate-900">
+                          <span>BAYAR</span>
+                          <span>{formatCurrency(bayar)}</span>
+                        </div>
+
+                        {/* TOTAL KESELURUHAN */}
+                        <div className="flex justify-between font-extrabold text-xs pt-1 border-t border-slate-900 text-slate-900">
+                          <span>TOTAL KESELURUHAN</span>
+                          <span>{formatCurrency(totalKeseluruhan)}</span>
+                        </div>
+
+                        {/* Kelebihan / Tabungan Baru */}
+                        {(kelebihanBayar > 0 || (saleCustomerInfo?.newSavings && saleCustomerInfo.newSavings > 0)) && (
+                          <div className="flex justify-between text-emerald-700 font-bold text-[10px] pt-0.5">
+                            <span>KELEBIHAN (TABUNGAN BARU):</span>
+                            <span>+{formatCurrency(kelebihanBayar || saleCustomerInfo?.newSavings || 0)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Status Badge */}
+                      <div className="my-2 text-center">
+                        {totalKeseluruhan === 0 ? (
+                          <span className="font-bold text-xs text-emerald-800 tracking-wider">
+                            *** L U N A S ***
+                          </span>
+                        ) : (
+                          <span className="font-bold text-xs text-rose-700 tracking-wider">
+                            *** BELUM LUNAS ***
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                      {/* Footer Section: Catatan & Ucapan Terima Kasih (Tanpa Tanda Tangan) */}
+                      <div className="text-[11px] font-mono space-y-2 text-center">
+                        {printData.data.notes && (
+                          <div className="text-[10px] text-slate-800 bg-slate-50 p-2 rounded border border-slate-200 text-left">
+                            <div className="font-bold uppercase text-[9px] text-slate-500 mb-0.5">CATATAN:</div>
+                            <div>{printData.data.notes}</div>
+                          </div>
+                        )}
+
+                        <div className="pt-1 text-[11px] font-bold text-slate-900 tracking-wide">
+                          TERIMA KASIH
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
             )}
 
             {/* 2. PURCHASE TRANSACTION TEMPLATE (BUKTI PEMBELIAN) */}
@@ -1525,10 +1354,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                           </tr>
                           <tr className="hover:bg-rose-50/50">
                             <td className="py-3 px-4 font-bold text-rose-700 border-r border-slate-200">
-                              <div>Kasbon:</div>
-                              {s.kasbonRemainingAfter !== undefined && (
-                                <div className="text-[10px] text-slate-500 font-normal mt-0.5">Sisa Saldo Kasbon Karyawan: {formatCurrency(s.kasbonRemainingAfter)}</div>
-                              )}
+                              Kasbon (Pemotong):
                             </td>
                             <td className="py-3 px-4 text-right font-mono font-bold text-rose-600">
                               -{formatCurrency(s.deduction || 0)}
@@ -1690,7 +1516,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               );
             })()}
 
-            {/* 5. PRE-ORDER INDIVIDUAL PER CUSTOMER TEMPLATE (NO PRICES!) */}
+            {/* 5. PRE-ORDER INDIVIDUAL PER CUSTOMER TEMPLATE (SOLARIA TICKET STYLE - NO PRICES!) */}
             {printData.type === 'preorder_single' && (() => {
               const po = printData.data;
               const custObj = customers.find(c => c.id === po.customerId || c.name.toLowerCase() === po.customerName.toLowerCase());
@@ -1700,142 +1526,163 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               const primaryUnit = po.items[0]?.unit || 'Kg';
 
               return printFormat === 'a4' ? (
-                <div className="space-y-6">
-                  {/* Header */}
-                  <div className="flex justify-between items-start border-b border-slate-300 pb-4">
-                    <div className="flex items-start gap-3.5">
-                      <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white flex items-center justify-center p-1.5 shrink-0 shadow-xs">
-                        <img src={storeProfile.logoUrl || '/logo_unggas.svg'} alt="Logo" className="max-w-full max-h-full object-contain" />
-                      </div>
-                      <div>
-                        <h1 className="text-lg font-bold text-slate-900 tracking-tight">{storeProfile.name}</h1>
-                        <p className="text-xs text-slate-600 mt-0.5 max-w-sm">{storeProfile.address}</p>
-                        <p className="text-xs text-slate-600 mt-0.5">Telp/WA: {storeProfile.phone}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs font-semibold text-amber-800 uppercase tracking-wider bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                        DOKUMEN PRE-ORDER (PO)
-                      </span>
-                      <h2 className="text-sm font-bold font-mono text-slate-900 mt-1">{po.poNumber}</h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Tgl Pesan: {formatDateTime(po.orderDate)}
-                      </p>
+                <div className="space-y-4 max-w-xl mx-auto p-4 border border-slate-300 font-mono text-slate-900 bg-white">
+                  {/* Solaria Style PO Header (A4) */}
+                  <div className="text-center space-y-1 pb-3 border-b border-dashed border-slate-400">
+                    {storeProfile.logoUrl && (
+                      <img src={storeProfile.logoUrl} alt="Logo" className="w-12 h-12 mx-auto object-contain mb-1" />
+                    )}
+                    <h1 className="text-lg font-bold tracking-tight uppercase">{storeProfile.name}</h1>
+                    <p className="text-xs text-slate-600 leading-tight">{storeProfile.address}</p>
+                    <p className="text-xs text-slate-600">Telp/WA: {storeProfile.phone}</p>
+                    <div className="pt-2 text-xs font-bold uppercase tracking-wider text-amber-900">
+                      *** DOKUMEN PRE-ORDER (PO) ***
                     </div>
                   </div>
 
-                  {/* Info Card with Name, Phone, and Address (Styled like Sale Invoice) */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs">
-                    <div className="flex items-start gap-3.5">
-                      <div className="w-11 h-11 rounded-full bg-amber-100 text-amber-900 font-bold flex items-center justify-center text-lg border border-amber-200/80 shrink-0 mt-0.5">
-                        {po.customerName.charAt(0).toUpperCase()}
+                  {/* Header Details */}
+                  <div className="text-xs space-y-1 pb-3 border-b border-dashed border-slate-400">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Date:</span>
+                      <span className="font-bold">{formatDateTime(po.orderDate)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">PO No:</span>
+                      <span className="font-bold">{po.poNumber}</span>
+                    </div>
+                    {po.pickupDate && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Tgl Pengambilan:</span>
+                        <span className="font-bold">{formatDate(po.pickupDate)}</span>
                       </div>
-                      <div className="space-y-1">
-                        <h3 className="font-bold text-slate-900 text-base leading-tight">{po.customerName}</h3>
-                        <div className="text-xs text-slate-700 space-y-0.5">
-                          <p>
-                            <span className="font-semibold text-slate-500">Alamat:</span> {displayAddress}
-                          </p>
-                          <p>
-                            <span className="font-semibold text-slate-500">No. Handphone:</span> {displayPhone}
-                          </p>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Pelanggan:</span>
+                      <span className="font-bold">{po.customerName}</span>
+                    </div>
+                    {displayPhone !== '-' && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">No. HP:</span>
+                        <span>{displayPhone}</span>
+                      </div>
+                    )}
+                    {displayAddress !== '-' && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Alamat:</span>
+                        <span className="max-w-[280px] text-right truncate">{displayAddress}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Items List (Solaria Ticket Format - NO PRICES) */}
+                  <div className="space-y-2 py-2 border-b border-dashed border-slate-400 text-sm">
+                    <div className="font-bold text-xs uppercase text-slate-500 mb-2">RINCIAN PESANAN BARANG:</div>
+                    {po.items.map((it, idx) => (
+                      <div key={idx} className="space-y-0.5">
+                        <div className="font-bold text-slate-900 flex justify-between">
+                          <span>{formatNumber(it.quantity)} {it.unit} x {it.itemName}</span>
                         </div>
-                        {po.customerType && (
-                          <p className="text-[11px] font-medium text-slate-400">Tipe Pelanggan: {po.customerType}</p>
-                        )}
+                        {(it as any).notes || (it as any).itemNote ? (
+                          <div className="text-xs text-slate-600 pl-4 font-sans italic">
+                            - {(it as any).notes || (it as any).itemNote}
+                          </div>
+                        ) : null}
                       </div>
-                    </div>
+                    ))}
+                    {po.items.length === 0 && (
+                      <div className="text-xs text-slate-400 italic">Belum ada item rincian pesanan.</div>
+                    )}
                   </div>
 
-                  {/* Items Table (NO PRICES & NO CATATAN ITEM COLUMN) */}
-                  <div className="border border-slate-300 rounded-xl overflow-hidden bg-white text-xs shadow-2xs">
-                    <div className="bg-slate-100 px-3.5 py-2 border-b border-slate-300 flex items-center justify-between">
-                      <h4 className="font-bold text-xs text-slate-900 uppercase tracking-wide">
-                        RINCIAN ITEM PESANAN PRE-ORDER ({po.items.length} ITEM)
-                      </h4>
+                  {/* Total & Summary Footer */}
+                  <div className="text-xs space-y-1 pb-3 border-b border-dashed border-slate-400 font-bold">
+                    <div className="flex justify-between">
+                      <span>TOTAL ITEM:</span>
+                      <span>{po.items.length} Jenis</span>
                     </div>
-                    <table className="w-full text-left border-collapse">
-                      <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-300">
-                        <tr>
-                          <th className="py-2.5 px-3 border-r border-slate-300 w-12 text-center">No</th>
-                          <th className="py-2.5 px-3 border-r border-slate-300">Nama Barang / Potongan Ayam</th>
-                          <th className="py-2.5 px-3 text-center w-40">Jumlah Pesanan</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 font-medium">
-                        {po.items.map((item, idx) => (
-                          <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                            <td className="py-2.5 px-3 border-r border-slate-200 text-center text-slate-500">{idx + 1}</td>
-                            <td className="py-2.5 px-3 border-r border-slate-200 font-bold text-slate-900">{item.itemName}</td>
-                            <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-900 text-sm">
-                              {formatNumber(item.quantity)} {item.unit}
-                            </td>
-                          </tr>
-                        ))}
-                        {po.items.length === 0 && (
-                          <tr>
-                            <td colSpan={3} className="py-6 text-center text-slate-400">Belum ada item rincian pesanan.</td>
-                          </tr>
-                        )}
-                      </tbody>
-                      <tfoot className="bg-amber-50 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
-                        <tr>
-                          <td colSpan={2} className="py-3 px-3.5 text-right font-bold border-r border-slate-300">TOTAL JUMLAH KESELURUHAN ITEM PESANAN:</td>
-                          <td className="py-3 px-3.5 text-center font-mono text-amber-900 text-sm font-extrabold">
-                            {formatNumber(totalQty)} {primaryUnit}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                    <div className="flex justify-between text-sm">
+                      <span>TOTAL QTY:</span>
+                      <span>{formatNumber(totalQty)} {primaryUnit}</span>
+                    </div>
+                    {po.notes && (
+                      <div className="pt-2 text-xs font-normal text-slate-600 font-sans">
+                        <span className="font-bold">Catatan PO:</span> {po.notes}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer Message */}
+                  <div className="text-center text-xs text-slate-600 space-y-0.5 pt-2">
+                    <p className="font-bold">Terima Kasih</p>
+                    <p>Atas Pesanan Anda</p>
                   </div>
                 </div>
               ) : (
-                /* Thermal format for single PO (No prices) */
-                <div className="text-center space-y-2 text-[10px]">
-                  <div className="flex justify-center mb-1">
-                    <img src={storeProfile.logoUrl || '/logo_unggas.svg'} alt="Logo" className="w-10 h-10 object-contain" />
-                  </div>
-                  <div className="font-bold text-sm tracking-tight">{storeProfile.name}</div>
-                  <div className="text-[10px] leading-tight text-slate-700">{storeProfile.address}</div>
-                  <div className="border-b border-dashed border-slate-400 my-2"></div>
-
-                  <div className="font-bold uppercase tracking-wider text-[11px] text-slate-900">DOKUMEN PRE-ORDER (PO)</div>
-                  <div className="font-mono font-bold text-slate-800">{po.poNumber}</div>
-                  <div className="text-slate-500">{formatDateTime(po.orderDate)}</div>
-
-                  <div className="border-b border-dashed border-slate-400 my-2"></div>
-
-                  <div className="text-left space-y-1">
-                    <div className="flex justify-between">
-                      <span>Pelanggan:</span>
-                      <span className="font-bold truncate max-w-[140px]">{po.customerName}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>No. HP:</span>
-                      <span className="font-semibold">{displayPhone}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Alamat:</span>
-                      <span className="font-semibold truncate max-w-[140px]">{displayAddress}</span>
-                    </div>
+                /* Thermal format for single PO (Solaria Ticket Style - NO PRICES) */
+                <div className="text-left space-y-2 font-mono text-[11px] text-slate-900 leading-tight">
+                  {/* Solaria Logo & Store Name */}
+                  <div className="text-center space-y-0.5">
+                    {storeProfile.logoUrl && (
+                      <img src={storeProfile.logoUrl} alt="Logo" className="w-10 h-10 mx-auto object-contain mb-1" />
+                    )}
+                    <div className="font-bold text-sm uppercase tracking-tight">{storeProfile.name}</div>
+                    <div className="text-[10px] text-slate-600 leading-tight">{storeProfile.address}</div>
                   </div>
 
                   <div className="border-b border-dashed border-slate-400 my-2"></div>
 
-                  <div className="text-left space-y-1">
-                    <div className="font-bold border-b border-slate-200 pb-1">ITEM PESANAN (TANPA HARGA):</div>
+                  {/* PO Info Header */}
+                  <div className="space-y-0.5 text-[10px]">
+                    <div>Date: {formatDateTime(po.orderDate)}</div>
+                    <div>PO No: {po.poNumber}</div>
+                    {po.pickupDate && <div>Tgl Ambil: {formatDate(po.pickupDate)}</div>}
+                    <div>Pelanggan: <span className="font-bold">{po.customerName}</span></div>
+                    {displayPhone !== '-' && <div>No. HP: {displayPhone}</div>}
+                  </div>
+
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  {/* Solaria Order Ticket Item List: [Qty] [Unit] x [Nama Barang] */}
+                  <div className="space-y-1 py-1">
                     {po.items.map((it, idx) => (
-                      <div key={idx} className="flex justify-between py-0.5">
-                        <span className="font-bold">{it.itemName}</span>
-                        <span className="font-mono font-bold">{formatNumber(it.quantity)} {it.unit}</span>
+                      <div key={idx} className="space-y-0.5">
+                        <div className="font-bold text-[11px] leading-snug">
+                          {formatNumber(it.quantity)} {it.unit} x {it.itemName}
+                        </div>
+                        {(it as any).notes || (it as any).itemNote ? (
+                          <div className="text-[10px] text-slate-600 pl-3">
+                            - {(it as any).notes || (it as any).itemNote}
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
 
                   <div className="border-b border-dashed border-slate-400 my-2"></div>
-                  <div className="flex justify-between font-bold text-xs">
-                    <span>TOTAL QTY:</span>
-                    <span className="font-mono">{formatNumber(totalQty)} {primaryUnit}</span>
+
+                  {/* Summary Footer */}
+                  <div className="space-y-0.5 text-[10px] font-bold">
+                    <div className="flex justify-between">
+                      <span>ITEMS:</span>
+                      <span>{po.items.length}</span>
+                    </div>
+                    <div className="flex justify-between text-[11px]">
+                      <span>TOTAL QTY:</span>
+                      <span>{formatNumber(totalQty)} {primaryUnit}</span>
+                    </div>
+                    {po.notes && (
+                      <div className="pt-1 text-[10px] font-normal text-slate-600">
+                        Catatan: {po.notes}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  {/* Solaria Footer Text */}
+                  <div className="text-center text-[10px] space-y-0.5 text-slate-700">
+                    <div className="font-bold">Terima Kasih</div>
+                    <div>Atas Pesanan Anda</div>
                   </div>
                 </div>
               );
@@ -1912,8 +1759,14 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                                 <div className="text-[9px] font-mono text-slate-400 font-normal">{po.poNumber}</div>
                               </th>
                             ))}
-                            <th className="py-2.5 px-3 text-center font-bold text-amber-400 min-w-[110px] bg-slate-950">
+                            <th className="py-2.5 px-3 text-center font-bold text-amber-400 min-w-[100px] bg-slate-950 border-r border-slate-700">
                               TOTAL KEBUTUHAN
+                            </th>
+                            <th className="py-2.5 px-3 text-center font-bold text-sky-400 min-w-[100px] bg-slate-950 border-r border-slate-700">
+                              STOK SAAT INI
+                            </th>
+                            <th className="py-2.5 px-3 text-center font-bold text-emerald-400 min-w-[130px] bg-slate-950">
+                              STOK AKHIR / KEBUTUHAN POTONG
                             </th>
                           </tr>
                         </thead>
@@ -1923,6 +1776,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                               const pi = po.items.find(i => i.itemId === it.id || i.itemName.toLowerCase() === it.name.toLowerCase());
                               return sum + (pi ? Number(pi.quantity) || 0 : 0);
                             }, 0);
+
+                            const liveStock = it.currentStock || 0;
+                            const stokAkhir = liveStock - totalItemDemand;
+                            const isCukup = stokAkhir >= 0;
 
                             return (
                               <tr key={it.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
@@ -1945,7 +1802,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                                     </td>
                                   );
                                 })}
-                                <td className="py-2 px-3 text-center border-l border-slate-300 font-mono font-extrabold bg-amber-50/70 text-amber-900">
+                                {/* TOTAL KEBUTUHAN */}
+                                <td className="py-2 px-3 text-center border-r border-slate-300 font-mono font-extrabold bg-amber-50/70 text-amber-900">
                                   {totalItemDemand > 0 ? (
                                     <span className="bg-amber-500/20 text-amber-950 px-2 py-0.5 rounded text-xs font-bold inline-block border border-amber-300/80">
                                       {formatNumber(totalItemDemand)} {it.unit}
@@ -1954,12 +1812,34 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                                     <span className="text-slate-400">0</span>
                                   )}
                                 </td>
+                                {/* STOK SAAT INI */}
+                                <td className="py-2 px-3 text-center border-r border-slate-300 font-mono font-bold bg-slate-50 text-slate-800">
+                                  <span className="px-2 py-0.5 rounded text-xs font-bold inline-block border border-slate-300 bg-white text-slate-900">
+                                    {formatNumber(liveStock)} {it.unit}
+                                  </span>
+                                </td>
+                                {/* STOK AKHIR / KEBUTUHAN POTONG */}
+                                <td className={`py-2 px-3 text-center font-mono font-bold ${
+                                  isCukup ? 'bg-emerald-50/70' : 'bg-rose-50/90'
+                                }`}>
+                                  <span className={`px-2 py-0.5 rounded text-xs font-extrabold inline-block border ${
+                                    isCukup 
+                                      ? 'bg-emerald-100 text-emerald-900 border-emerald-300' 
+                                      : 'bg-rose-100 text-rose-900 border-rose-400 font-black'
+                                  }`}>
+                                    {isCukup ? (
+                                      <span>+{formatNumber(stokAkhir)} {it.unit} (Cukup)</span>
+                                    ) : (
+                                      <span>-{formatNumber(Math.abs(stokAkhir))} {it.unit} (Kurang)</span>
+                                    )}
+                                  </span>
+                                </td>
                               </tr>
                             );
                           })}
                           {itemList.length === 0 && (
                             <tr>
-                              <td colSpan={poList.length + 3} className="py-6 text-center text-slate-400">Belum ada item catalog terdaftar.</td>
+                              <td colSpan={poList.length + 5} className="py-6 text-center text-slate-400">Belum ada item catalog terdaftar.</td>
                             </tr>
                           )}
                         </tbody>
@@ -1976,8 +1856,28 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                                 </td>
                               );
                             })}
-                            <td className="py-2.5 px-3 text-center font-extrabold text-xs text-amber-400 bg-slate-950">
+                            <td className="py-2.5 px-3 text-center font-extrabold text-xs text-amber-400 bg-slate-950 border-r border-slate-700">
                               {formatNumber(poList.reduce((sum, po) => sum + po.items.reduce((isum, i) => isum + (Number(i.quantity) || 0), 0), 0))} Total Qty
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-extrabold text-xs text-sky-300 bg-slate-950 border-r border-slate-700">
+                              {formatNumber(itemList.reduce((sum, it) => sum + (it.currentStock || 0), 0))} Total Stok
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-extrabold text-xs bg-slate-950">
+                              {(() => {
+                                const deficitCount = itemList.filter(it => {
+                                  const demand = poList.reduce((sum, po) => {
+                                    const pi = po.items.find(i => i.itemId === it.id || i.itemName.toLowerCase() === it.name.toLowerCase());
+                                    return sum + (pi ? Number(pi.quantity) || 0 : 0);
+                                  }, 0);
+                                  return (it.currentStock || 0) < demand;
+                                }).length;
+
+                                return deficitCount > 0 ? (
+                                  <span className="text-rose-400 font-black">{deficitCount} Item Kurang</span>
+                                ) : (
+                                  <span className="text-emerald-400 font-bold">Semua Cukup</span>
+                                );
+                              })()}
                             </td>
                           </tr>
                         </tfoot>
@@ -2001,13 +1901,30 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   <div className="border-b border-dashed border-slate-400 my-2"></div>
 
                   <div className="text-left space-y-1">
-                    <div className="font-bold border-b border-slate-200 pb-1">TOTAL KEBUTUHAN ITEM:</div>
-                    {activeDemands.map((d, idx) => (
-                      <div key={idx} className="flex justify-between py-0.5">
-                        <span className="font-bold">{d.name}</span>
-                        <span className="font-mono font-bold">{formatNumber(d.totalQty)} {d.unit}</span>
-                      </div>
-                    ))}
+                    <div className="font-bold border-b border-slate-200 pb-1">TOTAL KEBUTUHAN & ANALISIS STOK:</div>
+                    {itemList.map((it, idx) => {
+                      const totalDemand = poList.reduce((sum, po) => {
+                        const pi = po.items.find(i => i.itemId === it.id || i.itemName.toLowerCase() === it.name.toLowerCase());
+                        return sum + (pi ? Number(pi.quantity) || 0 : 0);
+                      }, 0);
+                      if (totalDemand === 0 && (it.currentStock || 0) === 0) return null;
+                      const stokAkhir = (it.currentStock || 0) - totalDemand;
+                      const isCukup = stokAkhir >= 0;
+                      return (
+                        <div key={idx} className="border-b border-slate-100 py-1 text-[10px]">
+                          <div className="font-bold flex justify-between">
+                            <span>{it.name}</span>
+                            <span className="font-mono text-amber-900">{formatNumber(totalDemand)} {it.unit}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-600 text-[9px] pt-0.5">
+                            <span>Stok Gudang: {formatNumber(it.currentStock || 0)} {it.unit}</span>
+                            <span className={isCukup ? 'text-emerald-700 font-bold' : 'text-rose-700 font-black'}>
+                              {isCukup ? `Cukup (+${formatNumber(stokAkhir)})` : `Kurang (-${formatNumber(Math.abs(stokAkhir))})`}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <div className="border-b border-dashed border-slate-400 my-2"></div>

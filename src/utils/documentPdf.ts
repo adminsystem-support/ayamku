@@ -452,40 +452,26 @@ export function createDocumentPdf(
       doc.setTextColor(15, 23, 42);
       doc.text('RINCIAN PERHITUNGAN NOTA', 18, calcY + 4.8);
 
+      const pdfTotalBarang = netBarang;
+      const pdfSisaHutang = previousDebt || 0;
+      const pdfTotalPlusHutang = pdfTotalBarang + pdfSisaHutang;
+      const pdfBayar = amountPaid;
+      const pdfTotalKeseluruhan = Math.max(0, pdfTotalPlusHutang - pdfBayar);
+
       const summaryBody: any[] = [
-        ['TOTAL BARANG:', formatCurrency(totalBarang)]
+        ['TOTAL BARANG:', formatCurrency(pdfTotalBarang)],
+        ['SISA HUTANG:', formatCurrency(pdfSisaHutang)],
+        ['TOTAL BARANG + HUTANG:', formatCurrency(pdfTotalPlusHutang)],
+        ['BAYAR:', formatCurrency(pdfBayar)]
       ];
 
-      if (sale.discountEnabled !== false && sale.discount > 0) {
-        summaryBody.push(['Diskon Potongan Harga:', `-${formatCurrency(sale.discount)}`]);
-      }
-      if (sale.taxEnabled && sale.tax && sale.tax > 0) {
-        summaryBody.push([`Pajak${sale.taxType === 'percent' ? ` (${sale.taxValue}%)` : ''}:`, `+${formatCurrency(sale.tax)}`]);
-      }
-      if (sale.shippingEnabled && sale.shippingCost && sale.shippingCost > 0) {
-        summaryBody.push(['Ongkos Kirim:', `+${formatCurrency(sale.shippingCost)}`]);
-      }
-      if (sale.otherCostEnabled && sale.otherCost && sale.otherCost > 0) {
-        summaryBody.push([`Biaya Lain-lain${sale.otherCostNote ? ` (${sale.otherCostNote})` : ''}:`, `+${formatCurrency(sale.otherCost)}`]);
-      }
-
-      if (hasTabungan) {
-        summaryBody.push(['TABUNGAN:', formatCurrency(previousSavings)]);
-        summaryBody.push(['TOTAL BARANG - TABUNGAN:', formatCurrency(totalBarangPlusMinus)]);
-      } else {
-        summaryBody.push(['SISA HUTANG:', formatCurrency(previousDebt || 0)]);
-        summaryBody.push(['TOTAL BARANG + HUTANG:', formatCurrency(totalBarangPlusMinus)]);
-      }
-
-      summaryBody.push(['BAYAR:', formatCurrency(amountPaid)]);
-
-      const excessSavings = newSavings || sale.overpaymentAmount || (amountPaid > totalBarangPlusMinus ? amountPaid - totalBarangPlusMinus : 0);
+      const excessSavings = amountPaid > pdfTotalPlusHutang ? amountPaid - pdfTotalPlusHutang : 0;
       if (excessSavings > 0) {
-        summaryBody.push(['KELEBIHAN BAYAR (TABUNGAN):', `+${formatCurrency(excessSavings)}`]);
+        summaryBody.push(['KELEBIHAN BAYAR / TABUNGAN:', `+${formatCurrency(excessSavings)}`]);
       }
 
       const summaryFoot: any[] = [
-        ['TOTAL KESELURUHAN:', formatCurrency(totalKeseluruhan)]
+        ['TOTAL KESELURUHAN:', formatCurrency(pdfTotalKeseluruhan)]
       ];
 
       autoTable(doc, {
@@ -1144,8 +1130,8 @@ export function createPreOrderMatrixPdf(
   doc.setDrawColor(226, 232, 240);
   doc.line(14, 29, pageWidth - 14, 29);
 
-  // Transposed Table Header: ['No', 'Nama Barang / Potongan Ayam', ...activePreOrders.map(p => p.customerName), 'TOTAL KEBUTUHAN']
-  const head = [['No', 'Nama Barang / Potongan Ayam', ...activePreOrders.map(p => p.customerName), 'TOTAL KEBUTUHAN']];
+  // Transposed Table Header: ['No', 'Nama Barang / Potongan Ayam', ...activePreOrders.map(p => p.customerName), 'TOTAL KEBUTUHAN', 'STOK SAAT INI', 'STOK AKHIR']
+  const head = [['No', 'Nama Barang / Potongan Ayam', ...activePreOrders.map(p => p.customerName), 'TOTAL KEBUTUHAN', 'STOK SAAT INI', 'STOK AKHIR']];
 
   // Transposed Table Body: Rows = Items
   const itemRows = items.map((it, idx) => {
@@ -1154,6 +1140,10 @@ export function createPreOrderMatrixPdf(
       return sum + (pi ? Number(pi.quantity) || 0 : 0);
     }, 0);
 
+    const liveStock = it.currentStock || 0;
+    const stokAkhir = liveStock - totalItemDemand;
+    const isCukup = stokAkhir >= 0;
+
     return [
       idx + 1,
       it.name,
@@ -1161,7 +1151,9 @@ export function createPreOrderMatrixPdf(
         const pi = po.items.find((i: any) => i.itemId === it.id || i.itemName?.toLowerCase() === it.name?.toLowerCase());
         return pi && pi.quantity > 0 ? `${formatNumber(pi.quantity)} ${it.unit}` : '-';
       }),
-      totalItemDemand > 0 ? `${formatNumber(totalItemDemand)} ${it.unit}` : '0'
+      totalItemDemand > 0 ? `${formatNumber(totalItemDemand)} ${it.unit}` : '0',
+      `${formatNumber(liveStock)} ${it.unit}`,
+      isCukup ? `+${formatNumber(stokAkhir)} ${it.unit} (Cukup)` : `-${formatNumber(Math.abs(stokAkhir))} ${it.unit} (Kurang)`
     ];
   });
 
@@ -1172,7 +1164,18 @@ export function createPreOrderMatrixPdf(
       const totalCustQty = po.items.reduce((sum: number, i: any) => sum + (Number(i.quantity) || 0), 0);
       return totalCustQty > 0 ? `${formatNumber(totalCustQty)} Item` : '0';
     }),
-    `${formatNumber(activePreOrders.reduce((sum, po) => sum + po.items.reduce((isum: number, i: any) => isum + (Number(i.quantity) || 0), 0), 0))} Total Qty`
+    `${formatNumber(activePreOrders.reduce((sum, po) => sum + po.items.reduce((isum: number, i: any) => isum + (Number(i.quantity) || 0), 0), 0))} Total Qty`,
+    `${formatNumber(items.reduce((sum, it) => sum + (it.currentStock || 0), 0))} Total Stok`,
+    (() => {
+      const defCount = items.filter(it => {
+        const demand = activePreOrders.reduce((sum, po) => {
+          const pi = po.items.find((i: any) => i.itemId === it.id || i.itemName?.toLowerCase() === it.name?.toLowerCase());
+          return sum + (pi ? Number(pi.quantity) || 0 : 0);
+        }, 0);
+        return (it.currentStock || 0) < demand;
+      }).length;
+      return defCount > 0 ? `${defCount} Item Kurang` : 'Semua Cukup';
+    })()
   ];
 
   autoTable(doc, {

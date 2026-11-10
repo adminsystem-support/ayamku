@@ -49,6 +49,7 @@ interface AttendanceSalaryProps {
   onDeleteSalarySlip: (slipId: string) => void;
   onPrintSalarySlip: (slip: SalarySlip) => void;
   onSaveEmployee: (employee: Employee) => void;
+  onDeleteEmployee?: (id: string) => void;
   onSaveKasbon: (record: EmployeeKasbonRecord) => void;
   onDeleteKasbon: (id: string) => void;
   userRole: UserRole;
@@ -65,6 +66,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
   onDeleteSalarySlip,
   onPrintSalarySlip,
   onSaveEmployee,
+  onDeleteEmployee,
   onSaveKasbon,
   onDeleteKasbon,
   userRole,
@@ -219,9 +221,9 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
     const activeKasbon = getEmployeeOutstandingKasbon(emp.id);
     const totalWage = Number(entry.wage) || 0;
     const additionVal = Number(entry.addition) || 0;
-    const kasbonLoanVal = Number(entry.kasbon) || 0;
-    const totalNet = totalWage + additionVal + kasbonLoanVal;
-    const newKasbonBalance = activeKasbon + kasbonLoanVal;
+    const kasbonVal = Number(entry.kasbon) || 0;
+    const totalNet = Math.max(0, totalWage + additionVal - kasbonVal);
+    const newKasbonBalance = Math.max(0, activeKasbon - kasbonVal);
 
     const newSlip: SalarySlip = {
       id: `slip-${Date.now()}-${emp.id}`,
@@ -240,7 +242,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
       totalOvertimePay: additionVal,
       allowance: 0,
       bonus: additionVal,
-      deduction: 0,
+      deduction: kasbonVal,
       netSalary: totalNet,
       paymentStatus: 'Sudah Dibayar',
       notes: entry.notes.trim() || `Slip Gaji ${getDayNameID(slipDate)}, ${formatDate(slipDate)}`,
@@ -250,20 +252,20 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
 
     onGenerateSalarySlip(newSlip);
 
-    if (kasbonLoanVal > 0) {
-      const kasbonLoanRecord: EmployeeKasbonRecord = {
-        id: `ksb-loan-${newSlip.id}`,
+    if (kasbonVal > 0) {
+      const kasbonPaymentRecord: EmployeeKasbonRecord = {
+        id: `ksb-slip-${newSlip.id}`,
         date: slipDate,
         employeeId: emp.id,
         employeeName: emp.name,
-        type: 'pinjam',
-        amount: kasbonLoanVal,
+        type: 'bayar_slip',
+        amount: kasbonVal,
         remainingBalanceAfter: newKasbonBalance,
-        notes: `Pinjaman kasbon harian via Slip Gaji #${newSlip.slipNumber}`,
+        notes: `Potong kasbon via Slip Gaji #${newSlip.slipNumber}`,
         salarySlipId: newSlip.id,
         createdAt: new Date().toISOString(),
       };
-      onSaveKasbon(kasbonLoanRecord);
+      onSaveKasbon(kasbonPaymentRecord);
     }
 
     setRiwayatEmpId(emp.id);
@@ -288,9 +290,9 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
       const activeKasbon = getEmployeeOutstandingKasbon(emp.id);
       const totalWage = Number(entry.wage) || 0;
       const additionVal = Number(entry.addition) || 0;
-      const kasbonLoanVal = Number(entry.kasbon) || 0;
-      const totalNet = totalWage + additionVal + kasbonLoanVal;
-      const newKasbonBalance = activeKasbon + kasbonLoanVal;
+      const kasbonVal = Number(entry.kasbon) || 0;
+      const totalNet = Math.max(0, totalWage + additionVal - kasbonVal);
+      const newKasbonBalance = Math.max(0, activeKasbon - kasbonVal);
 
       const newSlip: SalarySlip = {
         id: `slip-${Date.now()}-${emp.id}`,
@@ -309,7 +311,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
         totalOvertimePay: additionVal,
         allowance: 0,
         bonus: additionVal,
-        deduction: 0,
+        deduction: kasbonVal,
         netSalary: totalNet,
         paymentStatus: 'Sudah Dibayar',
         notes: entry.notes.trim() || `Slip Gaji ${getDayNameID(slipDate)}, ${formatDate(slipDate)}`,
@@ -319,20 +321,20 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
 
       onGenerateSalarySlip(newSlip);
 
-      if (kasbonLoanVal > 0) {
-        const kasbonLoanRecord: EmployeeKasbonRecord = {
-          id: `ksb-loan-${newSlip.id}`,
+      if (kasbonVal > 0) {
+        const kasbonPaymentRecord: EmployeeKasbonRecord = {
+          id: `ksb-slip-${newSlip.id}`,
           date: slipDate,
           employeeId: emp.id,
           employeeName: emp.name,
-          type: 'pinjam',
-          amount: kasbonLoanVal,
+          type: 'bayar_slip',
+          amount: kasbonVal,
           remainingBalanceAfter: newKasbonBalance,
-          notes: `Pinjaman kasbon harian via Slip Gaji #${newSlip.slipNumber}`,
+          notes: `Potong kasbon via Slip Gaji #${newSlip.slipNumber}`,
           salarySlipId: newSlip.id,
           createdAt: new Date().toISOString(),
         };
-        onSaveKasbon(kasbonLoanRecord);
+        onSaveKasbon(kasbonPaymentRecord);
       }
       savedCount++;
     });
@@ -388,7 +390,6 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
   const [riwayatEmpId, setRiwayatEmpId] = useState<string>(employees[0]?.id || '');
   const [riwayatStartDate, setRiwayatStartDate] = useState<string>(todayStr);
   const [riwayatEndDate, setRiwayatEndDate] = useState<string>(todayStr);
-  const [riwayatCustomKasbon, setRiwayatCustomKasbon] = useState<number>(0);
 
   const selectedEmpForRiwayat = employees.find(e => e.id === riwayatEmpId);
   const employeeSlipsInRange = useMemo(() => {
@@ -403,26 +404,35 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
   const aggregatedRiwayat = useMemo(() => {
     let totalWage = 0;
     let totalAddition = 0;
+    let totalKasbon = 0;
+    let daysPresentCount = 0;
+
     employeeSlipsInRange.forEach(s => {
-      totalWage += s.totalDailyWage || 0;
-      totalAddition += (s.bonus || s.totalOvertimePay || 0);
+      const w = s.totalDailyWage || 0;
+      const a = (s.bonus || s.totalOvertimePay || 0);
+      const k = (s.deduction || 0);
+      totalWage += w;
+      totalAddition += a;
+      totalKasbon += k;
+      if (w > 0 || (s.daysPresent || 0) > 0) {
+        daysPresentCount += (s.daysPresent || 1);
+      }
     });
-    const outstandingKasbon = getEmployeeOutstandingKasbon(riwayatEmpId);
-    const deduction = riwayatCustomKasbon !== undefined ? riwayatCustomKasbon : Math.min(outstandingKasbon, totalWage + totalAddition);
-    const totalNet = Math.max(0, totalWage + totalAddition - deduction);
+
+    const totalNet = Math.max(0, totalWage + totalAddition - totalKasbon);
+
     return {
       totalWage,
       totalAddition,
-      outstandingKasbon,
-      deduction,
+      totalKasbon,
       totalNet,
-      count: employeeSlipsInRange.length
+      count: employeeSlipsInRange.length,
+      daysPresentCount
     };
-  }, [employeeSlipsInRange, riwayatEmpId, riwayatCustomKasbon]);
+  }, [employeeSlipsInRange]);
 
   const handlePrintRiwayatSlip = () => {
     if (!selectedEmpForRiwayat) return;
-    const remainingAfter = Math.max(0, aggregatedRiwayat.outstandingKasbon - aggregatedRiwayat.deduction);
     const slipToPrint: SalarySlip = {
       id: `slip-riwayat-${Date.now()}`,
       slipNumber: generateInvoiceCode('SLIP'),
@@ -432,7 +442,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
       employeeId: selectedEmpForRiwayat.id,
       employeeName: selectedEmpForRiwayat.name,
       employeeRole: selectedEmpForRiwayat.role,
-      daysPresent: aggregatedRiwayat.count || 1,
+      daysPresent: aggregatedRiwayat.daysPresentCount || aggregatedRiwayat.count || 1,
       daysHalf: 0,
       daysOvertime: 0,
       totalOvertimeHours: 0,
@@ -440,30 +450,12 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
       totalOvertimePay: aggregatedRiwayat.totalAddition,
       allowance: 0,
       bonus: aggregatedRiwayat.totalAddition,
-      deduction: aggregatedRiwayat.deduction,
+      deduction: aggregatedRiwayat.totalKasbon,
       netSalary: aggregatedRiwayat.totalNet,
       paymentStatus: 'Sudah Dibayar',
-      notes: '',
-      kasbonOutstandingBefore: aggregatedRiwayat.outstandingKasbon,
-      kasbonRemainingAfter: remainingAfter,
+      notes: `Slip Gaji Periode ${formatDate(riwayatStartDate)} s/d ${formatDate(riwayatEndDate)}`,
     };
     onPrintSalarySlip(slipToPrint);
-
-    if (aggregatedRiwayat.deduction > 0) {
-      const kasbonRepayRecord: EmployeeKasbonRecord = {
-        id: `ksb-pay-riwayat-${Date.now()}`,
-        date: riwayatEndDate,
-        employeeId: selectedEmpForRiwayat.id,
-        employeeName: selectedEmpForRiwayat.name,
-        type: 'bayar_slip',
-        amount: aggregatedRiwayat.deduction,
-        remainingBalanceAfter: remainingAfter,
-        notes: `Potongan kasbon via Slip Gaji Mingguan #${slipToPrint.slipNumber}`,
-        salarySlipId: slipToPrint.id,
-        createdAt: new Date().toISOString(),
-      };
-      onSaveKasbon(kasbonRepayRecord);
-    }
   };
 
   // Employee Management Modal State
@@ -655,7 +647,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
             }`}
           >
             <Receipt className="w-4 h-4" />
-            <span>1. Input Slip Gaji</span>
+            <span>1. Input Slip Gaji Harian</span>
           </button>
 
           <button
@@ -668,32 +660,12 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
             }`}
           >
             <DollarSign className="w-4 h-4 text-emerald-400" />
-            <span>2. Riwayat Slip Gaji</span>
+            <span>2. Riwayat & Cetak Slip Periode</span>
             {salarySlips.length > 0 && (
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                 activeTab === 'riwayat_gaji' ? 'bg-amber-800 text-white' : 'bg-emerald-100 text-emerald-800'
               }`}>
                 {salarySlips.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('kasbon')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'kasbon'
-                ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20'
-                : 'text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200'
-            }`}
-          >
-            <WalletCards className="w-4 h-4 text-amber-500" />
-            <span>3. Data Kasbon Karyawan</span>
-            {kasbonOverview.empCount > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                activeTab === 'kasbon' ? 'bg-amber-800 text-white' : 'bg-rose-100 text-rose-800'
-              }`}>
-                {kasbonOverview.empCount}
               </span>
             )}
           </button>
@@ -708,7 +680,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>4. Data Karyawan ({employees.length})</span>
+            <span>3. Data Karyawan ({employees.length})</span>
           </button>
         </div>
 
@@ -797,7 +769,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                     <th className="py-2.5 px-3">Nama Karyawan</th>
                     <th className="py-2.5 px-3 text-right">Gaji</th>
                     <th className="py-2.5 px-3 text-right">Tambahan</th>
-                    <th className="py-2.5 px-3 text-right">Kasbon</th>
+                    <th className="py-2.5 px-3 text-right text-rose-700">Kasbon</th>
                     <th className="py-2.5 px-3 text-right">Total</th>
                   </tr>
                 </thead>
@@ -808,7 +780,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                     const totalWage = Number(entry.wage) || 0;
                     const additionVal = Number(entry.addition) || 0;
                     const kasbonVal = Number(entry.kasbon) || 0;
-                    const totalNet = totalWage + additionVal + kasbonVal;
+                    const totalNet = Math.max(0, totalWage + additionVal - kasbonVal);
 
                     return (
                       <tr key={emp.id} className="hover:bg-slate-50/80">
@@ -816,14 +788,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                         <td className="py-2.5 px-3">
                           <div className="space-y-0.5">
                             <span className="font-bold text-slate-900 block">{emp.name}</span>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] text-slate-500 font-medium">{emp.role} ({emp.code})</span>
-                              {activeKasbon > 0 && (
-                                <span className="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.2 rounded-full font-mono font-bold">
-                                  Kasbon: {formatCurrency(activeKasbon)}
-                                </span>
-                              )}
-                            </div>
+                            <span className="text-[10px] text-slate-500 font-medium">{emp.role} ({emp.code})</span>
                           </div>
                         </td>
 
@@ -866,55 +831,24 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                           />
                         </td>
 
-                        {/* 4. Kasbon */}
+                        {/* 4. Kasbon (Kembalikan ke warna merah pemotong) */}
                         <td className="py-2.5 px-3 text-right">
-                          <div className="space-y-1">
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              value={entry.kasbon === 0 ? '' : entry.kasbon.toLocaleString('id-ID')}
-                              placeholder="0"
-                              onFocus={(e) => e.target.select()}
-                              onChange={(e) => {
-                                const raw = e.target.value.replace(/\./g, '').replace(',', '.');
-                                const val = raw === '' ? 0 : parseFloat(raw) || 0;
-                                setSlipEntries(prev => ({
-                                  ...prev,
-                                  [emp.id]: { ...(prev[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' }), kasbon: val }
-                                }));
-                              }}
-                              className="w-32 text-right p-1.5 text-xs font-mono font-bold bg-white border border-rose-300 rounded-lg text-rose-700 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                            />
-                            {activeKasbon > 0 && (
-                              <div className="flex items-center justify-end gap-1 text-[10px]">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const full = Math.min(activeKasbon, totalWage + additionVal);
-                                    setSlipEntries(prev => ({
-                                      ...prev,
-                                      [emp.id]: { ...(prev[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' }), kasbon: full }
-                                    }));
-                                  }}
-                                  className="text-amber-800 bg-amber-50 hover:bg-amber-100 px-1.5 py-0.5 rounded font-bold cursor-pointer border border-amber-200"
-                                >
-                                  Potong {formatCurrency(Math.min(activeKasbon, totalWage + additionVal))}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSlipEntries(prev => ({
-                                      ...prev,
-                                      [emp.id]: { ...(prev[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' }), kasbon: 0 }
-                                    }));
-                                  }}
-                                  className="text-slate-500 hover:text-slate-700 px-1 py-0.5 cursor-pointer"
-                                >
-                                  Rp 0
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={entry.kasbon === 0 ? '' : entry.kasbon.toLocaleString('id-ID')}
+                            placeholder="0"
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/\./g, '').replace(',', '.');
+                              const val = raw === '' ? 0 : parseFloat(raw) || 0;
+                              setSlipEntries(prev => ({
+                                ...prev,
+                                [emp.id]: { ...(prev[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' }), kasbon: val }
+                              }));
+                            }}
+                            className="w-32 text-right p-1.5 text-xs font-mono font-bold bg-rose-50/50 border border-rose-300 rounded-lg text-rose-700 focus:ring-2 focus:ring-rose-500 focus:outline-hidden"
+                          />
                         </td>
 
                         {/* 5. Total (Gaji + Tambahan - Kasbon) */}
@@ -944,7 +878,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                 const totalWage = Number(entry.wage) || 0;
                 const additionVal = Number(entry.addition) || 0;
                 const kasbonVal = Number(entry.kasbon) || 0;
-                const totalNet = totalWage + additionVal + kasbonVal;
+                const totalNet = Math.max(0, totalWage + additionVal - kasbonVal);
 
                 return (
                   <div key={emp.id} className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3 text-xs shadow-2xs">
@@ -953,16 +887,11 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                         <span className="font-bold text-slate-900 text-sm block">{emp.name}</span>
                         <span className="text-[10px] text-slate-500">{emp.role} ({emp.code})</span>
                       </div>
-                      {activeKasbon > 0 && (
-                        <span className="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 px-2 py-0.5 rounded-full font-mono font-bold">
-                          Kasbon: {formatCurrency(activeKasbon)}
-                        </span>
-                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-[10px] font-semibold text-slate-600 block">Gaji:</label>
+                        <label className="text-[10px] font-semibold text-slate-600 block mb-1">Gaji:</label>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -981,7 +910,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                       </div>
 
                       <div>
-                        <label className="text-[10px] font-semibold text-slate-600 block">Tambahan:</label>
+                        <label className="text-[10px] font-semibold text-slate-600 block mb-1">Tambahan:</label>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -1002,24 +931,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                     </div>
 
                     <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <label className="text-[10px] font-semibold text-rose-700 block">Kasbon:</label>
-                        {activeKasbon > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const full = Math.min(activeKasbon, totalWage + additionVal);
-                              setSlipEntries(prev => ({
-                                ...prev,
-                                [emp.id]: { ...(prev[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' }), kasbon: full }
-                              }));
-                            }}
-                            className="text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded font-bold cursor-pointer"
-                          >
-                            Potong {formatCurrency(Math.min(activeKasbon, totalWage + additionVal))}
-                          </button>
-                        )}
-                      </div>
+                      <label className="text-[10px] font-semibold text-rose-700 block mb-1">Kasbon (Pemotong):</label>
                       <input
                         type="text"
                         inputMode="numeric"
@@ -1034,7 +946,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                             [emp.id]: { ...(prev[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' }), kasbon: val }
                           }));
                         }}
-                        className="w-full text-right p-1.5 text-xs font-mono font-bold bg-slate-50 border border-rose-300 rounded-lg text-rose-700"
+                        className="w-full text-right p-1.5 text-xs font-mono font-bold bg-rose-50/50 border border-rose-300 rounded-lg text-rose-700 focus:ring-2 focus:ring-rose-500"
                       />
                     </div>
 
@@ -1051,21 +963,31 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
           </div>
 
           {/* Batch Summary Footer & Simpan Semua Button */}
-          <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
-            <div>
-              <span className="text-[10px] text-slate-400 block uppercase font-medium">
-                TOTAL GAJI BERSIH DIBAYAR:
-              </span>
-              <span className="text-2xl font-bold font-mono text-amber-400 block">
-                {formatCurrency(batchSummary.totalNet)}
-              </span>
+          <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-md">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+              <div>
+                <span className="text-[10px] text-slate-400 block uppercase font-medium">TOTAL GAJI POKOK:</span>
+                <span className="text-sm font-bold font-mono text-slate-200 block">{formatCurrency(batchSummary.totalWage)}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-blue-300 block uppercase font-medium">TOTAL TAMBAHAN:</span>
+                <span className="text-sm font-bold font-mono text-blue-400 block">+{formatCurrency(batchSummary.totalAddition)}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-rose-300 block uppercase font-medium">TOTAL KASBON:</span>
+                <span className="text-sm font-bold font-mono text-rose-400 block">-{formatCurrency(batchSummary.totalKasbon)}</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-amber-300 block uppercase font-medium">TOTAL BERSIH DIBAYAR:</span>
+                <span className="text-base sm:text-lg font-bold font-mono text-amber-400 block">{formatCurrency(batchSummary.totalNet)}</span>
+              </div>
             </div>
 
             <button
               type="button"
               disabled={activeEmployees.length === 0}
               onClick={handleSaveAllSlips}
-              className={`px-6 py-3 font-bold rounded-xl text-xs shadow-xs transition-colors flex items-center justify-center gap-2 ${
+              className={`px-6 py-3 font-bold rounded-xl text-xs shadow-xs transition-colors flex items-center justify-center gap-2 shrink-0 ${
                 activeEmployees.length === 0
                   ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
                   : 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
@@ -1165,60 +1087,103 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                 </div>
               </div>
 
-              {/* Breakdown Table matching input slip format: Gaji Pokok, Tambahan, Kasbon, Total Gaji Bersih */}
+              {/* Breakdown Table matching period format: Gaji Pokok, Tambahan, Kasbon, Total Gaji Bersih */}
               <div className="border border-slate-200 rounded-xl overflow-hidden bg-white text-xs">
-                <div className="bg-slate-900 text-white px-4 py-2.5 font-bold uppercase tracking-wider text-xs">
-                  RINCIAN GAJI
+                <div className="bg-slate-900 text-white px-4 py-2.5 font-bold uppercase tracking-wider text-xs flex items-center justify-between">
+                  <span>RINCIAN GAJI PERIODE</span>
+                  <span className="text-amber-300 font-mono text-[11px]">
+                    {aggregatedRiwayat.daysPresentCount} Hari Hadir ({aggregatedRiwayat.count} Hari Slip Tercatat)
+                  </span>
                 </div>
                 <table className="w-full text-left border-collapse">
                   <tbody className="divide-y divide-slate-200 font-medium text-xs">
                     <tr className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-bold text-slate-800">Gaji Pokok:</td>
+                      <td className="py-3 px-4 font-bold text-slate-800">
+                        Total Gaji Pokok:
+                        <span className="text-[10px] text-slate-500 font-normal block">Akumulasi gaji harian dalam periode terpilih</span>
+                      </td>
                       <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">{formatCurrency(aggregatedRiwayat.totalWage)}</td>
                     </tr>
                     <tr className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-bold text-blue-700">Tambahan:</td>
+                      <td className="py-3 px-4 font-bold text-blue-700">
+                        Total Tambahan:
+                        <span className="text-[10px] text-slate-500 font-normal block">Akumulasi bonus / lembur harian</span>
+                      </td>
                       <td className="py-3 px-4 text-right font-mono font-bold text-blue-700">+{formatCurrency(aggregatedRiwayat.totalAddition)}</td>
                     </tr>
                     <tr className="hover:bg-rose-50/50">
                       <td className="py-3 px-4 font-bold text-rose-700">
-                        <div>Kasbon:</div>
-                        <div className="text-[10px] text-slate-500 font-normal mt-0.5">Sisa Saldo Kasbon Karyawan: {formatCurrency(aggregatedRiwayat.outstandingKasbon)}</div>
+                        Total Kasbon (Pemotong):
+                        <span className="text-[10px] text-slate-500 font-normal block">Akumulasi potongan kasbon harian dalam periode terpilih</span>
                       </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={riwayatCustomKasbon === 0 ? '' : riwayatCustomKasbon.toLocaleString('id-ID')}
-                            placeholder="0"
-                            onChange={(e) => {
-                              const raw = e.target.value.replace(/\./g, '').replace(',', '.');
-                              const val = raw === '' ? 0 : parseFloat(raw) || 0;
-                              setRiwayatCustomKasbon(val);
-                            }}
-                            className="w-32 text-right p-1.5 text-xs font-mono font-bold bg-white border border-rose-300 rounded-lg text-rose-700 focus:outline-hidden"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setRiwayatCustomKasbon(Math.min(aggregatedRiwayat.outstandingKasbon, aggregatedRiwayat.totalWage + aggregatedRiwayat.totalAddition))}
-                            className="text-[10px] bg-amber-100 hover:bg-amber-200 text-amber-900 px-2 py-1 rounded font-bold cursor-pointer"
-                          >
-                            Potong Penuh
-                          </button>
-                        </div>
+                      <td className="py-3 px-4 text-right font-mono font-bold text-rose-600">
+                        -{formatCurrency(aggregatedRiwayat.totalKasbon)}
                       </td>
                     </tr>
                   </tbody>
                   <tfoot className="bg-emerald-900 text-white font-bold text-sm">
                     <tr>
-                      <td className="py-3.5 px-4 font-extrabold text-white">Total Gaji Bersih:</td>
+                      <td className="py-3.5 px-4 font-extrabold text-white">Total Gaji Bersih Diterima:</td>
                       <td className="py-3.5 px-4 text-right font-mono font-extrabold text-amber-300 text-base">
                         {formatCurrency(aggregatedRiwayat.totalNet)}
                       </td>
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+
+              {/* Rincian Slip Harian dalam Periode */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white text-xs">
+                <div className="bg-slate-100 text-slate-700 px-4 py-2.5 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 flex items-center justify-between">
+                  <span>Rincian Slip Harian dalam Rentang Tanggal</span>
+                  <span className="text-slate-500 text-[10px] font-mono">{employeeSlipsInRange.length} Data Slip</span>
+                </div>
+                {employeeSlipsInRange.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 text-[11px]">
+                          <th className="py-2 px-3">Tanggal Slip</th>
+                          <th className="py-2 px-3 text-right">Gaji Pokok</th>
+                          <th className="py-2 px-3 text-right">Tambahan</th>
+                          <th className="py-2 px-3 text-right text-rose-700">Kasbon</th>
+                          <th className="py-2 px-3 text-right">Total Bersih</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {employeeSlipsInRange
+                          .slice()
+                          .sort((a, b) => (a.periodStart || a.generatedDate).localeCompare(b.periodStart || b.generatedDate))
+                          .map((slip) => {
+                            const dStr = slip.periodStart || slip.generatedDate.substring(0, 10);
+                            return (
+                              <tr key={slip.id} className="hover:bg-slate-50">
+                                <td className="py-2 px-3 font-medium text-slate-800">
+                                  {getDayNameID(dStr)}, {formatDateDDNopYYYY(dStr)}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono text-slate-900">
+                                  {formatCurrency(slip.totalDailyWage)}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono text-blue-700">
+                                  {slip.bonus || slip.totalOvertimePay ? `+${formatCurrency(slip.bonus || slip.totalOvertimePay)}` : '-'}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono text-rose-600 font-bold">
+                                  {slip.deduction ? `-${formatCurrency(slip.deduction)}` : '-'}
+                                </td>
+                                <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">
+                                  {formatCurrency(slip.netSalary)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-slate-400 text-xs">
+                    Belum ada slip gaji harian yang tercatat untuk {selectedEmpForRiwayat.name} pada periode {formatDate(riwayatStartDate)} s/d {formatDate(riwayatEndDate)}.
+                  </div>
+                )}
               </div>
 
               {/* Action Print Button inside preview */}
@@ -1453,14 +1418,32 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditEmployee(emp)}
-                            className="p-1.5 bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 font-semibold text-[11px]"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                            <span>Edit</span>
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditEmployee(emp)}
+                              className="p-1.5 bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-amber-800 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 font-semibold text-[11px]"
+                              title="Edit profil karyawan"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                              <span>Edit</span>
+                            </button>
+                            {onDeleteEmployee && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (window.confirm(`Hapus data karyawan "${emp.name}" (${emp.code})? Tindakan ini akan menghapus data profil karyawan tersebut.`)) {
+                                    onDeleteEmployee(emp.id);
+                                  }
+                                }}
+                                className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-800 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1 font-semibold text-[11px]"
+                                title="Hapus data karyawan"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Hapus</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1551,20 +1534,37 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                 </select>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setIsEmployeeModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 font-semibold"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-xs"
-                >
-                  Simpan Karyawan
-                </button>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200">
+                {editingEmployeeId && onDeleteEmployee ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`Hapus data karyawan "${newEmpName}"? Tindakan ini akan menghapus profil karyawan dari sistem.`)) {
+                        onDeleteEmployee(editingEmployeeId);
+                        setIsEmployeeModalOpen(false);
+                      }
+                    }}
+                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold flex items-center gap-1.5 transition-colors cursor-pointer text-xs"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus Karyawan</span>
+                  </button>
+                ) : <div />}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEmployeeModalOpen(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 font-semibold cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-xs cursor-pointer"
+                  >
+                    Simpan Karyawan
+                  </button>
+                </div>
               </div>
             </form>
           </div>
