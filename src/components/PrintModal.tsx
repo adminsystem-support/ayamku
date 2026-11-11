@@ -800,7 +800,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   ))}
                 </div>
 
-                {/* Separated Units Total Qty Breakdown (Stacked vertically below Total Qty label) */}
+                {/* Separated Units Total Qty Breakdown (Stacked directly under Total Qty label, left aligned) */}
                 {(() => {
                   const unitBreakdown = printData.data.items.reduce((acc, item) => {
                     const u = item.unit || 'Kg';
@@ -811,9 +811,9 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   const entries = Object.entries(unitBreakdown);
 
                   return (
-                    <div className="text-[11px] font-mono text-slate-700 pt-1 pb-0.5 border-t border-dashed border-slate-300 space-y-0.5">
-                      <div className="font-semibold text-slate-700">Total Qty :</div>
-                      <div className="text-right font-bold flex flex-col items-end">
+                    <div className="text-[11px] font-mono text-slate-700 pt-1 pb-0.5 border-t border-dashed border-slate-300 space-y-0.5 text-left">
+                      <div className="font-semibold text-slate-900">Total Qty :</div>
+                      <div className="font-bold text-slate-900 flex flex-col items-start space-y-0.5">
                         {entries.length > 0 ? (
                           entries.map(([unit, qty], i) => (
                             <span key={i}>{formatNumber(qty)} {unit}</span>
@@ -1195,7 +1195,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   {/* Total Qty in thermal */}
                   <div className="text-left text-[10px] py-1 border-t border-dashed border-slate-300 space-y-0.5">
                     <span className="font-semibold text-slate-600 block">Total Qty:</span>
-                    <div className="font-bold text-slate-900 text-right flex flex-col items-end">
+                    <div className="font-bold text-slate-900 text-left flex flex-col items-start space-y-0.5">
                       {Object.entries(
                         printData.data.items.reduce((acc, item) => {
                           acc[item.unit] = (acc[item.unit] || 0) + item.quantity;
