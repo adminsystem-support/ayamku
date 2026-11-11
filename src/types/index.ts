@@ -290,6 +290,7 @@ export interface StoreProfile {
   bankName?: string;
   bankAccountNo?: string;
   bankAccountName?: string;
+  updatedAt?: string;
 }
 
 export type ActiveTab = 

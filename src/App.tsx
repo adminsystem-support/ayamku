@@ -269,8 +269,17 @@ export default function App() {
 
     const unsubProfile = subscribeStoreProfile((data) => {
       if (data) {
-        setStoreProfile(data);
-        StorageManager.saveStoreProfile(data);
+        const localProfile = StorageManager.getStoreProfile();
+        const cloudTime = data.updatedAt ? new Date(data.updatedAt).getTime() : 0;
+        const localTime = localProfile.updatedAt ? new Date(localProfile.updatedAt).getTime() : 0;
+
+        if (cloudTime >= localTime || !localProfile.updatedAt) {
+          setStoreProfile(data);
+          StorageManager.saveStoreProfile(data);
+        } else {
+          // Local profile is newer than cloud snapshot! Re-push local profile to cloud to fix stale cloud document
+          syncSaveStoreProfile(localProfile);
+        }
       }
     });
 
@@ -888,9 +897,13 @@ export default function App() {
 
   // 11. Store Profile
   const handleUpdateStoreProfile = (profile: StoreProfile) => {
-    setStoreProfile(profile);
-    StorageManager.saveStoreProfile(profile);
-    syncSaveStoreProfile(profile);
+    const timestamped: StoreProfile = {
+      ...profile,
+      updatedAt: profile.updatedAt || new Date().toISOString()
+    };
+    setStoreProfile(timestamped);
+    StorageManager.saveStoreProfile(timestamped);
+    syncSaveStoreProfile(timestamped);
     showToast('Profil usaha dan logo berhasil diperbarui!');
   };
 

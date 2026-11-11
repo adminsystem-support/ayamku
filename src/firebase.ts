@@ -274,7 +274,11 @@ export async function syncDeleteOperationalTransaction(txId: string) {
 
 export async function syncSaveStoreProfile(profile: StoreProfile) {
   try {
-    await setDoc(doc(db, COLLECTIONS.PROFILE, 'main'), cleanForFirestore(profile));
+    const dataToSave = {
+      ...profile,
+      updatedAt: profile.updatedAt || new Date().toISOString()
+    };
+    await setDoc(doc(db, COLLECTIONS.PROFILE, 'main'), cleanForFirestore(dataToSave), { merge: true });
   } catch (err) {
     console.error('Firestore save profile failed:', err);
   }
