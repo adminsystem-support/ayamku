@@ -160,22 +160,53 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
     }
   };
 
-  // Handle custom image upload
+  // Handle custom image upload with automatic canvas optimization & compression
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Ukuran file logo maksimal 2MB.');
+    if (file.size > 10 * 1024 * 1024) {
+      alert('Ukuran file logo maksimal 10MB.');
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        setLogoUrl(result);
-      }
+      const rawResult = event.target?.result as string;
+      if (!rawResult) return;
+
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 400; // 400px is crystal sharp for print and ultra-lightweight for Firestore
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/png');
+          setLogoUrl(compressedDataUrl);
+        } else {
+          setLogoUrl(rawResult);
+        }
+      };
+      img.onerror = () => {
+        setLogoUrl(rawResult);
+      };
+      img.src = rawResult;
     };
     reader.readAsDataURL(file);
   };
