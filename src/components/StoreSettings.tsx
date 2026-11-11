@@ -160,7 +160,25 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
     }
   };
 
-  // Handle custom image upload with automatic canvas optimization & compression
+  // Helper to persist and sync updated store profile immediately
+  const saveProfileData = (updatedLogoUrl?: string) => {
+    const updated: StoreProfile = {
+      name: name.trim() || storeProfile.name,
+      phone: phone.trim() || storeProfile.phone,
+      address: address.trim() || storeProfile.address,
+      footerNote: footerNote.trim() || storeProfile.footerNote,
+      logoUrl: (updatedLogoUrl !== undefined ? updatedLogoUrl : logoUrl).trim(),
+      thermalWidth,
+      bankName: bankName.trim(),
+      bankAccountNo: bankAccountNo.trim(),
+      bankAccountName: bankAccountName.trim(),
+    };
+    onUpdateStoreProfile(updated);
+    setSavedMessage(true);
+    setTimeout(() => setSavedMessage(false), 4000);
+  };
+
+  // Handle custom image upload with automatic canvas optimization & immediate auto-save
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -199,12 +217,15 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
           ctx.drawImage(img, 0, 0, width, height);
           const compressedDataUrl = canvas.toDataURL('image/png');
           setLogoUrl(compressedDataUrl);
+          saveProfileData(compressedDataUrl);
         } else {
           setLogoUrl(rawResult);
+          saveProfileData(rawResult);
         }
       };
       img.onerror = () => {
         setLogoUrl(rawResult);
+        saveProfileData(rawResult);
       };
       img.src = rawResult;
     };
@@ -213,20 +234,7 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
 
   const handleSubmitProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    const updated: StoreProfile = {
-      name: name.trim(),
-      phone: phone.trim(),
-      address: address.trim(),
-      footerNote: footerNote.trim(),
-      logoUrl: logoUrl.trim(),
-      thermalWidth,
-      bankName: bankName.trim(),
-      bankAccountNo: bankAccountNo.trim(),
-      bankAccountName: bankAccountName.trim(),
-    };
-    onUpdateStoreProfile(updated);
-    setSavedMessage(true);
-    setTimeout(() => setSavedMessage(false), 3000);
+    saveProfileData();
   };
 
   const handleDownloadBackup = () => {
@@ -331,7 +339,10 @@ export const StoreSettings: React.FC<StoreSettingsProps> = ({
                   {logoUrl && (
                     <button
                       type="button"
-                      onClick={() => setLogoUrl('')}
+                      onClick={() => {
+                        setLogoUrl('');
+                        saveProfileData('');
+                      }}
                       className="px-3 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-medium cursor-pointer transition-colors flex items-center gap-1.5 border border-rose-200"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
