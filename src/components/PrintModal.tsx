@@ -800,7 +800,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   ))}
                 </div>
 
-                {/* Separated Units Total Qty Breakdown (Stacked vertically if multiple) */}
+                {/* Separated Units Total Qty Breakdown (Stacked vertically below Total Qty label) */}
                 {(() => {
                   const unitBreakdown = printData.data.items.reduce((acc, item) => {
                     const u = item.unit || 'Kg';
@@ -811,8 +811,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   const entries = Object.entries(unitBreakdown);
 
                   return (
-                    <div className="text-[11px] font-mono text-slate-700 pt-1 pb-0.5 flex justify-between items-start border-t border-dashed border-slate-300">
-                      <span>Total Qty :</span>
+                    <div className="text-[11px] font-mono text-slate-700 pt-1 pb-0.5 border-t border-dashed border-slate-300 space-y-0.5">
+                      <div className="font-semibold text-slate-700">Total Qty :</div>
                       <div className="text-right font-bold flex flex-col items-end">
                         {entries.length > 0 ? (
                           entries.map(([unit, qty], i) => (
@@ -1193,8 +1193,8 @@ export const PrintModal: React.FC<PrintModalProps> = ({
                   </div>
 
                   {/* Total Qty in thermal */}
-                  <div className="text-left text-[10px] py-1 border-t border-dashed border-slate-300 flex justify-between items-start">
-                    <span className="font-semibold text-slate-600">Total Qty:</span>
+                  <div className="text-left text-[10px] py-1 border-t border-dashed border-slate-300 space-y-0.5">
+                    <span className="font-semibold text-slate-600 block">Total Qty:</span>
                     <div className="font-bold text-slate-900 text-right flex flex-col items-end">
                       {Object.entries(
                         printData.data.items.reduce((acc, item) => {
