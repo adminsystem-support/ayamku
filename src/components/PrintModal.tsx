@@ -1234,143 +1234,115 @@ export const PrintModal: React.FC<PrintModalProps> = ({
               )
             )}
 
-            {/* 3. SALARY SLIP TEMPLATE */}
+            {/* 3. SALARY SLIP TEMPLATE (SIMPLE NOTA STYLE) */}
             {printData.type === 'salary' && (() => {
               const s = printData.data;
               const emp = employees.find(e => e.id === s.employeeId);
               const empCode = emp?.code || 'EMP-1';
               const empRole = s.employeeRole || emp?.role || '-';
               const empPhone = emp?.phone || '-';
-              const dailyWageRate = emp?.dailyWage || (s.daysPresent > 0 ? Math.round(s.totalDailyWage / s.daysPresent) : 100000);
-              const overtimeRate = emp?.standardOvertimeRate || 20000;
-              const empStatus = emp?.status || 'Aktif';
-
-              const hrsOvertime = s.totalOvertimeHours !== undefined && s.totalOvertimeHours > 0
-                ? s.totalOvertimeHours
-                : (s.totalOvertimePay > 0 ? Math.round(s.totalOvertimePay / overtimeRate) : s.daysOvertime);
-
-              // Filter actual attendance records for this period
-              const periodRecords = (attendanceRecords || [])
-                .filter(r => r.employeeId === s.employeeId && r.date >= s.periodStart && r.date <= s.periodEnd)
-                .sort((a, b) => a.date.localeCompare(b.date));
-
-              // Fallback daily rows if periodRecords is empty
-              const dailyRowsToRender = periodRecords.length > 0 ? periodRecords : (() => {
-                const rows = [];
-                let cur = new Date(s.periodStart);
-                const end = new Date(s.periodEnd);
-                while (cur <= end) {
-                  const dateStr = cur.toISOString().split('T')[0];
-                  rows.push({
-                    id: `synth-${dateStr}`,
-                    date: dateStr,
-                    employeeId: s.employeeId,
-                    employeeName: s.employeeName,
-                    role: empRole,
-                    status: 'Hadir' as const,
-                    wageAmount: dailyWageRate,
-                    overtimeHours: s.daysOvertime > 0 ? Math.round(hrsOvertime / Math.max(1, s.daysOvertime)) : 0,
-                    overtimePay: s.daysOvertime > 0 ? Math.round(s.totalOvertimePay / Math.max(1, s.daysOvertime)) : 0,
-                  });
-                  cur.setDate(cur.getDate() + 1);
-                }
-                return rows;
-              })();
+              const tambahan = (s.bonus || 0) || (s.totalOvertimePay || 0);
+              const periodeStr = s.periodStart === s.periodEnd
+                ? formatDate(s.periodStart)
+                : `${formatDate(s.periodStart)} s/d ${formatDate(s.periodEnd)}`;
 
               return (
-                <div className="space-y-5">
-                  {/* Header with Logo */}
-                  <div className="flex justify-between items-start border-b border-slate-300 pb-4">
-                    <div className="flex items-start gap-3.5">
-                      <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white flex items-center justify-center p-1.5 shrink-0 shadow-xs">
-                        <img src={storeProfile.logoUrl || '/logo_unggas.svg'} alt="Logo" className="max-w-full max-h-full object-contain" />
-                      </div>
-                      <div>
-                        <h1 className="text-lg font-bold text-slate-900 tracking-tight">{storeProfile.name}</h1>
-                        <p className="text-xs text-slate-600 mt-0.5 max-w-sm">{storeProfile.address}</p>
-                        <p className="text-xs text-slate-600 mt-0.5">Telp/WA: {storeProfile.phone}</p>
-                      </div>
+                <div className={`mx-auto p-4 sm:p-6 bg-white font-mono text-xs text-slate-900 space-y-3 ${printFormat === 'a4' ? 'max-w-[440px] border border-slate-300 rounded-xl' : 'w-full'}`}>
+                  {/* Header with Store Logo */}
+                  <div className="text-center space-y-1">
+                    <div className="flex justify-center mb-1">
+                      <img
+                        src={storeProfile.logoUrl || '/logo_unggas.svg'}
+                        alt="Logo"
+                        className="w-12 h-12 object-contain"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo_unggas.svg'; }}
+                      />
                     </div>
-                    <div className="text-right">
-                      <span className="text-xs font-semibold text-emerald-800 uppercase tracking-wider bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        SLIP GAJI KARYAWAN
-                      </span>
-                      <h2 className="text-sm font-bold font-mono text-slate-900 mt-1">{s.slipNumber}</h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Periode: {formatDate(s.periodStart)} s/d {formatDate(s.periodEnd)}
-                      </p>
+                    <div className="font-bold text-sm sm:text-base tracking-tight">{storeProfile.name}</div>
+                    <div className="text-[10px] leading-tight text-slate-600">{storeProfile.address}</div>
+                    <div className="text-[10px] text-slate-600">Telp: {storeProfile.phone}</div>
+                  </div>
+
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  <div className="text-center font-bold text-xs tracking-wider uppercase text-slate-900">
+                    SLIP GAJI KARYAWAN
+                  </div>
+
+                  {/* Meta Info */}
+                  <div className="text-left text-[11px] space-y-0.5">
+                    <div className="flex justify-between gap-2">
+                      <span>No. Slip :</span>
+                      <span className="font-bold text-right">{s.slipNumber}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span>Periode :</span>
+                      <span className="font-bold text-right">{periodeStr}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span>Karyawan :</span>
+                      <span className="font-bold truncate max-w-[180px] text-right">{s.employeeName}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span>Bagian :</span>
+                      <span className="text-right">{empRole} ({empCode})</span>
+                    </div>
+                    {empPhone && empPhone !== '-' && (
+                      <div className="flex justify-between gap-2 text-slate-600 text-[10px]">
+                        <span>No. HP :</span>
+                        <span>{empPhone}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between gap-2">
+                      <span>Hadir :</span>
+                      <span className="font-bold text-right">{s.daysPresent || 1} Hari</span>
                     </div>
                   </div>
 
-                  {/* Employee Details & Info Grid Card */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3.5 shadow-2xs">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-900 font-bold flex items-center justify-center text-base border border-amber-200/80 shrink-0">
-                          {s.employeeName.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-slate-900 text-sm leading-tight">{s.employeeName}</h3>
-                          <p className="text-[11px] font-mono text-slate-500">Kode ID: {empCode}</p>
-                        </div>
-                      </div>
-                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${empStatus === 'Aktif' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-slate-100 text-slate-700 border border-slate-300'}`}>
-                        Status: {empStatus}
-                      </span>
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  {/* Breakdown */}
+                  <div className="text-left space-y-1.5 text-[11px] font-mono">
+                    <div className="flex justify-between">
+                      <span>GAJI POKOK</span>
+                      <span className="font-bold">{formatCurrency(s.totalDailyWage)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>TAMBAHAN</span>
+                      <span className="font-bold text-blue-700">+{formatCurrency(tambahan)}</span>
+                    </div>
+                    <div className="flex justify-between text-rose-700">
+                      <span>KASBON</span>
+                      <span className="font-bold">-{formatCurrency(s.deduction || 0)}</span>
                     </div>
 
-                    {/* 2 Info Cards: Posisi / Bagian & Nomor Whatsapp */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
-                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">POSISI / BAGIAN:</span>
-                        <span className="font-bold text-slate-900 mt-0.5 block">{empRole}</span>
-                      </div>
-                      <div className="bg-slate-50/80 p-2.5 rounded-lg border border-slate-200">
-                        <span className="text-[10px] text-slate-500 font-semibold block uppercase tracking-wider">NOMOR WHATSAPP:</span>
-                        <span className="font-semibold text-emerald-700 flex items-center gap-1 mt-0.5">
-                          <Phone className="w-3 h-3 text-emerald-600 inline shrink-0" />
-                          {empPhone}
-                        </span>
-                      </div>
+                    <div className="flex justify-between font-extrabold text-xs pt-1.5 border-t border-slate-900 text-slate-900">
+                      <span>TOTAL GAJI BERSIH</span>
+                      <span>{formatCurrency(s.netSalary)}</span>
                     </div>
                   </div>
 
-                  {/* Rincian Gaji Section matching input format */}
-                  <div className="bg-white border border-slate-300 rounded-xl overflow-hidden shadow-2xs text-xs">
-                    <div className="bg-slate-900 text-white px-4 py-2.5 font-bold uppercase tracking-wider text-xs">
-                      RINCIAN GAJI
-                    </div>
-                    
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <tbody className="divide-y divide-slate-200 font-medium text-xs">
-                          <tr className="hover:bg-slate-50/50">
-                            <td className="py-3 px-4 font-bold text-slate-800 border-r border-slate-200">Gaji Pokok:</td>
-                            <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">{formatCurrency(s.totalDailyWage)}</td>
-                          </tr>
-                          <tr className="hover:bg-slate-50/50">
-                            <td className="py-3 px-4 font-bold text-blue-700 border-r border-slate-200">Tambahan:</td>
-                            <td className="py-3 px-4 text-right font-mono font-bold text-blue-700">+{formatCurrency(s.bonus || s.totalOvertimePay || 0)}</td>
-                          </tr>
-                          <tr className="hover:bg-rose-50/50">
-                            <td className="py-3 px-4 font-bold text-rose-700 border-r border-slate-200">
-                              Kasbon (Pemotong):
-                            </td>
-                            <td className="py-3 px-4 text-right font-mono font-bold text-rose-600">
-                              -{formatCurrency(s.deduction || 0)}
-                            </td>
-                          </tr>
-                        </tbody>
-                        <tfoot className="bg-emerald-900 text-white font-bold text-sm">
-                          <tr>
-                            <td className="py-3.5 px-4 font-extrabold text-white border-r border-slate-800">Total Gaji Bersih:</td>
-                            <td className="py-3.5 px-4 text-right font-mono font-extrabold text-amber-300 text-base">{formatCurrency(s.netSalary)}</td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
+                  {/* Status Badge */}
+                  <div className="my-2 text-center">
+                    <span className="font-bold text-xs text-emerald-800 tracking-wider">
+                      *** {s.paymentStatus.toUpperCase()} ***
+                    </span>
                   </div>
 
+                  <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                  {/* Footer */}
+                  <div className="text-[11px] font-mono space-y-2 text-center">
+                    {s.notes && (
+                      <div className="text-[10px] text-slate-700 bg-slate-50 p-2 rounded border border-slate-200 text-left">
+                        <div className="font-bold uppercase text-[9px] text-slate-500 mb-0.5">CATATAN:</div>
+                        <div>{s.notes}</div>
+                      </div>
+                    )}
+                    <div className="pt-1 text-[11px] font-bold text-slate-900 tracking-wide">
+                      TERIMA KASIH
+                    </div>
+                  </div>
                 </div>
               );
             })()}

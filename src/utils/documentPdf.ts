@@ -85,23 +85,25 @@ export function generateWhatsAppMessage(
 
   if (data.type === 'salary') {
     const s = data.data;
+    const tambahan = (s.bonus || 0) || (s.totalOvertimePay || 0);
+    const periodeStr = s.periodStart === s.periodEnd
+      ? formatDate(s.periodStart)
+      : `${formatDate(s.periodStart)} s/d ${formatDate(s.periodEnd)}`;
+
     return (
       `*SLIP GAJI KARYAWAN - ${storeName}*\n` +
-      `No. Slip   : ${s.slipNumber}\n` +
-      `Nama       : ${s.employeeName} (${s.employeeRole})\n` +
-      `Periode    : ${formatDate(s.periodStart)} s/d ${formatDate(s.periodEnd)}\n` +
+      `No. Slip : ${s.slipNumber}\n` +
+      `Karyawan : ${s.employeeName} (${s.employeeRole})\n` +
+      `Periode  : ${periodeStr}\n` +
+      `Hadir    : ${s.daysPresent || 1} Hari\n` +
       `----------------------------------------\n` +
-      `Hari Hadir : ${s.daysPresent} Hari\n` +
-      `Upah Pokok : ${formatCurrency(s.totalDailyWage)}\n` +
-      (s.totalOvertimePay > 0 ? `Lembur     : +${formatCurrency(s.totalOvertimePay)}\n` : '') +
-      (s.allowance > 0 ? `Tunjangan  : +${formatCurrency(s.allowance)}\n` : '') +
-      (s.bonus > 0 ? `Bonus      : +${formatCurrency(s.bonus)}\n` : '') +
-      (s.deduction > 0 ? `Potongan   : -${formatCurrency(s.deduction)}\n` : '') +
+      `Gaji Pokok : ${formatCurrency(s.totalDailyWage)}\n` +
+      `Tambahan   : +${formatCurrency(tambahan)}\n` +
+      `Kasbon     : -${formatCurrency(s.deduction || 0)}\n` +
       `----------------------------------------\n` +
-      `*TOTAL DITERIMA (THP): ${formatCurrency(s.netSalary)}*\n` +
+      `*TOTAL GAJI BERSIH: ${formatCurrency(s.netSalary)}*\n` +
       `Status     : [${s.paymentStatus.toUpperCase()}]\n` +
       `----------------------------------------\n` +
-      `*Dokumen PDF Resmi:* Slip_Gaji_${s.slipNumber}.pdf\n` +
       `_${store.name}_`
     );
   }
@@ -913,44 +915,117 @@ export function createDocumentPdf(
   if (data.type === 'salary') {
     const s = data.data;
     const fileName = `Slip_Gaji_${s.slipNumber}.pdf`;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const tambahan = (s.bonus || 0) || (s.totalOvertimePay || 0);
+    const periodeStr = s.periodStart === s.periodEnd
+      ? formatDate(s.periodStart)
+      : `${formatDate(s.periodStart)} s/d ${formatDate(s.periodEnd)}`;
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text(store.name, 14, 22);
-    doc.setFontSize(14);
-    doc.setTextColor(16, 185, 129); // Emerald-600
-    doc.text('SLIP GAJI KARYAWAN', 196, 22, { align: 'right' });
-    doc.setFontSize(10);
-    doc.setTextColor(15, 23, 42);
-    doc.text(`No: ${s.slipNumber}`, 196, 28, { align: 'right' });
-    doc.text(`Karyawan: ${s.employeeName} (${s.employeeRole})`, 14, 32);
-
-    autoTable(doc, {
-      startY: 42,
-      head: [['Komponen', 'Keterangan', 'Jumlah']],
-      body: [
-        ['Hari Kehadiran', `${s.daysPresent} Hari`, formatCurrency(s.totalDailyWage)],
-        ['Lembur', `${s.totalOvertimeHours ? `${s.totalOvertimeHours} Jam (${s.daysOvertime} Hari)` : `${s.daysOvertime} Hari`}`, formatCurrency(s.totalOvertimePay)],
-        ['Uang Makan / Tunjangan', '-', formatCurrency(s.allowance)],
-        ['Bonus Tambahan', '-', formatCurrency(s.bonus)],
-        ['Potongan / Kasbon', '-', `-${formatCurrency(s.deduction)}`],
-        ['TOTAL BERSIH (THP)', 'Diterima Karyawan', formatCurrency(s.netSalary)]
-      ],
-      theme: 'striped',
-      headStyles: { fillColor: [236, 253, 245], textColor: [6, 95, 70] },
-      margin: { left: 14, right: 14 }
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: isA4 ? 'a4' : [80, 150]
     });
 
-    const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 12 : 120;
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text(
-      `Dokumen Slip Gaji Elektronik ini sah diterbitkan otomatis oleh sistem ${store.name}. Valid tanpa tanda tangan basah.`,
-      14,
-      finalY
-    );
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const leftX = isA4 ? 45 : 6;
+    const rightX = isA4 ? pageWidth - 45 : pageWidth - 6;
+    const centerX = pageWidth / 2;
+    let y = isA4 ? 22 : 12;
+
+    if (activeLogo) {
+      const logoSize = isA4 ? 14 : 10;
+      try {
+        doc.addImage(activeLogo, 'PNG', centerX - logoSize / 2, y, logoSize, logoSize);
+        y += logoSize + 4;
+      } catch {
+        // Ignore image error
+      }
+    }
+
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(isA4 ? 13 : 10);
+    doc.setTextColor(15, 23, 42);
+    doc.text(store.name, centerX, y, { align: 'center' });
+    y += 4.5;
+
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(isA4 ? 9 : 7.5);
+    doc.setTextColor(71, 85, 105);
+    if (store.address) {
+      doc.text(store.address, centerX, y, { align: 'center', maxWidth: rightX - leftX });
+      y += 4;
+    }
+    if (store.phone) {
+      doc.text(`Telp: ${store.phone}`, centerX, y, { align: 'center' });
+      y += 5;
+    }
+
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineDashPattern([1.5, 1.5], 0);
+    doc.line(leftX, y, rightX, y);
+    y += 5;
+
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(isA4 ? 11 : 9);
+    doc.setTextColor(15, 23, 42);
+    doc.text('SLIP GAJI KARYAWAN', centerX, y, { align: 'center' });
+    y += 6;
+
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(isA4 ? 9.5 : 8);
+    const metaRows: [string, string][] = [
+      ['No. Slip :', s.slipNumber],
+      ['Periode  :', periodeStr],
+      ['Karyawan :', s.employeeName],
+      ['Bagian   :', s.employeeRole],
+      ['Hadir    :', `${s.daysPresent || 1} Hari`],
+    ];
+    metaRows.forEach(([label, val]) => {
+      doc.text(label, leftX, y);
+      doc.text(val, rightX, y, { align: 'right' });
+      y += 4.5;
+    });
+
+    y += 1.5;
+    doc.line(leftX, y, rightX, y);
+    y += 5;
+
+    doc.text('GAJI POKOK', leftX, y);
+    doc.text(formatCurrency(s.totalDailyWage), rightX, y, { align: 'right' });
+    y += 4.5;
+
+    doc.text('TAMBAHAN', leftX, y);
+    doc.text(`+${formatCurrency(tambahan)}`, rightX, y, { align: 'right' });
+    y += 4.5;
+
+    doc.setTextColor(190, 18, 60);
+    doc.text('KASBON', leftX, y);
+    doc.text(`-${formatCurrency(s.deduction || 0)}`, rightX, y, { align: 'right' });
+    y += 3;
+
+    doc.setLineDashPattern([], 0);
+    doc.setDrawColor(15, 23, 42);
+    doc.line(leftX, y, rightX, y);
+    y += 5;
+
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(isA4 ? 10.5 : 9);
+    doc.setTextColor(15, 23, 42);
+    doc.text('TOTAL GAJI BERSIH', leftX, y);
+    doc.text(formatCurrency(s.netSalary), rightX, y, { align: 'right' });
+    y += 7;
+
+    doc.setTextColor(6, 95, 70);
+    doc.text(`*** ${s.paymentStatus.toUpperCase()} ***`, centerX, y, { align: 'center' });
+    y += 5;
+
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineDashPattern([1.5, 1.5], 0);
+    doc.line(leftX, y, rightX, y);
+    y += 6;
+
+    doc.setTextColor(15, 23, 42);
+    doc.text('TERIMA KASIH', centerX, y, { align: 'center' });
 
     return { doc, fileName };
   }

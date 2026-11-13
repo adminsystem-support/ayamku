@@ -19,7 +19,9 @@ import {
   Share2,
   WalletCards,
   Trash2,
-  Edit3
+  Edit3,
+  Lock,
+  RotateCcw
 } from 'lucide-react';
 import { 
   Employee, 
@@ -100,6 +102,24 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
     notes: string;
   }>>({});
 
+  // Excluded (absent) employee IDs per date so admin doesn't need to leave empty inputs
+  const [excludedEmpIdsByDate, setExcludedEmpIdsByDate] = useState<Record<string, string[]>>(() => {
+    try {
+      const saved = localStorage.getItem('ayamku_excluded_slip_emps');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ayamku_excluded_slip_emps', JSON.stringify(excludedEmpIdsByDate));
+    } catch {
+      // Ignore storage quota issues
+    }
+  }, [excludedEmpIdsByDate]);
+
   // Helper: Get Indonesian Day Name
   const getDayNameID = (dateStr: string) => {
     if (!dateStr) return '';
@@ -142,29 +162,62 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
     });
   }, [employees, slipDate]);
 
+  // Map of employeeId -> existing daily slip for selected slipDate
+  const existingSlipsByEmpForDate = useMemo(() => {
+    const map: Record<string, SalarySlip> = {};
+    salarySlips.forEach(s => {
+      const start = s.periodStart || s.generatedDate.substring(0, 10);
+      const end = s.periodEnd || s.generatedDate.substring(0, 10);
+      if (start === slipDate && end === slipDate) {
+        map[s.employeeId] = s;
+      }
+    });
+    return map;
+  }, [salarySlips, slipDate]);
+
+  const savedSlipsCountForDate = Object.keys(existingSlipsByEmpForDate).length;
+  const hasSavedSlipsForDate = savedSlipsCountForDate > 0;
+
+  const excludedIdsForDate = excludedEmpIdsByDate[slipDate] || [];
+
+  // Active employees not deleted/excluded on selected slipDate
+  const includedActiveEmployees = useMemo(() => {
+    return activeEmployees.filter(emp => !excludedIdsForDate.includes(emp.id));
+  }, [activeEmployees, excludedIdsForDate]);
+
   // Filtered active employees for slip entry search
   const filteredActiveEmployees = useMemo(() => {
-    if (!slipSearchQuery.trim()) return activeEmployees;
+    if (!slipSearchQuery.trim()) return includedActiveEmployees;
     const q = slipSearchQuery.toLowerCase();
-    return activeEmployees.filter(emp => 
+    return includedActiveEmployees.filter(emp => 
       emp.name.toLowerCase().includes(q) || emp.role.toLowerCase().includes(q) || emp.code.toLowerCase().includes(q)
     );
-  }, [activeEmployees, slipSearchQuery]);
+  }, [includedActiveEmployees, slipSearchQuery]);
 
-  // Initialize/Sync slip entries whenever slipDate, activeEmployees, or kasbonRecords change
+  const handleExcludeEmployeeForDate = (empId: string) => {
+    if (hasSavedSlipsForDate) return;
+    setExcludedEmpIdsByDate(prev => {
+      const current = prev[slipDate] || [];
+      if (current.includes(empId)) return prev;
+      return { ...prev, [slipDate]: [...current, empId] };
+    });
+  };
+
+  const handleRestoreAllForDate = () => {
+    if (hasSavedSlipsForDate) return;
+    setExcludedEmpIdsByDate(prev => {
+      const next = { ...prev };
+      delete next[slipDate];
+      return next;
+    });
+  };
+
+  // Initialize/Sync slip entries whenever slipDate, activeEmployees, or salarySlips change
   useEffect(() => {
     const mapped: Record<string, { wage: number; addition: number; kasbon: number; notes: string }> = {};
 
     employees.forEach(emp => {
-      const defaultWage = 0;
-      const defaultAddition = 0;
-      const defaultKasbon = 0;
-
-      // Check if a salary slip already exists for this employee on slipDate
-      const existingSlip = salarySlips.find(s => 
-        s.employeeId === emp.id && 
-        (s.periodStart === slipDate || s.periodEnd === slipDate || s.generatedDate.startsWith(slipDate))
-      );
+      const existingSlip = existingSlipsByEmpForDate[emp.id];
 
       if (existingSlip) {
         mapped[emp.id] = {
@@ -175,26 +228,26 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
         };
       } else {
         mapped[emp.id] = {
-          wage: defaultWage,
-          addition: defaultAddition,
-          kasbon: defaultKasbon,
+          wage: 0,
+          addition: 0,
+          kasbon: 0,
           notes: '',
         };
       }
     });
 
     setSlipEntries(mapped);
-  }, [slipDate, employees, kasbonRecords, salarySlips]);
+  }, [slipDate, employees, existingSlipsByEmpForDate]);
 
-  // Batch summary totals for slip entries on selected date
+  // Batch summary totals for included slip entries on selected date
   const batchSummary = useMemo(() => {
     let totalWage = 0;
     let totalAddition = 0;
     let totalKasbon = 0;
     let totalNet = 0;
 
-    activeEmployees.forEach(emp => {
-      const entry = slipEntries[emp.id] || { wage: emp.dailyWage || 100000, addition: 0, kasbon: 0, notes: '' };
+    includedActiveEmployees.forEach(emp => {
+      const entry = slipEntries[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' };
       const w = Number(entry.wage) || 0;
       const a = Number(entry.addition) || 0;
       const k = Number(entry.kasbon) || 0;
@@ -207,12 +260,14 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
     });
 
     return { totalWage, totalAddition, totalKasbon, totalNet };
-  }, [activeEmployees, slipEntries]);
+  }, [includedActiveEmployees, slipEntries]);
 
   // Save single employee slip
   const handleSaveSingleSlip = (emp: Employee) => {
+    if (existingSlipsByEmpForDate[emp.id]) return;
+
     const entry = slipEntries[emp.id] || {
-      wage: emp.dailyWage || 100000,
+      wage: 0,
       addition: 0,
       kasbon: 0,
       notes: ''
@@ -274,14 +329,16 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
     setTimeout(() => setPayrollSuccessNotification(null), 5000);
   };
 
-  // Batch Save all active employees' slips for selected slipDate
+  // Batch Save all included employees' slips for selected slipDate (strictly prevents re-saving same date)
   const handleSaveAllSlips = () => {
-    if (activeEmployees.length === 0) return;
+    if (hasSavedSlipsForDate || includedActiveEmployees.length === 0) return;
 
     let savedCount = 0;
-    activeEmployees.forEach(emp => {
+    includedActiveEmployees.forEach(emp => {
+      if (existingSlipsByEmpForDate[emp.id]) return;
+
       const entry = slipEntries[emp.id] || {
-        wage: emp.dailyWage || 100000,
+        wage: 0,
         addition: 0,
         kasbon: 0,
         notes: ''
@@ -339,9 +396,11 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
       savedCount++;
     });
 
-    setActiveTab('riwayat_gaji');
-    setPayrollSuccessNotification(`Berhasil menyimpan ${savedCount} Slip Gaji untuk tanggal ${getDayNameID(slipDate)}, ${formatDate(slipDate)}!`);
-    setTimeout(() => setPayrollSuccessNotification(null), 5000);
+    if (savedCount > 0) {
+      setActiveTab('riwayat_gaji');
+      setPayrollSuccessNotification(`Berhasil menyimpan ${savedCount} Slip Gaji untuk tanggal ${getDayNameID(slipDate)}, ${formatDate(slipDate)}!`);
+      setTimeout(() => setPayrollSuccessNotification(null), 5000);
+    }
   };
 
   // Filtered salary slips for History tab
@@ -745,6 +804,47 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
             </div>
           </div>
 
+          {/* Locked Date Banner (Sudah pernah di-save) */}
+          {hasSavedSlipsForDate && (
+            <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl flex items-start sm:items-center justify-between gap-3 text-xs text-amber-950 shadow-2xs">
+              <div className="flex items-start sm:items-center gap-2.5">
+                <Lock className="w-4 h-4 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
+                <div>
+                  <span className="font-bold block sm:inline">
+                    Slip gaji tanggal {getDayNameID(slipDate)}, {formatDateDDNopYYYY(slipDate)} sudah pernah disimpan ({savedSlipsCountForDate} slip) dan terkunci.
+                  </span>{' '}
+                  <span className="text-amber-800">
+                    Data tidak dapat disimpan ulang. Silakan lihat atau cetak melalui tab Riwayat & Cetak Slip Periode.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('riwayat_gaji')}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] shrink-0 cursor-pointer transition-colors"
+              >
+                Lihat Riwayat
+              </button>
+            </div>
+          )}
+
+          {/* Excluded Employees Restore Banner */}
+          {!hasSavedSlipsForDate && excludedIdsForDate.length > 0 && (
+            <div className="px-3.5 py-2.5 bg-slate-100 border border-slate-300 rounded-xl flex items-center justify-between gap-3 text-xs text-slate-700">
+              <span>
+                <strong className="text-slate-900">{excludedIdsForDate.length} karyawan</strong> dihapus dari daftar hari ini (tidak masuk).
+              </span>
+              <button
+                type="button"
+                onClick={handleRestoreAllForDate}
+                className="inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 rounded-lg font-bold text-[11px] cursor-pointer transition-colors"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Tampilkan Kembali ({excludedIdsForDate.length})</span>
+              </button>
+            </div>
+          )}
+
           {/* Table / Batch Entry */}
           <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-white/60 shadow-md overflow-hidden">
             <div className="p-3.5 border-b border-slate-200 bg-slate-50/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -756,8 +856,16 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                   {getDayNameID(slipDate)}, {formatDateDDNopYYYY(slipDate)}
                 </span>
               </div>
-              <div className="text-xs text-slate-600 font-medium">
-                Total Karyawan Aktif: <strong className="text-slate-900">{filteredActiveEmployees.length} orang</strong>
+              <div className="text-xs text-slate-600 font-medium flex items-center gap-2">
+                <span>
+                  Karyawan Masuk Hari Ini: <strong className="text-slate-900">{filteredActiveEmployees.length} orang</strong>
+                </span>
+                {hasSavedSlipsForDate && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
+                    <Lock className="w-3 h-3" />
+                    Tersimpan
+                  </span>
+                )}
               </div>
             </div>
 
@@ -771,24 +879,32 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                     <th className="py-2.5 px-3 text-right">Tambahan</th>
                     <th className="py-2.5 px-3 text-right text-rose-700">Kasbon</th>
                     <th className="py-2.5 px-3 text-right">Total</th>
+                    <th className="py-2.5 px-3 text-center w-24">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredActiveEmployees.map((emp) => {
-                    const entry = slipEntries[emp.id] || { wage: emp.dailyWage || 100000, addition: 0, kasbon: 0, notes: '' };
-                    const activeKasbon = getEmployeeOutstandingKasbon(emp.id);
+                    const entry = slipEntries[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' };
                     const totalWage = Number(entry.wage) || 0;
                     const additionVal = Number(entry.addition) || 0;
                     const kasbonVal = Number(entry.kasbon) || 0;
                     const totalNet = Math.max(0, totalWage + additionVal - kasbonVal);
+                    const isEmpSaved = Boolean(existingSlipsByEmpForDate[emp.id]);
 
                     return (
-                      <tr key={emp.id} className="hover:bg-slate-50/80">
+                      <tr key={emp.id} className={hasSavedSlipsForDate ? 'bg-slate-50/60' : 'hover:bg-slate-50/80'}>
                         {/* 1. Nama Karyawan */}
                         <td className="py-2.5 px-3">
                           <div className="space-y-0.5">
-                            <span className="font-bold text-slate-900 block">{emp.name}</span>
-                            <span className="text-[10px] text-slate-500 font-medium">{emp.role} ({emp.code})</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-900">{emp.name}</span>
+                              {isEmpSaved && (
+                                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                  ✓ Tersimpan
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-medium block">{emp.role} ({emp.code})</span>
                           </div>
                         </td>
 
@@ -797,9 +913,12 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                           <input
                             type="text"
                             inputMode="numeric"
+                            disabled={hasSavedSlipsForDate}
                             value={entry.wage === 0 ? '' : entry.wage.toLocaleString('id-ID')}
+                            placeholder="0"
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => {
+                              if (hasSavedSlipsForDate) return;
                               const raw = e.target.value.replace(/\./g, '').replace(',', '.');
                               const val = raw === '' ? 0 : parseFloat(raw) || 0;
                               setSlipEntries(prev => ({
@@ -807,7 +926,11 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                                 [emp.id]: { ...(prev[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' }), wage: val }
                               }));
                             }}
-                            className="w-32 text-right p-1.5 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                            className={`w-32 text-right p-1.5 text-xs font-mono font-bold border rounded-lg focus:outline-hidden ${
+                              hasSavedSlipsForDate
+                                ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed'
+                                : 'bg-white border-slate-300 text-slate-900 focus:ring-2 focus:ring-amber-500'
+                            }`}
                           />
                         </td>
 
@@ -816,10 +939,12 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                           <input
                             type="text"
                             inputMode="numeric"
+                            disabled={hasSavedSlipsForDate}
                             value={entry.addition === 0 ? '' : entry.addition.toLocaleString('id-ID')}
                             placeholder="0"
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => {
+                              if (hasSavedSlipsForDate) return;
                               const raw = e.target.value.replace(/\./g, '').replace(',', '.');
                               const val = raw === '' ? 0 : parseFloat(raw) || 0;
                               setSlipEntries(prev => ({
@@ -827,19 +952,25 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                                 [emp.id]: { ...(prev[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' }), addition: val }
                               }));
                             }}
-                            className="w-32 text-right p-1.5 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-blue-700 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                            className={`w-32 text-right p-1.5 text-xs font-mono font-bold border rounded-lg focus:outline-hidden ${
+                              hasSavedSlipsForDate
+                                ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed'
+                                : 'bg-white border-slate-300 text-blue-700 focus:ring-2 focus:ring-amber-500'
+                            }`}
                           />
                         </td>
 
-                        {/* 4. Kasbon (Kembalikan ke warna merah pemotong) */}
+                        {/* 4. Kasbon (Pemotong) */}
                         <td className="py-2.5 px-3 text-right">
                           <input
                             type="text"
                             inputMode="numeric"
+                            disabled={hasSavedSlipsForDate}
                             value={entry.kasbon === 0 ? '' : entry.kasbon.toLocaleString('id-ID')}
                             placeholder="0"
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => {
+                              if (hasSavedSlipsForDate) return;
                               const raw = e.target.value.replace(/\./g, '').replace(',', '.');
                               const val = raw === '' ? 0 : parseFloat(raw) || 0;
                               setSlipEntries(prev => ({
@@ -847,7 +978,11 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                                 [emp.id]: { ...(prev[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' }), kasbon: val }
                               }));
                             }}
-                            className="w-32 text-right p-1.5 text-xs font-mono font-bold bg-rose-50/50 border border-rose-300 rounded-lg text-rose-700 focus:ring-2 focus:ring-rose-500 focus:outline-hidden"
+                            className={`w-32 text-right p-1.5 text-xs font-mono font-bold border rounded-lg focus:outline-hidden ${
+                              hasSavedSlipsForDate
+                                ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed'
+                                : 'bg-rose-50/50 border-rose-300 text-rose-700 focus:ring-2 focus:ring-rose-500'
+                            }`}
                           />
                         </td>
 
@@ -855,14 +990,50 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                         <td className="py-2.5 px-3 text-right font-mono font-extrabold text-emerald-700 text-sm">
                           {formatCurrency(totalNet)}
                         </td>
+
+                        {/* 6. Aksi Hapus Karyawan Tidak Masuk */}
+                        <td className="py-2.5 px-3 text-center">
+                          {hasSavedSlipsForDate ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 text-slate-500 text-[10px] font-bold">
+                              <Lock className="w-3 h-3" />
+                              Terkunci
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleExcludeEmployeeForDate(emp.id)}
+                              title="Hapus dari daftar hari ini (karyawan tidak masuk)"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Hapus</span>
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
 
                   {filteredActiveEmployees.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-400">
-                        Tidak ada karyawan aktif yang cocok dengan pencarian.
+                      <td colSpan={6} className="py-8 text-center text-slate-400">
+                        {includedActiveEmployees.length === 0 && excludedIdsForDate.length > 0 ? (
+                          <div className="space-y-2">
+                            <p>Semua karyawan dihapus dari daftar tanggal ini.</p>
+                            {!hasSavedSlipsForDate && (
+                              <button
+                                type="button"
+                                onClick={handleRestoreAllForDate}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold cursor-pointer"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>Tampilkan Kembali Semua Karyawan</span>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          'Tidak ada karyawan aktif yang cocok dengan pencarian.'
+                        )}
                       </td>
                     </tr>
                   )}
@@ -873,20 +1044,43 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
             {/* MOBILE CARDS */}
             <div className="block sm:hidden divide-y divide-slate-100 p-2.5 space-y-3">
               {filteredActiveEmployees.map((emp) => {
-                const entry = slipEntries[emp.id] || { wage: emp.dailyWage || 100000, addition: 0, kasbon: 0, notes: '' };
-                const activeKasbon = getEmployeeOutstandingKasbon(emp.id);
+                const entry = slipEntries[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' };
                 const totalWage = Number(entry.wage) || 0;
                 const additionVal = Number(entry.addition) || 0;
                 const kasbonVal = Number(entry.kasbon) || 0;
                 const totalNet = Math.max(0, totalWage + additionVal - kasbonVal);
+                const isEmpSaved = Boolean(existingSlipsByEmpForDate[emp.id]);
 
                 return (
-                  <div key={emp.id} className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3 text-xs shadow-2xs">
-                    <div className="flex justify-between items-start">
+                  <div key={emp.id} className={`p-3.5 rounded-xl border space-y-3 text-xs shadow-2xs ${hasSavedSlipsForDate ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-200'}`}>
+                    <div className="flex justify-between items-start gap-2">
                       <div>
-                        <span className="font-bold text-slate-900 text-sm block">{emp.name}</span>
-                        <span className="text-[10px] text-slate-500">{emp.role} ({emp.code})</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-slate-900 text-sm">{emp.name}</span>
+                          {isEmpSaved && (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                              ✓ Tersimpan
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-slate-500 block">{emp.role} ({emp.code})</span>
                       </div>
+                      {!hasSavedSlipsForDate ? (
+                        <button
+                          type="button"
+                          onClick={() => handleExcludeEmployeeForDate(emp.id)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold cursor-pointer shrink-0"
+                          title="Hapus (tidak masuk)"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Hapus</span>
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-200/70 text-slate-600 text-[10px] font-bold shrink-0">
+                          <Lock className="w-3 h-3" />
+                          Terkunci
+                        </span>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
@@ -895,9 +1089,12 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                         <input
                           type="text"
                           inputMode="numeric"
+                          disabled={hasSavedSlipsForDate}
                           value={entry.wage === 0 ? '' : entry.wage.toLocaleString('id-ID')}
+                          placeholder="0"
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
+                            if (hasSavedSlipsForDate) return;
                             const raw = e.target.value.replace(/\./g, '').replace(',', '.');
                             const val = raw === '' ? 0 : parseFloat(raw) || 0;
                             setSlipEntries(prev => ({
@@ -905,7 +1102,11 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                               [emp.id]: { ...(prev[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' }), wage: val }
                             }));
                           }}
-                          className="w-full text-right p-1.5 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded-lg text-slate-900"
+                          className={`w-full text-right p-1.5 text-xs font-mono font-bold border rounded-lg ${
+                            hasSavedSlipsForDate
+                              ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed'
+                              : 'bg-slate-50 border-slate-300 text-slate-900'
+                          }`}
                         />
                       </div>
 
@@ -914,10 +1115,12 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                         <input
                           type="text"
                           inputMode="numeric"
+                          disabled={hasSavedSlipsForDate}
                           value={entry.addition === 0 ? '' : entry.addition.toLocaleString('id-ID')}
                           placeholder="0"
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => {
+                            if (hasSavedSlipsForDate) return;
                             const raw = e.target.value.replace(/\./g, '').replace(',', '.');
                             const val = raw === '' ? 0 : parseFloat(raw) || 0;
                             setSlipEntries(prev => ({
@@ -925,7 +1128,11 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                               [emp.id]: { ...(prev[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' }), addition: val }
                             }));
                           }}
-                          className="w-full text-right p-1.5 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded-lg text-blue-700"
+                          className={`w-full text-right p-1.5 text-xs font-mono font-bold border rounded-lg ${
+                            hasSavedSlipsForDate
+                              ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed'
+                              : 'bg-slate-50 border-slate-300 text-blue-700'
+                          }`}
                         />
                       </div>
                     </div>
@@ -935,10 +1142,12 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                       <input
                         type="text"
                         inputMode="numeric"
+                        disabled={hasSavedSlipsForDate}
                         value={entry.kasbon === 0 ? '' : entry.kasbon.toLocaleString('id-ID')}
                         placeholder="0"
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => {
+                          if (hasSavedSlipsForDate) return;
                           const raw = e.target.value.replace(/\./g, '').replace(',', '.');
                           const val = raw === '' ? 0 : parseFloat(raw) || 0;
                           setSlipEntries(prev => ({
@@ -946,7 +1155,11 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                             [emp.id]: { ...(prev[emp.id] || { wage: 0, addition: 0, kasbon: 0, notes: '' }), kasbon: val }
                           }));
                         }}
-                        className="w-full text-right p-1.5 text-xs font-mono font-bold bg-rose-50/50 border border-rose-300 rounded-lg text-rose-700 focus:ring-2 focus:ring-rose-500"
+                        className={`w-full text-right p-1.5 text-xs font-mono font-bold border rounded-lg ${
+                          hasSavedSlipsForDate
+                            ? 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed'
+                            : 'bg-rose-50/50 border-rose-300 text-rose-700 focus:ring-2 focus:ring-rose-500'
+                        }`}
                       />
                     </div>
 
@@ -985,16 +1198,25 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
 
             <button
               type="button"
-              disabled={activeEmployees.length === 0}
+              disabled={hasSavedSlipsForDate || includedActiveEmployees.length === 0}
               onClick={handleSaveAllSlips}
               className={`px-6 py-3 font-bold rounded-xl text-xs shadow-xs transition-colors flex items-center justify-center gap-2 shrink-0 ${
-                activeEmployees.length === 0
-                  ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                hasSavedSlipsForDate || includedActiveEmployees.length === 0
+                  ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
                   : 'bg-amber-500 hover:bg-amber-600 text-white cursor-pointer'
               }`}
             >
-              <Receipt className="w-4 h-4" />
-              <span>Simpan Semua Slip Gaji ({activeEmployees.length} Karyawan)</span>
+              {hasSavedSlipsForDate ? (
+                <>
+                  <Lock className="w-4 h-4" />
+                  <span>Sudah Disimpan (Terkunci)</span>
+                </>
+              ) : (
+                <>
+                  <Receipt className="w-4 h-4" />
+                  <span>Simpan Semua Slip Gaji ({includedActiveEmployees.length} Karyawan)</span>
+                </>
+              )}
             </button>
           </div>
 
@@ -1055,85 +1277,93 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
             )}
           </div>
 
-          {/* Direct Preview Slip Card */}
+          {/* Direct Preview Slip Card (Simple Nota Style) */}
           {selectedEmpForRiwayat ? (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xl p-6 sm:p-8 max-w-3xl mx-auto space-y-6">
-              
-              {/* Slip Header */}
-              <div className="flex justify-between items-start border-b border-slate-200 pb-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900 tracking-tight">{storeName}</h2>
-                  <p className="text-xs text-slate-500">Slip Gaji Karyawan Mingguan / Periode</p>
+            <div className="space-y-4">
+              <div className="max-w-[440px] mx-auto bg-white rounded-xl border border-slate-300 shadow-sm p-5 sm:p-6 font-mono text-xs text-slate-900 space-y-3">
+                {/* Header Nota */}
+                <div className="text-center space-y-1">
+                  <div className="font-bold text-sm sm:text-base tracking-tight">{storeName}</div>
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                    SLIP GAJI KARYAWAN
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-xs font-bold text-amber-800 uppercase tracking-wider bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
-                    SLIP GAJI RESMI
-                  </span>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Periode: {formatDate(riwayatStartDate)} s/d {formatDate(riwayatEndDate)}
-                  </p>
-                </div>
-              </div>
 
-              {/* Employee Details Info */}
-              <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 space-y-1 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Nama Karyawan:</span>
-                  <strong className="text-slate-900 font-bold">{selectedEmpForRiwayat.name}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Bagian / Jabatan:</span>
-                  <span className="text-slate-800 font-medium">{selectedEmpForRiwayat.role} ({selectedEmpForRiwayat.code})</span>
-                </div>
-              </div>
+                <div className="border-b border-dashed border-slate-400 my-2"></div>
 
-              {/* Breakdown Table matching period format: Gaji Pokok, Tambahan, Kasbon, Total Gaji Bersih */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white text-xs">
-                <div className="bg-slate-900 text-white px-4 py-2.5 font-bold uppercase tracking-wider text-xs flex items-center justify-between">
-                  <span>RINCIAN GAJI PERIODE</span>
-                  <span className="text-amber-300 font-mono text-[11px]">
-                    {aggregatedRiwayat.daysPresentCount} Hari Hadir ({aggregatedRiwayat.count} Hari Slip Tercatat)
+                {/* Meta Info */}
+                <div className="text-left text-[11px] space-y-0.5">
+                  <div className="flex justify-between gap-2">
+                    <span>Periode :</span>
+                    <span className="font-bold text-right">
+                      {riwayatStartDate === riwayatEndDate
+                        ? formatDate(riwayatStartDate)
+                        : `${formatDate(riwayatStartDate)} s/d ${formatDate(riwayatEndDate)}`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span>Karyawan :</span>
+                    <span className="font-bold text-right">{selectedEmpForRiwayat.name}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span>Bagian :</span>
+                    <span className="text-right">{selectedEmpForRiwayat.role} ({selectedEmpForRiwayat.code})</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span>Hadir :</span>
+                    <span className="font-bold text-right">{aggregatedRiwayat.daysPresentCount} Hari ({aggregatedRiwayat.count} Slip)</span>
+                  </div>
+                </div>
+
+                <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                {/* Rincian Gaji Nota */}
+                <div className="text-left space-y-1.5 text-[11px]">
+                  <div className="flex justify-between">
+                    <span>GAJI POKOK</span>
+                    <span className="font-bold">{formatCurrency(aggregatedRiwayat.totalWage)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>TAMBAHAN</span>
+                    <span className="font-bold text-blue-700">+{formatCurrency(aggregatedRiwayat.totalAddition)}</span>
+                  </div>
+                  <div className="flex justify-between text-rose-700">
+                    <span>KASBON</span>
+                    <span className="font-bold">-{formatCurrency(aggregatedRiwayat.totalKasbon)}</span>
+                  </div>
+
+                  <div className="flex justify-between font-extrabold text-xs pt-1.5 border-t border-slate-900 text-slate-900">
+                    <span>TOTAL GAJI BERSIH</span>
+                    <span>{formatCurrency(aggregatedRiwayat.totalNet)}</span>
+                  </div>
+                </div>
+
+                <div className="my-2 text-center">
+                  <span className="font-bold text-[11px] text-emerald-800 tracking-wider">
+                    *** SUDAH DIBAYAR ***
                   </span>
                 </div>
-                <table className="w-full text-left border-collapse">
-                  <tbody className="divide-y divide-slate-200 font-medium text-xs">
-                    <tr className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-bold text-slate-800">
-                        Total Gaji Pokok:
-                        <span className="text-[10px] text-slate-500 font-normal block">Akumulasi gaji harian dalam periode terpilih</span>
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">{formatCurrency(aggregatedRiwayat.totalWage)}</td>
-                    </tr>
-                    <tr className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-bold text-blue-700">
-                        Total Tambahan:
-                        <span className="text-[10px] text-slate-500 font-normal block">Akumulasi bonus / lembur harian</span>
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-blue-700">+{formatCurrency(aggregatedRiwayat.totalAddition)}</td>
-                    </tr>
-                    <tr className="hover:bg-rose-50/50">
-                      <td className="py-3 px-4 font-bold text-rose-700">
-                        Total Kasbon (Pemotong):
-                        <span className="text-[10px] text-slate-500 font-normal block">Akumulasi potongan kasbon harian dalam periode terpilih</span>
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-rose-600">
-                        -{formatCurrency(aggregatedRiwayat.totalKasbon)}
-                      </td>
-                    </tr>
-                  </tbody>
-                  <tfoot className="bg-emerald-900 text-white font-bold text-sm">
-                    <tr>
-                      <td className="py-3.5 px-4 font-extrabold text-white">Total Gaji Bersih Diterima:</td>
-                      <td className="py-3.5 px-4 text-right font-mono font-extrabold text-amber-300 text-base">
-                        {formatCurrency(aggregatedRiwayat.totalNet)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
+
+                <div className="border-b border-dashed border-slate-400 my-2"></div>
+
+                <div className="text-center text-[11px] font-bold tracking-wide">
+                  TERIMA KASIH
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handlePrintRiwayatSlip}
+                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-sans font-bold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4 text-white" />
+                    <span>Cetak / Bagikan Slip Nota</span>
+                  </button>
+                </div>
               </div>
 
               {/* Rincian Slip Harian dalam Periode */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white text-xs">
+              <div className="max-w-2xl mx-auto border border-slate-200 rounded-xl overflow-hidden bg-white text-xs shadow-xs">
                 <div className="bg-slate-100 text-slate-700 px-4 py-2.5 font-bold uppercase tracking-wider text-[11px] border-b border-slate-200 flex items-center justify-between">
                   <span>Rincian Slip Harian dalam Rentang Tanggal</span>
                   <span className="text-slate-500 text-[10px] font-mono">{employeeSlipsInRange.length} Data Slip</span>
@@ -1148,6 +1378,7 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                           <th className="py-2 px-3 text-right">Tambahan</th>
                           <th className="py-2 px-3 text-right text-rose-700">Kasbon</th>
                           <th className="py-2 px-3 text-right">Total Bersih</th>
+                          <th className="py-2 px-3 text-center w-16">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -1173,6 +1404,16 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                                 <td className="py-2 px-3 text-right font-mono font-bold text-emerald-700">
                                   {formatCurrency(slip.netSalary)}
                                 </td>
+                                <td className="py-2 px-3 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSlipToDelete(slip)}
+                                    title="Hapus slip tanggal ini"
+                                    className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
                               </tr>
                             );
                           })}
@@ -1185,19 +1426,6 @@ export const AttendanceSalary: React.FC<AttendanceSalaryProps> = ({
                   </div>
                 )}
               </div>
-
-              {/* Action Print Button inside preview */}
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={handlePrintRiwayatSlip}
-                  className="px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
-                >
-                  <Printer className="w-4 h-4 text-white" />
-                  <span>Cetak Slip Gaji Resmi</span>
-                </button>
-              </div>
-
             </div>
           ) : (
             <div className="bg-white rounded-2xl p-12 text-center text-slate-400 text-xs">
